@@ -1818,6 +1818,30 @@ const alertStartEnd = (src, from) => {
     `rating=${fuseRating} ceramic=${fuseCeramic} timeLag=${fuseTimelag} placement=${fusePlacement}`
   );
 
+  // 8b. The BREAKING CAPACITY letter, and the parts that must not be substituted. "Ceramic
+  //     time-lag 5 A" is still incomplete: a 5x20mm part earns `H` only by interrupting 1500 A,
+  //     while `L` is tested to just 35 A and can fail to clear a mains fault. The automotive-fuse
+  //     trap is the other one people walk into — those are ~32 VDC parts.
+  const breakingCapacity = /\bH\b.*1500 A|1500 A/i.test(handoff) && /\bL\b.*35 A|35 A/i.test(handoff);
+  const autoFuseWarned = /automotive/i.test(handoff) && /32\s*V/i.test(handoff);
+  record(
+    'Fuse breaking capacity (H vs L) and the automotive trap are documented',
+    breakingCapacity && autoFuseWarned,
+    `breakingCapacity=${breakingCapacity} automotiveWarned=${autoFuseWarned}`
+  );
+
+  // 8c. The handoff must state the FIXED architecture and warn against substitution. It is read by
+  //     whoever wires the board; leaving a viable-looking alternative in it invites someone to
+  //     build a different device than the firmware supports. Design alternatives belong in the
+  //     design doc, not the build instructions.
+  const buildFixed = /ACS712 \+ ZMPT101B/i.test(handoff) && /do not substitute/i.test(handoff);
+  const pzemExcluded = /do not connect a UART energy-meter module|PZEM-004T\) to GPIO 33/i.test(handoff);
+  record(
+    'Handoff states the fixed build and excludes substitutes',
+    buildFixed && pzemExcluded,
+    `buildFixed=${buildFixed} pzemExcluded=${pzemExcluded}`
+  );
+
   // 9. SENSOR IDENTIFICATION. "Fit the voltage sensor" is not actionable — an "AC voltage sensor"
   //    can be one of several devices, and only some can produce real power. The DC-output type
   //    reports a plausible voltage and even improves the VA figure, while being structurally

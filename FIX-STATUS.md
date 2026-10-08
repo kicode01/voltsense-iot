@@ -12,7 +12,7 @@ npm run verify  →  exit 0
   typecheck ...... 0 errors        (tsc --noEmit, checkJs)
   unit tests ..... 50/50
   build .......... ok
-  harness ........ 143/143  (behavioural, mutation-tested)
+  harness ........ 145/145  (behavioural, mutation-tested)
 ```
 
 ## Fixed — software (all closed)
@@ -51,7 +51,7 @@ prompted the 2026-10-08 rewrite:
 | **No software overcurrent cutoff** | **Added.** `OVERCURRENT_LIMIT_A 4.50f`, debounced, its own per-port streak, opens the relay with `force=true` so derating cannot suppress a safety trip. | firmware `checkOvercurrent()` |
 | **Relay derating never designed in** | **Added.** One choke point (`runRelaySwitch`), per-port 2 s dwell + 6-per-60 s rolling cap; suppressed commands are repaired in the DB. | harness asserts both halves |
 | **Not deployed** | **Deployed.** Vercel (front + `/api/*`) and Firebase Hosting, both verified live. | `/sw.js` FCM import present on both; `/api/alert` → 405 GET / 401 bad secret |
-| Harness 91/91 | **143/143** | gate output above |
+| Harness 91/91 | **145/145** | gate output above |
 
 ### Also fixed (2026-10-05 second audit pass)
 

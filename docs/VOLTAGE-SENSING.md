@@ -235,3 +235,48 @@ adopted (2026-10-08):
 
 The numbers can be cross-checked against EmonLib on the bench, which is a stronger validation than
 trusting either implementation alone.
+
+---
+
+## 7. Alternatives considered
+
+Design history for the report. **The build is ACS712 + ZMPT101B** — none of this is wiring
+instruction, and substituting a part here is a new integration, not a swap.
+
+### 7.1 A combined energy-meter module (PZEM-004T)
+
+A PZEM-004T measures voltage, current, **real power** and **power factor internally**, and reports
+them over **UART**. On paper that is better than the ACS712 path in several ways: no ADC noise, no
+sample-rate limit, no 0–3.3 V scaling problem, no calibration constant, and **real watts instead of
+apparent VA from day one**.
+
+| | ACS712 + ZMPT101B (chosen) | PZEM-004T |
+|---|---|---|
+| Interface | Analogue — 3× ADC1 pins + 1 voltage pin | **UART** (serial) |
+| Ports per module | One current channel each | **One complete circuit each** |
+| Watts | W when the voltage path is enabled; VA otherwise | **Real W and PF, built in** |
+| Calibration | Per-chip ADC + sensor constant | None needed |
+
+**Why it was not chosen:**
+
+- **One PZEM meters ONE circuit.** Three ports need **three** PZEMs. A single unit meters the whole
+  board, not per-port — which defeats the per-port feature set the project is built around.
+- **UART count.** The ESP32 has three hardware UARTs and one is taken by the USB console, so three
+  PZEMs needs multiplexing or software serial.
+- **The overcurrent cutoff is ACS712-specific.** The firmware bounds the limit to 0.5–5.0 A because
+  that is what the 5 A sensor can resolve. A PZEM with a 100 A CT would need that logic revisited.
+- **It is a new integration.** The whole current-sensing path — caching, idle detection, the
+  overcurrent streak, the ADC discipline — assumes analogue reads. Replacing it is a rewrite, not a
+  configuration change.
+
+The relay and occupancy logic is unaffected either way: it does not depend on how current is measured.
+
+### 7.2 Why not a resistive divider for voltage
+
+Cheap and simple, and it *can* produce a usable waveform — but it provides **no galvanic isolation**,
+so the ESP32's ground becomes mains-referenced. That is a safety problem, not an accuracy one. A
+transformer-based sensor (ZMPT101B) is the correct choice.
+
+### 7.3 Why not EmonLib
+
+Covered in §6.
