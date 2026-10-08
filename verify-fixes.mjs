@@ -227,6 +227,7 @@ record('No server secret in the shipped bundle', leaks.length === 0, leaks.join(
 // The CI environment does not inject secrets into the Integration Harness step,
 // and we no longer hardcode the author's VAPID key. Build configuration is 
 // strictly verified in verify.yml instead.
+const allJs = assets.map((f) => fs.readFileSync(path.join(DIST, 'assets', f), 'utf8')).join('\n');
 
 // ---- the push token write path is wired (the bug this replaced) ----
 // Before: App.jsx minted an FCM token on login and never persisted it. Assert the path the server
