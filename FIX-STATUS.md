@@ -12,7 +12,7 @@ npm run verify  →  exit 0
   typecheck ...... 0 errors        (tsc --noEmit, checkJs)
   unit tests ..... 50/50
   build .......... ok
-  harness ........ 145/145  (behavioural, mutation-tested)
+  harness ........ 147/147  (behavioural, mutation-tested)
 ```
 
 ## Fixed — software (all closed)
@@ -51,7 +51,7 @@ prompted the 2026-10-08 rewrite:
 | **No software overcurrent cutoff** | **Added.** `OVERCURRENT_LIMIT_A 4.50f`, debounced, its own per-port streak, opens the relay with `force=true` so derating cannot suppress a safety trip. | firmware `checkOvercurrent()` |
 | **Relay derating never designed in** | **Added.** One choke point (`runRelaySwitch`), per-port 2 s dwell + 6-per-60 s rolling cap; suppressed commands are repaired in the DB. | harness asserts both halves |
 | **Not deployed** | **Deployed.** Vercel (front + `/api/*`) and Firebase Hosting, both verified live. | `/sw.js` FCM import present on both; `/api/alert` → 405 GET / 401 bad secret |
-| Harness 91/91 | **145/145** | gate output above |
+| Harness 91/91 | **147/147** | gate output above |
 
 ### Also fixed (2026-10-05 second audit pass)
 
@@ -79,12 +79,15 @@ None of these is broken code, but they are real and unclosed:
 | 3 | **Push delivery unproven** | The service-worker fix is deployed and structurally verified, but only a real push arriving with the app swiped closed confirms OS delivery. Needs the phone. See `docs/PUSH-TEST.md`. | Medium |
 | 4 | **Occupancy alert says "60 seconds"** | The firmware's real response window is 5 minutes (`RESPONSE_WINDOW_MS = 300000`). Copy defect only — the shutdown timing is correct. Needs a reflash. | Low (cosmetic, but misleading) |
 | 5 | **Three settings have no UI** | `inactivity_limit_minutes`, `overcurrent_limit_a`, `nominal_voltage` are honoured by the firmware but writable only from the RTDB console. Anything set for testing persists silently. | Medium |
-| 6 | **No git repository** | `.github/workflows/verify.yml` exists and is correct, but with no repo and no remote it can never run — the gate is local-only. The workflow says so in its own header. | Low |
+| 6 | ~~No git repository~~ → **DONE 2026-10-08** | Repo `kicode01/voltsense-iot` (public), `main`, and **CI is live and green**. Pushing `.github/workflows/*` needs the `workflow` OAuth scope. CI needs the 8 `VITE_FIREBASE_*` repo secrets, with a guard step so a missing one fails at the cause. | ✅ Closed |
 | 7 | **`vercel.json` `memory: 256`** | Vercel warns it is ignored on Active CPU billing. Harmless; remove the key to silence it. | Trivial |
 | 8 | **No voltage sensing — FIRMWARE READY, hardware not fitted** | The ACS712 is a *current* sensor, so on the shipped build power is VA, not W, and off by 1/PF for SMPS/motor loads. The **voltage-sense path is now implemented and tested**, gated behind `HAS_VOLTAGE_SENSE` (ships off). Fitting a ZMPT101B + calibrating is all that remains: `docs/VOLTAGE-SENSING.md`. | Medium (until the sensor is fitted) |
 | 9 | **Physical fuse — group HAS them; not yet fitted/verified** | The software cutoff is explicitly **not a fuse**: the ACS712 saturates at 5 A, and a welded relay contact cannot be opened in software. A 5 A sensor on 230 V is ~1.15 kW per port. The group has fuses; **confirm they are 5 A max, 250 VAC, ceramic (not glass), time-lag, one per port, in the live conductor upstream of the relay** — see `docs/HANDOFF.md` §1.1. A different rating/type is not equivalent. | **High — safety** (until verified) |
 | 10 | **Mains isolation / creepage unverified** | Cannot be assessed from source; needs the schematic and the physical board. | **High — safety** |
 | 11 | **Battery / thermal design** | Never designed in; out of scope for a prototype. | Low |
+| 12 | **Shutdown rule is inverted for this device's loads** | Intended loads are phone/laptop chargers, fans, lamps. `currentIsFlowing` (0.10 A ≈ 23 W) infers *intent* from *current*, so **an incandescent lamp or large fan is kept ON in an empty room** (the waste the product exists to remove) while **a phone on a 5 W charger is CUT** mid-charge. No threshold fixes this — a 40 W lamp and a 40 W charger are electrically identical. Full analysis: `docs/LOAD-POLICY.md`. | **Medium–High** (core behaviour) |
+| 13 | **No per-port policy** | Proposed: `Occupancy` (cut — **default**), `Always on` (never cut), `Keep while drawing` (present behaviour, opt-in). Also note `Keep while drawing` as built does **not** re-check after shutdown, so it never notices charging finishing. | Medium |
+| 14 | **`override` ("Keep Power On") is one-shot** | Deliberate: it resets the idle timer and clears its own flag, so it buys one more window rather than being a persistent mode. There is no way to say "leave this room alone". | Low–Medium |
 
 ## Before you rely on it
 

@@ -1776,6 +1776,41 @@ const alertStartEnd = (src, from) => {
         : '*** A CREDENTIAL IS HARD-CODED — rotate it and remove it ***'
   );
 
+  // 5c. The LOAD POLICY defect must stay documented. The shutdown rule keeps a port on when it draws
+  //     current, which for the device's actual loads (chargers, fans, lamps) protects the wasteful
+  //     case — a lamp left burning in an empty room — and cuts the useful one (a phone mid-charge).
+  //     It is a known defect awaiting a per-port policy, and it is invisible to every other check.
+  const loadPolicyPath = path.join(ROOT, 'docs', 'LOAD-POLICY.md');
+  const loadPolicy = fs.existsSync(loadPolicyPath) ? fs.readFileSync(loadPolicyPath, 'utf8') : '';
+  const statesIntendedLoads = /phone charger/i.test(loadPolicy) && /lamp/i.test(loadPolicy);
+  const namesTheInversion = /kept on|KEPT ON/i.test(loadPolicy) && /cut/i.test(loadPolicy);
+  const proposesPolicy = /Always on/i.test(loadPolicy) && /Keep while drawing/i.test(loadPolicy);
+  record(
+    'Load-policy defect is documented (inverted shutdown rule for the intended loads)',
+    loadPolicy.length > 0 && statesIntendedLoads && namesTheInversion && proposesPolicy,
+    loadPolicy.length === 0
+      ? '*** docs/LOAD-POLICY.md missing ***'
+      : `loads=${statesIntendedLoads} inversion=${namesTheInversion} policy=${proposesPolicy}`
+  );
+
+  // 5d. The FEATURE INVENTORY must survive. It is the only place the two directions are checked
+  //     against each other — features that need hardware, and hardware with no software using it.
+  //     Each of these findings was invisible to every other check: an inert write and an ignored
+  //     output both look like working code.
+  const invPath = path.join(ROOT, 'docs', 'FEATURE-INVENTORY.md');
+  const inv = fs.existsSync(invPath) ? fs.readFileSync(invPath, 'utf8') : '';
+  const coversBothDirections = /Software features → what hardware they need/i.test(inv) &&
+    /Hardware → software that uses it/i.test(inv);
+  const namesInertWrites = /ports\/<id>\/name/.test(inv) && /ignores it|never/i.test(inv);
+  const namesIgnoredOutput = /ports\/<id>\/voltage/.test(inv) && /never/.test(inv);
+  record(
+    'Feature inventory covers both directions and names the inert keys',
+    inv.length > 0 && coversBothDirections && namesInertWrites && namesIgnoredOutput,
+    inv.length === 0
+      ? '*** docs/FEATURE-INVENTORY.md missing ***'
+      : `bothDirections=${coversBothDirections} inertWrites=${namesInertWrites} ignoredOutput=${namesIgnoredOutput}`
+  );
+
   // 6. The partition scheme must be documented: the sketch needs ~1.48 MB and the default ESP32
   //    partition provides only 1.2 MB, so an undocumented build fails on size, not on code.
   const bringup = fs.readFileSync(path.join(ROOT, 'docs', 'HARDWARE-BRINGUP.md'), 'utf8');

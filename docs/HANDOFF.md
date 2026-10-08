@@ -356,6 +356,28 @@ Use a low-voltage load or a lamp on a bench supply.
 - [ ] Rapid toggling produces `SUPPRESSED (derating)` in the log and the relay does **not** chatter  
   (this is the protection working, not a fault)
 
+### Stage 4b — load behaviour (do this with the intended loads)
+
+The device is meant for **small appliances: phone and laptop chargers, fans, lamps.** Test with those,
+not just with a dummy load.
+
+> ⚠️ **Known issue — expect the shutdown to behave backwards.** The selective shutdown keeps a port
+> on if it is drawing current above ~23 W (0.10 A). That rule infers *intent* from *current*, which
+> is wrong for these loads:
+>
+> - **A lamp or large fan left on in an empty room will be KEPT ON** — it draws above the threshold.
+>   That is the waste the device exists to remove.
+> - **A phone charging on a small brick may be CUT** — it draws below the threshold.
+>
+> **This is a known defect, not your wiring.** Full analysis in `docs/LOAD-POLICY.md`; the fix
+> (a per-port policy) is proposed but not implemented. Do not chase it during bring-up.
+
+Checks, so the behaviour is on record:
+
+- [ ] Lamp on a port → room empties → **note whether the port is cut or kept** (it will likely be kept)
+- [ ] Phone charger on a port → room empties → **note whether it is cut** (it may be cut mid-charge)
+- [ ] Report both to the code owner — they are the evidence for the fix
+
 ### Stage 5 — safety cutoffs
 
 - [ ] **Fuses fitted and correct**: 5 A max, 250 VAC, ceramic, time-lag, one per port, in the live  
