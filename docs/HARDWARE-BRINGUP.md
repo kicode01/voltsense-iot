@@ -43,7 +43,7 @@ reflash. Nothing else you do will help.
 |---|---|---|
 | ESP32 dev board | — | — |
 | HC-SR501 PIR | `PIR_PIN` = **22** | Needs **5 V**, and **must share ground** with the ESP32 |
-| 3-ch relay module | **23, 21, 19** | Active-low modules are what the firmware assumes — verify |
+| 3-ch relay module | **23, 21, 19** | ⚠️ Firmware assumes **HIGH = energised**. **Most cheap modules are active-LOW** — verify before connecting mains (see below) |
 | ACS712 ×3 (`5 A` variant) | **34, 35, 32** | **ADC1 only.** Never move to ADC2 — ADC2 reads 0 while Wi-Fi is up |
 | mmWave radar | `MMWAVE_PIN` = **4** | Supported but **read is compiled out** by default (`HAS_MMWAVE`) |
 | AC voltage sensor (ZMPT101B) | `VOLTAGE_SENSE_PIN` = **33** | **ADC1.** Optional; **gated off** by default (`HAS_VOLTAGE_SENSE`). See the next section |
@@ -212,8 +212,31 @@ bug:
 Relay port N: SUPPRESSED (derating) — X suppressed so far
 ```
 
+### ⚠️ First: verify the relay polarity — with NO mains connected
+
+The firmware drives `digitalWrite(pin, on ? HIGH : LOW)`, i.e. it assumes **HIGH = energised**. Its
+own source says so and flags the assumption as board-dependent:
+
+> *"whether HIGH means energised depends on the relay board. The original code used HIGH = ON, and
+> that convention is preserved here."*
+
+**Most cheap 3-channel relay modules are active-LOW** — LOW energises the coil. Wire one of those to
+this firmware and every port is inverted: the app says ON and the socket goes dead, the app says OFF
+and it goes live. On mains that is not a cosmetic bug.
+
+Check it **before any mains wiring**, on the bench:
+
+1. Power the ESP32 and the relay board. **No mains on the relay contacts.**
+2. Listen/watch for the relay state at boot, then toggle a port from the app.
+3. If the logic is inverted, you need an inverting transistor/driver stage per channel, or a
+   firmware change to `on ? LOW : HIGH` in `runRelaySwitch()`.
+
+Do not skip this to save time. It is the difference between a working device and one that energises
+a socket the user believes is off.
+
 ### Checks
 
+- [ ] Relay polarity verified on the bench **before** mains
 - [ ] Turning a port ON in the app physically powers the outlet
 - [ ] Turning it OFF removes power
 - [ ] Rapid toggling produces `SUPPRESSED (derating)` rather than relay chatter

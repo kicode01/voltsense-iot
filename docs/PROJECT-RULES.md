@@ -302,7 +302,7 @@ enumerate them. The firmware never writes a `custom_*` key. `toHistoryKey` keeps
   `chrome-win64/chrome.exe`, which makes the CI job fail instantly with ENOENT. Use
   `chromium.executablePath()` with multi-platform cache roots as fallbacks. `playwright` is a
   devDependency so CI's `npm ci` installs it (CI has no npx cache).
-- **`node verify-fixes.mjs`** (`npm run test:integration`) — **140 checks** against `dist/`, run after
+- **`node verify-fixes.mjs`** (`npm run test:integration`) — **141 checks** against `dist/`, run after
   `npm run build`. **Clear `dist/` first** (`rm -rf dist`, own turn — sandbox bulk-delete guard). **Beware
   a stale `dist/`** — the harness validating the OLD artifact returns a falsely green result.
 - Harness rules learned the hard way:

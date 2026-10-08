@@ -1784,6 +1784,26 @@ const alertStartEnd = (src, from) => {
     /huge_app/.test(bringup) && /Partition Scheme/i.test(bringup),
     'the sketch does not fit the default partition'
   );
+
+  // 7. The two hardware mistakes that cost the most must stay documented. Both are silent: a
+  //    mis-wired ACS712 reads a plausible 0 A, and an inverted relay module energises a socket the
+  //    user believes is off. Neither shows up as an error anywhere.
+  const handoffPath = path.join(ROOT, 'docs', 'HANDOFF.md');
+  const handoff = fs.existsSync(handoffPath) ? fs.readFileSync(handoffPath, 'utf8') : '';
+  // ACS712 in series with ONE conductor (both live+neutral cancels the field -> reads 0 A).
+  const acs712Series = /IN SERIES/i.test(handoff) && /both/i.test(handoff);
+  // Relay polarity: firmware assumes HIGH = energised; most modules are active-LOW.
+  const relayPolarity = /HIGH = relay energised|HIGH = energised/i.test(handoff) &&
+    /active-low/i.test(handoff);
+  // Mains safety, stated before any wiring instruction.
+  const mainsSafety = /never wire or rewire with the mains connected/i.test(handoff);
+  record(
+    'Handoff doc keeps the silent hardware traps documented',
+    handoff.length > 0 && acs712Series && relayPolarity && mainsSafety,
+    handoff.length === 0
+      ? '*** docs/HANDOFF.md missing ***'
+      : `acs712Series=${acs712Series} relayPolarity=${relayPolarity} mainsSafety=${mainsSafety}`
+  );
 }
 
 // ---------------------------------------------------------------------------
