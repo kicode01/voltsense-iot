@@ -52,7 +52,7 @@ Server-side values (`FIREBASE_SERVICE_ACCOUNT`, `VOLTSENSE_ALERT_SECRET`, `VOLTS
 | `npm run typecheck` | `tsc --noEmit` — type-checks the `.js`/`.jsx` sources via `checkJs` (no renaming to `.ts`) |
 | `npm run test` | Unit tests (`node --test`) — pure logic + config drift |
 | `npm run verify` | E2E gate: `lint && typecheck && test && build && test:integration` |
-| `npm run test:integration` | Behavioural regression harness — 141 checks against `dist/` (build first!) |
+| `npm run test:integration` | Behavioural regression harness — 142 checks against `dist/` (build first!) |
 | `npm run diagnose` | Tests software → database over REST, no ESP32 needed |
 | `npm run icons` | Regenerates every app icon from `public/logo-square.svg` |
 | `npm run rules:status\|scoped\|deviceuid\|strict` | Switch which ruleset `database.rules.json` copies |

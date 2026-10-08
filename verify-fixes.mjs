@@ -1804,6 +1804,19 @@ const alertStartEnd = (src, from) => {
       ? '*** docs/HANDOFF.md missing ***'
       : `acs712Series=${acs712Series} relayPolarity=${relayPolarity} mainsSafety=${mainsSafety}`
   );
+
+  // 8. The FUSE specification. "Fit a fuse" is not actionable — a 10 A glass fuse is not equivalent
+  //    to a 5 A ceramic time-lag one, and a fuse above the sensor's 5 A ceiling leaves the exact
+  //    blind spot the software cannot cover. Each of these four properties is load-bearing.
+  const fuseRating = /5\s*A maximum|5 A max/i.test(handoff);
+  const fuseCeramic = /ceramic/i.test(handoff) && /not glass|NOT glass|not\s+glass/i.test(handoff);
+  const fuseTimelag = /time-lag|slow-blow/i.test(handoff);
+  const fusePlacement = /upstream of the relay/i.test(handoff) && /live/i.test(handoff);
+  record(
+    'Fuse specification is documented (rating, type, construction, placement)',
+    fuseRating && fuseCeramic && fuseTimelag && fusePlacement,
+    `rating=${fuseRating} ceramic=${fuseCeramic} timeLag=${fuseTimelag} placement=${fusePlacement}`
+  );
 }
 
 // ---------------------------------------------------------------------------

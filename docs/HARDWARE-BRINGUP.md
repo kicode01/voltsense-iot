@@ -270,6 +270,17 @@ opens that port's relay and files an alert.
 > 2. If a relay contact **welds shut**, no software can open it.
 >
 > The cutoff is a *convenience and damage-limiter*, not a substitute for a real breaker or fuse.
+>
+> **The fuse and the software cover different failures, by design:**
+>
+> ```
+> 4.5 A  software cutoff (debounced)  -> soft overloads; opens the relay
+> 5.0 A  fuse                         -> hard faults, and anything the saturated sensor cannot see
+> ```
+>
+> The software threshold sits just below the fuse so it acts first on the recoverable case.
+> **Spec: 5 A max, 250 VAC, ceramic (not glass), time-lag, one per port, live conductor, upstream of
+> the relay.** Full reasoning in `docs/HANDOFF.md` §1.1.
 
 ### 4.2 Response window (occupancy shutdown)
 

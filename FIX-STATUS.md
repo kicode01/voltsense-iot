@@ -12,7 +12,7 @@ npm run verify  →  exit 0
   typecheck ...... 0 errors        (tsc --noEmit, checkJs)
   unit tests ..... 50/50
   build .......... ok
-  harness ........ 141/141  (behavioural, mutation-tested)
+  harness ........ 142/142  (behavioural, mutation-tested)
 ```
 
 ## Fixed — software (all closed)
@@ -51,7 +51,7 @@ prompted the 2026-10-08 rewrite:
 | **No software overcurrent cutoff** | **Added.** `OVERCURRENT_LIMIT_A 4.50f`, debounced, its own per-port streak, opens the relay with `force=true` so derating cannot suppress a safety trip. | firmware `checkOvercurrent()` |
 | **Relay derating never designed in** | **Added.** One choke point (`runRelaySwitch`), per-port 2 s dwell + 6-per-60 s rolling cap; suppressed commands are repaired in the DB. | harness asserts both halves |
 | **Not deployed** | **Deployed.** Vercel (front + `/api/*`) and Firebase Hosting, both verified live. | `/sw.js` FCM import present on both; `/api/alert` → 405 GET / 401 bad secret |
-| Harness 91/91 | **141/141** | gate output above |
+| Harness 91/91 | **142/142** | gate output above |
 
 ### Also fixed (2026-10-05 second audit pass)
 
@@ -82,7 +82,7 @@ None of these is broken code, but they are real and unclosed:
 | 6 | **No git repository** | `.github/workflows/verify.yml` exists and is correct, but with no repo and no remote it can never run — the gate is local-only. The workflow says so in its own header. | Low |
 | 7 | **`vercel.json` `memory: 256`** | Vercel warns it is ignored on Active CPU billing. Harmless; remove the key to silence it. | Trivial |
 | 8 | **No voltage sensing — FIRMWARE READY, hardware not fitted** | The ACS712 is a *current* sensor, so on the shipped build power is VA, not W, and off by 1/PF for SMPS/motor loads. The **voltage-sense path is now implemented and tested**, gated behind `HAS_VOLTAGE_SENSE` (ships off). Fitting a ZMPT101B + calibrating is all that remains: `docs/VOLTAGE-SENSING.md`. | Medium (until the sensor is fitted) |
-| 9 | **No physical fuse / breaker** | The software cutoff is explicitly **not a fuse**: the ACS712 saturates at 5 A, and a welded relay contact cannot be opened in software. A 5 A sensor on 230 V is ~1.15 kW per port. | **High — safety** |
+| 9 | **Physical fuse — group HAS them; not yet fitted/verified** | The software cutoff is explicitly **not a fuse**: the ACS712 saturates at 5 A, and a welded relay contact cannot be opened in software. A 5 A sensor on 230 V is ~1.15 kW per port. The group has fuses; **confirm they are 5 A max, 250 VAC, ceramic (not glass), time-lag, one per port, in the live conductor upstream of the relay** — see `docs/HANDOFF.md` §1.1. A different rating/type is not equivalent. | **High — safety** (until verified) |
 | 10 | **Mains isolation / creepage unverified** | Cannot be assessed from source; needs the schematic and the physical board. | **High — safety** |
 | 11 | **Battery / thermal design** | Never designed in; out of scope for a prototype. | Low |
 

@@ -26,9 +26,9 @@ the room empties or a port overloads.
   mains once Stages 1–4 below pass.
 - If you are not confident with mains wiring, stop and get someone who is. Nothing here is worth a
   shock.
-- The software has an overcurrent cutoff, but **it is not a fuse** — the sensor saturates at 5 A and
-  a welded relay contact cannot be opened in code. A physical fuse per port is required for any
-  real installation.
+- **Fit the fuses.** One per port, in the live conductor, upstream of the relay — specs in §1.1.
+  The software's overcurrent cutoff is a convenience, not protection: the sensor saturates at 5 A
+  and a welded relay contact cannot be opened in code. Do not energise mains without them.
 
 ---
 
@@ -40,7 +40,43 @@ the room empties or a port overloads.
 | HC-SR501 PIR motion sensor | Occupancy. **Needs 5 V.** |
 | 3-channel relay module | Switches the three sockets |
 | 3× ACS712 current sensor | One per socket. **5 A variant** (the 20 A and 30 A parts look identical and silently break every reading) |
+| **Fuse — one per port** | See §1.1. Not optional. |
 | 5 V regulated supply | Enough for the ESP32 + relay coils + sensors |
+
+### 1.1 The fuses — fit them, and fit the right ones
+
+The software has an overcurrent cutoff, but it is **explicitly not a fuse**, and the firmware says so
+in its own source. Two things it physically cannot do:
+
+- **The ACS712 saturates at 5 A.** A dead short drawing 30 A reads as ~5 A. The fault is *invisible*
+  to the software — it can only see the band just below the ceiling.
+- **A welded relay contact cannot be opened in code.** Opening the relay is best-effort.
+
+So the software and the fuse cover different failures, deliberately:
+
+```
+4.5 A   software cutoff (debounced ~0.5 s)  -> soft/sustained overloads; opens the relay
+5.0 A   fuse                                -> hard faults, and anything above what
+                                               the saturated sensor can see
+```
+
+The software threshold sits just **below** the fuse so it acts first on the recoverable case, and the
+fuse is the backstop for what software cannot reach.
+
+**Specification — check what you have against this:**
+
+| Property | Requirement | Why |
+|---|---|---|
+| **Rating** | **5 A maximum.** Lower (e.g. 3 A) is *better* protection if you know the loads are small | The sensor cannot see above 5 A, so anything higher leaves a blind spot |
+| **Voltage** | **250 VAC minimum** | It is switching mains |
+| **Type** | **Time-lag / slow-blow (T)**, not fast-blow (F) | Motors and switch-mode supplies draw large inrush; a fast fuse nuisance-trips on a healthy appliance. The firmware debounces overcurrent for exactly the same reason |
+| **Construction** | **Ceramic / sand-filled — NOT glass** | At 230 V a glass fuse can arc internally and shatter. Ceramic quenches the arc |
+| **Breaking capacity** | Must exceed the prospective short-circuit current at the socket | A fuse that cannot interrupt the fault is decoration |
+| **Placement** | In the **live** conductor, **one per port**, **upstream of the relay** | So it protects the relay contacts as well as the wiring |
+| **Wire gauge** | Must carry the fuse rating continuously (≈0.75 mm² for 5 A) | A fuse protects the **wiring** — the wire must not be the weakest link |
+
+If what your group has is a different rating or type, **say so before wiring** rather than fitting it
+and hoping. A 10 A glass fuse is not equivalent to a 5 A ceramic time-lag one.
 
 Optional, only if the code owner says so: an AC voltage sensor (ZMPT101B) for real-power metering.
 **Do not fit it unless asked** — it needs calibration and can damage the ESP32 if wired wrong. See
@@ -65,7 +101,7 @@ Optional, only if the code owner says so: an AC voltage sensor (ZMPT101B) for re
 > required here — the ESP32's other analogue pins (ADC2) stop working when Wi-Fi is on, so the
 > current sensors must be on ADC1 (GPIO 32–39).
 
-### ⚠️ The three wiring mistakes that will cost you a day
+### ⚠️ The four wiring mistakes that will cost you a day
 
 **1. The ACS712 goes IN SERIES with ONE conductor — never both.**
 Cut **one** wire (the live), and pass only that one through the sensor. If live and neutral both go
@@ -80,7 +116,17 @@ perfectly. It looks like a dead sensor; it is a wiring error.
 **2. Common ground is mandatory.** The ESP32, the relay module, the PIR and every ACS712 must share
 GND. Without it the sensor outputs float and read noise.
 
-**3. The PIR needs 5 V, and its Tx pot must be SHORT.**
+**3. Fuse placement.** One fuse per port, in the **live** conductor, **before** the relay:
+
+```
+   mains live ──[ FUSE ]──[ relay contact ]──[ ACS712 ]── to the load
+   mains neutral ────────────────────────────────────── to the load
+```
+
+The ACS712 sits after the relay so it measures what that port is actually drawing. Put the fuse
+upstream so it protects the relay contacts too — a relay alone is not a protective device.
+
+**4. The PIR needs 5 V, and its Tx pot must be SHORT.**
 The HC-SR501 will not work reliably at 3.3 V. It has two potentiometers:
 - **Tx (time delay)** — how long OUT stays HIGH after motion. Set it **short** (a few seconds). If it
   is longer than the firmware's inactivity window (15 min default), the room never registers as
@@ -227,6 +273,11 @@ Use a low-voltage load or a lamp on a bench supply.
       (this is the protection working, not a fault)
 
 ### Stage 5 — safety cutoffs
+- [ ] **Fuses fitted and correct**: 5 A max, 250 VAC, ceramic, time-lag, one per port, in the live
+      conductor upstream of the relay — confirmed against §1.1 **before** energising mains
+- [ ] **The software trips first**: raise the load past 4.5 A but below the fuse rating → the relay
+      opens and the log shows `OVERCURRENT TRIP`. This proves the layering works — if the fuse blows
+      instead, the software threshold is not doing its job
 - [ ] Overcurrent: exceed the limit (default 4.5 A) → relay opens, log shows `OVERCURRENT TRIP`
 - [ ] Occupancy: let the room go idle → an alert arrives, and pressing **Keep Power On** in the app
       cancels the shutdown
