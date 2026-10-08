@@ -1759,6 +1759,23 @@ const alertStartEnd = (src, from) => {
     badConcat ? '*** a const char* cannot be concatenated into a literal ***' : 'clean'
   );
 
+  // 5b. NO SECRETS IN THE FIRMWARE. The factory pairing key was committed as a literal and pushed
+  //     to a public repo. It is a real credential: /api/pair accepts it, and a caller holding it
+  //     plus a MAC receives that device's password and alert secret — which authenticate as the
+  //     device, and the rules give a device full write to its own node, relays included. Supply it
+  //     at build time instead; the `#ifndef` guard exists for exactly that.
+  const keyLiteral = inoCode.match(/VOLTSENSE_PAIRING_KEY\s+"([^"]*)"/);
+  const keyValue = keyLiteral ? keyLiteral[1] : null;
+  record(
+    'No credential literal in the firmware (pairing key supplied at build time)',
+    keyValue === '',
+    keyValue === null
+      ? '*** VOLTSENSE_PAIRING_KEY default not found — check the guard is still present ***'
+      : keyValue === ''
+        ? 'empty default; injected via -DVOLTSENSE_PAIRING_KEY at build time'
+        : '*** A CREDENTIAL IS HARD-CODED — rotate it and remove it ***'
+  );
+
   // 6. The partition scheme must be documented: the sketch needs ~1.48 MB and the default ESP32
   //    partition provides only 1.2 MB, so an undocumented build fails on size, not on code.
   const bringup = fs.readFileSync(path.join(ROOT, 'docs', 'HARDWARE-BRINGUP.md'), 'utf8');

@@ -34,6 +34,15 @@ arduino-cli compile --fqbn "esp32:esp32:esp32:PartitionScheme=huge_app" esp32/Vo
   `auth.user.password`; a pre-existing token goes through `Firebase.setCustomToken(&config, token)`
   before `begin()`. `firebase_token_signer_resources_t` has no `email`/`password`/`tokens.id_token`
   members at all.
+- **NEVER commit `VOLTSENSE_PAIRING_KEY`.** A real value was committed and pushed to a public repo
+  (2026-10-08) — it must be treated as compromised. It is a genuine credential: `/api/pair` accepts
+  it, and a caller holding it **plus a MAC** receives that device's `device_password` and
+  `alert_secret`. Those authenticate as the device, and the rules grant a device **full write to its
+  own node — including `ports/<id>/relay_status`, i.e. the physical relays.** The per-device rate
+  limit (1/min, 10/h) does not stop a targeted attempt. Supply it at build time via
+  `-DVOLTSENSE_PAIRING_KEY=…`; the `#ifndef` guard exists for exactly this. Removing it from the
+  working tree does **not** un-leak it — it stays in git history, so **rotate the key in Vercel**.
+  The harness asserts the committed default is empty.
 - **Do not repeat a default argument** on both the declaration and the definition.
 - **Adjacent string literals concatenate only with macros.** `"a" NVS_NAMESPACE "b"` is a syntax
   error when the name is a `const char*` — use `printf("%s")`.
@@ -293,7 +302,7 @@ enumerate them. The firmware never writes a `custom_*` key. `toHistoryKey` keeps
   `chrome-win64/chrome.exe`, which makes the CI job fail instantly with ENOENT. Use
   `chromium.executablePath()` with multi-platform cache roots as fallbacks. `playwright` is a
   devDependency so CI's `npm ci` installs it (CI has no npx cache).
-- **`node verify-fixes.mjs`** (`npm run test:integration`) — **139 checks** against `dist/`, run after
+- **`node verify-fixes.mjs`** (`npm run test:integration`) — **140 checks** against `dist/`, run after
   `npm run build`. **Clear `dist/` first** (`rm -rf dist`, own turn — sandbox bulk-delete guard). **Beware
   a stale `dist/`** — the harness validating the OLD artifact returns a falsely green result.
 - Harness rules learned the hard way:

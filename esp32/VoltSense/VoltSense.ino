@@ -435,9 +435,30 @@ const char* ALERT_URL = "https://voltsense-iot.vercel.app/api/alert";
 const char* PAIR_URL = "https://voltsense-iot.vercel.app/api/pair";
 const char* FIRMWARE_VERSION = "1.0.0";
 
-// Set this at build time for your fleet. Leave empty to require USB provisioning instead.
+// DO NOT HARD-CODE THE FACTORY KEY HERE.
+//
+// A literal key was committed here and pushed to a PUBLIC repository, so it must be treated as
+// compromised. It is a real credential, not a placeholder: /api/pair accepts it, and a caller who
+// holds it plus a MAC receives that device's `device_password` and `alert_secret`. Those
+// authenticate as the device, and the database rules grant a device FULL write to its own node —
+// including `ports/<id>/relay_status`, i.e. the physical relays. The per-device rate limit
+// (1/min, 10/h) does not stop a targeted attempt.
+//
+// Supply it at BUILD time instead, so it never enters version control. In the Arduino IDE set
+// it as a build property, or on the command line:
+//
+//   arduino-cli compile --fqbn "esp32:esp32:esp32:PartitionScheme=huge_app" \
+//     --build-property 'compiler.cpp.extra_flags=-DVOLTSENSE_PAIRING_KEY=\"<your-key>\"' \
+//     esp32/VoltSense
+//
+// The `#ifndef` guard below exists precisely so this works. Left undefined, the device prints
+// "No factory pairing key compiled in; USB provisioning required." and falls back to
+// ProvisionToken.ino — a clear failure, not a silent one.
+//
+// Rotating the key in Vercel is mandatory regardless: removing it from this file does NOT remove
+// it from git history (it is in the initial commit), so the leaked value stays valid until rotated.
 #ifndef VOLTSENSE_PAIRING_KEY
-#define VOLTSENSE_PAIRING_KEY "6f0c54d6166b2a3501ad3b7ef7c7856ade9c7eadc77bda6400af87055f7f489c"
+#define VOLTSENSE_PAIRING_KEY ""
 #endif
 
 // ---------------------------------------------------------------------------
