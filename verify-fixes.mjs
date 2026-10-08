@@ -1559,6 +1559,41 @@ const alertStartEnd = (src, from) => {
   );
 }
 
+// ---------------------------------------------------------------------------
+// .gitignore ordering: the example file must stay committed
+// ---------------------------------------------------------------------------
+// `.gitignore` carried a duplicated tail (`.vercel`, `.env*`) appended after the
+// `!.env.example` negation. Because the LAST matching pattern wins, that stray `.env*`
+// silently re-ignored the example env file — so it was never committed, and anyone cloning
+// had no list of the variables to set. Ordering is the whole point here, so assert on order.
+{
+  const gi = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8');
+
+  // Ignore blank/comment lines so a comment mentioning `.env*` cannot satisfy or break this.
+  const patterns = gi
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'));
+
+  const negationAt = patterns.indexOf('!.env.example');
+  const laterBroadMatch = patterns
+    .slice(negationAt + 1)
+    .find((p) => p === '.env*' || p === '.env' || p === '.env.*');
+
+  // The secret files must still be ignored — the negation must be narrow.
+  const envIgnored = patterns.includes('.env') || patterns.includes('.env.*');
+
+  record(
+    'No .gitignore rule re-ignores .env.example after its negation',
+    negationAt >= 0 && !laterBroadMatch && envIgnored,
+    negationAt < 0
+      ? '*** !.env.example negation missing ***'
+      : laterBroadMatch
+        ? `*** "${laterBroadMatch}" appears AFTER !.env.example — it wins, so the example is ignored ***`
+        : `negation@${negationAt} no-later-broad-match=true envStillIgnored=${envIgnored}`
+  );
+}
+
 // ---- summary ----
 const failed = results.filter((r) => !r.pass);
 console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
