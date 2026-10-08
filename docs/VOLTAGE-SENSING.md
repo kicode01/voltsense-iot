@@ -59,6 +59,49 @@ asserts the pin is on ADC1 and collides with nothing.
 channel on ADC2 would read **0 V**, and since power is a product, every port would report **0 W**
 while looking perfectly healthy. Worse than no sensor.
 
+### 1.1 Identify what you actually have — the answer forks here
+
+"AC voltage sensor" covers several different things, and **only some of them can produce real
+power.** Work out which one you have before wiring anything.
+
+| What you have | Output | Real power (W)? |
+|---|---|---|
+| **ZMPT101B module** (transformer + op-amp + gain pot) | AC waveform, biased to mid-rail, ~0–5 V, amplitude adjustable | ✅ **Yes** — the path this document describes |
+| **AC-AC adapter** (e.g. a 9 V AC wall wart) | Scaled AC sine | ✅ Yes — needs a divider + bias |
+| **Module with a DC output** ("voltage sensor" giving a steady DC level) | DC ∝ V_rms | ❌ **No — VA only.** See below |
+| **PZEM-004T or a complete energy-meter module** | UART (serial), gives V, I, W, PF, kWh directly | ✅ Yes — but a **different integration** (see §1.2) |
+| **Resistive divider** off the mains | Scaled AC waveform | ⚠️ Technically yes, but **NOT ISOLATED — do not use** |
+
+**The DC-output type is the trap.** It reports a number that looks like voltage and even makes the VA
+figure more accurate, but it has already thrown away the waveform — and `mean(v·i)` needs the
+waveform. You cannot recover power factor from a DC level. Fitting one of these and expecting watts
+is the most likely way this project reports VA while believing it reports W.
+
+**How to tell them apart without a datasheet.** Power the module (its own supply, input not
+connected to mains yet) and measure the output:
+
+- Reads **~0 V on AC volts but a steady DC value** → **DC-output type**. VA only.
+- Reads a **plausible AC voltage**, with a DC offset of about half the supply → **AC-waveform type**.
+  The full path works.
+
+**⚠️ Resistive dividers are not isolated.** Without a transformer there is no galvanic isolation, so
+the ESP32's ground becomes mains-referenced — touching the board can kill you. If what you have is a
+bare divider, do not connect it. This is not a calibration problem; it is a safety one.
+
+### 1.2 If it's a PZEM-004T or a complete meter module
+
+Different device, different integration. Those modules measure voltage, current, real power and
+power factor **internally** and report them over **UART** — so the ESP32 never touches the mains
+waveform at all.
+
+That is a legitimate and arguably better approach: it sidesteps the ADC limitations (noise, sample
+rate, the 3.3 V scaling problem) and the calibration burden entirely. But **none of the firmware in
+this repository supports it** — the voltage-sense path here is ADC-based and reads a raw waveform.
+Using a PZEM would be a new integration (a second UART plus a protocol library), not a
+configuration change.
+
+If that is what you have, stop and say so rather than wiring it to GPIO 33.
+
 ### ⚠️ The 3.3 V trap — read this before wiring
 
 The common ZMPT101B module runs its op-amp from **5 V**, so its output can swing to roughly 5 V

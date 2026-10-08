@@ -1817,6 +1817,23 @@ const alertStartEnd = (src, from) => {
     fuseRating && fuseCeramic && fuseTimelag && fusePlacement,
     `rating=${fuseRating} ceramic=${fuseCeramic} timeLag=${fuseTimelag} placement=${fusePlacement}`
   );
+
+  // 9. SENSOR IDENTIFICATION. "Fit the voltage sensor" is not actionable — an "AC voltage sensor"
+  //    can be one of several devices, and only some can produce real power. The DC-output type
+  //    reports a plausible voltage and even improves the VA figure, while being structurally
+  //    incapable of watts (the waveform, and with it the power factor, is already gone). That is
+  //    the failure this whole path exists to avoid, so the fork must stay documented.
+  const vsDoc = fs.readFileSync(path.join(ROOT, 'docs', 'VOLTAGE-SENSING.md'), 'utf8');
+  const dcTypeWarned = /DC .{0,30}∝ V_rms|DC .{0,20}proportional to V_rms/i.test(vsDoc) ||
+    /steady \*\*DC level\*\*|DC level.*RMS/i.test(vsDoc);
+  const isolationWarned = /NOT ISOLATED|not isolated/i.test(vsDoc) &&
+    /resistive divider/i.test(vsDoc);
+  const pzemNoted = /PZEM/i.test(vsDoc) && /UART/i.test(vsDoc);
+  record(
+    'Voltage-sensor identification is documented (DC-output trap, isolation, PZEM)',
+    dcTypeWarned && isolationWarned && pzemNoted,
+    `dcType=${dcTypeWarned} isolation=${isolationWarned} pzem=${pzemNoted}`
+  );
 }
 
 // ---------------------------------------------------------------------------

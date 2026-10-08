@@ -78,9 +78,25 @@ fuse is the backstop for what software cannot reach.
 If what your group has is a different rating or type, **say so before wiring** rather than fitting it
 and hoping. A 10 A glass fuse is not equivalent to a 5 A ceramic time-lag one.
 
-Optional, only if the code owner says so: an AC voltage sensor (ZMPT101B) for real-power metering.
-**Do not fit it unless asked** — it needs calibration and can damage the ESP32 if wired wrong. See
-`docs/VOLTAGE-SENSING.md`.
+**Optional: an AC voltage sensor** (ZMPT101B or similar) for real-power metering. If you have one,
+**do not wire it up yet** — and read `docs/VOLTAGE-SENSING.md` §1.1 first.
+
+Three things must be checked, in this order, because each can make it useless or dangerous:
+
+1. **What type is it?** Only a sensor that outputs the **AC waveform** can give real power (W).
+   A module whose output is a steady **DC level** proportional to RMS can only ever give apparent
+   power (VA) — the waveform, and with it the power factor, is already gone. Measure the output:
+   ~0 V on AC volts but a steady DC value means the DC type.
+2. **Is it isolated?** It must be **transformer-based**. A bare resistive divider gives no galvanic
+   isolation, so the ESP32's ground becomes mains-referenced — that is lethal, not merely inaccurate.
+3. **Does its output fit 0–3.3 V?** Most modules run their op-amp at 5 V and can swing past the
+   ESP32's limit, which **damages the pin**. It must be scaled and biased to sit inside 0–3.3 V with
+   the mid-point near 1.65 V.
+
+If it is a **PZEM-004T or a complete energy-meter module**, it is a UART device and needs a
+different integration entirely — tell the code owner, do not connect it to GPIO 33.
+
+Everything else in this document works without it. The sensor is an upgrade, not a prerequisite.
 
 ---
 
