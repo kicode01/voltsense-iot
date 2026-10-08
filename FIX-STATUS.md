@@ -12,7 +12,7 @@ npm run verify  →  exit 0
   typecheck ...... 0 errors        (tsc --noEmit, checkJs)
   unit tests ..... 50/50
   build .......... ok
-  harness ........ 124/124  (behavioural, mutation-tested)
+  harness ........ 139/139  (behavioural, mutation-tested)
 ```
 
 ## Fixed — software (all closed)
@@ -51,7 +51,7 @@ prompted the 2026-10-08 rewrite:
 | **No software overcurrent cutoff** | **Added.** `OVERCURRENT_LIMIT_A 4.50f`, debounced, its own per-port streak, opens the relay with `force=true` so derating cannot suppress a safety trip. | firmware `checkOvercurrent()` |
 | **Relay derating never designed in** | **Added.** One choke point (`runRelaySwitch`), per-port 2 s dwell + 6-per-60 s rolling cap; suppressed commands are repaired in the DB. | harness asserts both halves |
 | **Not deployed** | **Deployed.** Vercel (front + `/api/*`) and Firebase Hosting, both verified live. | `/sw.js` FCM import present on both; `/api/alert` → 405 GET / 401 bad secret |
-| Harness 91/91 | **124/124** | gate output above |
+| Harness 91/91 | **139/139** | gate output above |
 
 ### Also fixed (2026-10-05 second audit pass)
 
@@ -74,14 +74,14 @@ None of these is broken code, but they are real and unclosed:
 
 | # | Item | Why it is open | Severity |
 | --- | --- | --- | --- |
-| 1 | **Firmware is not flashed** | Every firmware fix above (watchdog, overcurrent cutoff, derating, 100 ms window, NVS relay restore, TLS self-test) exists only in source. Until a reflash, the fielded device runs the OLD behaviour. | **High** — blocks all firmware fixes |
+| 1 | **Firmware is not flashed** — and until 2026-10-08 **could not be**: it did not compile | Every firmware fix above (watchdog, overcurrent cutoff, derating, 100 ms window, NVS relay restore, TLS self-test) exists only in source. Until a reflash, the fielded device runs the OLD behaviour. **Now fixed: it builds.** Three separate errors were shipped, each masking the next — an auth API that does not exist in the current library (`config.signer.email`), `enum RelaySwitchResult` defined twice, and a type-ordering problem with the Arduino auto-generated prototypes (fixed with `esp32/VoltSense/VoltSenseTypes.h`). `ProvisionToken.ino` also had a literal-concatenation bug. Build: `arduino-cli compile --fqbn "esp32:esp32:esp32:PartitionScheme=huge_app" esp32/VoltSense` → **47 % of a 3 MB partition, 16 % RAM, no warnings**. | **High** — flash it |
 | 2 | ~~Database rules deploy unverified~~ → **VERIFIED 2026-10-08** | Read the LIVE ruleset via `GET <db>/.settings/rules.json` with the Firebase CLI's cached access token. It is a semantic **exact match for `database.rules.json`** (the `deviceuid` variant); it differs from `scoped` and `strict`. **The dangerous `scoped` ruleset is NOT live.** Nothing to do. | ✅ Closed |
 | 3 | **Push delivery unproven** | The service-worker fix is deployed and structurally verified, but only a real push arriving with the app swiped closed confirms OS delivery. Needs the phone. See `docs/PUSH-TEST.md`. | Medium |
 | 4 | **Occupancy alert says "60 seconds"** | The firmware's real response window is 5 minutes (`RESPONSE_WINDOW_MS = 300000`). Copy defect only — the shutdown timing is correct. Needs a reflash. | Low (cosmetic, but misleading) |
 | 5 | **Three settings have no UI** | `inactivity_limit_minutes`, `overcurrent_limit_a`, `nominal_voltage` are honoured by the firmware but writable only from the RTDB console. Anything set for testing persists silently. | Medium |
 | 6 | **No git repository** | `.github/workflows/verify.yml` exists and is correct, but with no repo and no remote it can never run — the gate is local-only. The workflow says so in its own header. | Low |
 | 7 | **`vercel.json` `memory: 256`** | Vercel warns it is ignored on Active CPU billing. Harmless; remove the key to silence it. | Trivial |
-| 8 | **No voltage sensing** | The ACS712 is a *current* sensor. Power is VA, not W, and off by 1/PF for SMPS/motor loads. Needs a ZMPT101B or similar. Numbers are labelled honestly but are not billing-grade. | Medium |
+| 8 | **No voltage sensing — FIRMWARE READY, hardware not fitted** | The ACS712 is a *current* sensor, so on the shipped build power is VA, not W, and off by 1/PF for SMPS/motor loads. The **voltage-sense path is now implemented and tested**, gated behind `HAS_VOLTAGE_SENSE` (ships off). Fitting a ZMPT101B + calibrating is all that remains: `docs/VOLTAGE-SENSING.md`. | Medium (until the sensor is fitted) |
 | 9 | **No physical fuse / breaker** | The software cutoff is explicitly **not a fuse**: the ACS712 saturates at 5 A, and a welded relay contact cannot be opened in software. A 5 A sensor on 230 V is ~1.15 kW per port. | **High — safety** |
 | 10 | **Mains isolation / creepage unverified** | Cannot be assessed from source; needs the schematic and the physical board. | **High — safety** |
 | 11 | **Battery / thermal design** | Never designed in; out of scope for a prototype. | Low |

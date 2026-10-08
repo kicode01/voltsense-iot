@@ -96,6 +96,20 @@ const Dashboard = () => {
     data.total_power_watts || Object.values(ports).reduce((acc, curr) => acc + (Number(curr.power_watts) || 0), 0)
   ) || 0;
 
+  // Does this device MEASURE voltage, or assume it?
+  //
+  // The firmware reports `voltage_source: "measured"` only when a voltage sensor is fitted, enabled
+  // and calibrated. That single flag decides what the power figures actually mean:
+  //
+  //   measured  -> real power in WATTS, computed as mean(v*i) — phase-correct
+  //   otherwise -> APPARENT power in VA, computed as I_rms * a configured voltage
+  //
+  // Showing the wrong unit is not a cosmetic slip: VA can be 30-50% higher than W for exactly the
+  // switch-mode loads this device monitors, so labelling VA as "W" would overstate every reading by
+  // an amount the user cannot see. Default to VA — the honest default for an unknown device, and
+  // the one that matches a device with no sensor at all.
+  const powerIsMeasured = data.voltage_source === 'measured';
+
   // Inactivity limit comes from the device; fall back to the firmware default only when absent.
   const inactivityLimitMinutes = Number(data.inactivity_limit ?? 15);
 
@@ -312,14 +326,24 @@ const Dashboard = () => {
             </div>
             <div className="flex items-baseline gap-2 relative z-10">
               <span className="text-5xl md:text-6xl font-bold tracking-tighter drop-shadow-sm">{computedTotalWatts.toFixed(0)}</span>
-              {/* Apparent power, not real power — see the per-port note below. */}
-              <span className="text-base md:text-lg font-bold text-maroon-200 uppercase tracking-widest" title="Apparent power (VA) — no power-factor correction is possible without voltage sensing.">VA</span>
+              {/* Unit follows the device's actual capability — W only when a voltage sensor is
+                  fitted, enabled and calibrated; VA otherwise. */}
+              <span
+                className="text-base md:text-lg font-bold text-maroon-200 uppercase tracking-widest"
+                title={
+                  powerIsMeasured
+                    ? 'Real power (W) — measured from the voltage and current waveforms, so power factor is accounted for.'
+                    : 'Apparent power (VA) — no voltage sensing on this device, so power factor cannot be measured and the real draw is typically lower.'
+                }
+              >
+                {powerIsMeasured ? 'W' : 'VA'}
+              </span>
             </div>
           </div>
-          
+
           {!activeDeviceId ? (
             <p className="text-[10px] text-maroon-200/60 mt-3 font-medium uppercase tracking-widest">
-              Apparent power, all active ports
+              {powerIsMeasured ? 'Real power, all active ports' : 'Apparent power, all active ports'}
             </p>
           ) : (
              <div className="mt-3"></div>
@@ -477,19 +501,34 @@ const Dashboard = () => {
                   </div>
                   <span className="text-gray-300 text-[10px] hidden sm:inline">•</span>
                   <div className="flex items-center gap-2">
-                    {/* Apparent power (VA), not real power (W): the ACS712 measures current only,
-                        so the number is V x A with no power-factor correction. A switch-mode load
-                        at PF 0.6 draws ~40% less real power than this shows. Labelled VA so the
-                        unit does not claim a precision the hardware cannot deliver. */}
+                    {/* W with a voltage sensor, VA without. The difference is not cosmetic: the
+                        ACS712 measures current only, so without voltage sensing this is V x A with
+                        no power-factor correction, and a switch-mode load at PF 0.6 draws ~40% less
+                        real power than it shows. The unit must follow the hardware. */}
                     <span
                       className="text-[10px] md:text-[11px] font-bold text-gray-600 tracking-tight"
-                      title="Apparent power (VA). No voltage/power-factor sensing, so this is not real power in watts."
+                      title={
+                        powerIsMeasured
+                          ? 'Real power (W), measured from the voltage and current waveforms.'
+                          : 'Apparent power (VA). No voltage sensing, so this is not real power in watts.'
+                      }
                     >
-                      {(Number(portData.power_watts) || 0).toFixed(1)} VA
+                      {(Number(portData.power_watts) || 0).toFixed(1)} {powerIsMeasured ? 'W' : 'VA'}
                     </span>
                     <span className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight">
                       {(Number(portData.current_amps) || 0).toFixed(2)} A
                     </span>
+                    {/* Power factor, shown only when it was actually measured. A hard-coded or
+                        assumed PF would be worse than showing nothing — it is a property of the
+                        load, not of the device. */}
+                    {powerIsMeasured && Number(portData.power_factor) > 0 && (
+                      <span
+                        className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight"
+                        title="Measured power factor (real power / apparent power)."
+                      >
+                        PF {Number(portData.power_factor).toFixed(2)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

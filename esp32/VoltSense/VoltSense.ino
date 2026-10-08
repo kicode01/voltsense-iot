@@ -54,6 +54,11 @@
 #include <Preferences.h>
 #include <esp_task_wdt.h>
 
+// Types named in function SIGNATURES live in a header, not in this file. The Arduino build inserts
+// generated prototypes near the top of the sketch — above any type this file defines — so a
+// signature type declared below fails with "does not name a type". See the header for the details.
+#include "VoltSenseTypes.h"
+
 #define API_KEY "AIzaSyBeTz-ZTkrVrq9k92HJ1ttvZb806voxpnM"
 #define DATABASE_URL "voltsense-iot-default-rtdb.asia-southeast1.firebasedatabase.app"
 
@@ -66,8 +71,11 @@
 //   * 3-channel relay module ............... switches the three outlets
 //   * 3x ACS712 current sensor ............ one per outlet (5 A variant)
 //   * 5 V regulated DC supply
+//   * AC voltage sensor (ZMPT101B or similar) — OPTIONAL, see HAS_VOLTAGE_SENSE below. When fitted,
+//     the firmware measures real power (W) and power factor instead of estimating apparent power.
 //
-// NO voltage sensor is fitted — an ACS712 measures current only. See the voltage section below.
+// The ACS712 measures current only. With no voltage channel fitted, every voltage figure is a
+// configured value, not a reading — see the voltage section below.
 // The mmWave radar is a first-class part of the design (the thesis specifies a dual PIR + mmWave
 // occupancy module) and the firmware reads it when compiled with HAS_MMWAVE; the read ships
 // commented out because the written bill of materials lists only the PIR. Read its pin/section
@@ -91,6 +99,16 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
 // plain digital input, so the ADC2/Wi-Fi limitation above does not apply. Enabling the read is the
 // only extra step: see HAS_MMWAVE in the mmWave section below.
 #define MMWAVE_PIN 4
+
+// Voltage-sense channel (ZMPT101B or equivalent). ANALOG, so it MUST be an ADC1 pin for the same
+// reason the current sensors are: ADC2 is dead while Wi-Fi is up, and a dead voltage channel would
+// read 0 V — which is worse than no sensor, because 0 V x any current is 0 W and every port would
+// silently report no load.
+//
+// ADC1 is GPIO 32-39. The current sensors already take 34, 35 and 32, leaving 33, 36 and 39.
+// GPIO 33 is the default (a normal I/O); 36 and 39 work too but are input-only with no pull-ups.
+// Checked against the other pins: 33 collides with nothing (relays 23/21/19, PIR 22, mmWave 4).
+#define VOLTAGE_SENSE_PIN 33
 
 // ---------------------------------------------------------------------------
 // HC-SR501 PIR — the primary occupancy sensor, and its two traps
@@ -143,6 +161,43 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
   // The pin itself is defined at file scope above; nothing to redeclare here.
 #endif
 
+// ---------------------------------------------------------------------------
+// AC voltage sensing — what it buys, and why the gate ships CLOSED
+// ---------------------------------------------------------------------------
+// Fitting a voltage channel (ZMPT101B or equivalent) changes the power maths from an ESTIMATE to a
+// MEASUREMENT, and the difference is not cosmetic:
+//
+//   Without it:  power = I_rms x (configured voltage)          -> APPARENT power (VA)
+//   With it:     power = mean(v(t) x i(t)) over whole cycles   -> REAL power (W)
+//
+// The second form is what a true energy meter computes. It captures the phase relationship between
+// voltage and current, so a switch-mode load at 0.6 power factor reports ~40 % LESS than the
+// apparent figure. That is not a correction to be applied afterwards — it is only obtainable by
+// multiplying the two waveforms sample-by-sample. Multiplying two RMS values cannot do it, because
+// RMS throws away the sign that carries the phase information.
+//
+// The gate ships CLOSED for the same reason HAS_MMWAVE does: an unwired ADC pin FLOATS, and a
+// floating ESP32 input reads noise. Here the failure is worse than the radar's, because the noise
+// is fed straight into a voltage figure and then multiplied by every current reading. The device
+// would report confident, plausible, entirely fictional wattages. A wrong number that looks right
+// is the most dangerous kind of wrong. Only read the pin when the sensor is actually wired.
+//
+// TO ENABLE:
+//   1. Wire the sensor output to VOLTAGE_SENSE_PIN, share ground with the ESP32, and make sure the
+//      output is scaled into 0-3.3 V (see the hardware notes at the sensor section below — the
+//      common ZMPT101B module can swing past 3.3 V and will damage the pin).
+//   2. CALIBRATE. The module's scaling is set by an on-board potentiometer and is not a calibrated
+//      measurement. Measure the real mains voltage with a multimeter, read what the device reports,
+//      and set `settings/voltage_cal_mv_per_v` (or the default below) so they agree.
+//   3. Uncomment the line below and reflash.
+//
+// Until step 3, every code path behaves exactly as it did before this section existed.
+// ---------------------------------------------------------------------------
+// #define HAS_VOLTAGE_SENSE       // uncomment ONLY when the sensor is physically wired AND calibrated
+#ifdef HAS_VOLTAGE_SENSE
+  // The pin itself is defined at file scope above; nothing to redeclare here.
+#endif
+
 FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
@@ -177,35 +232,32 @@ const unsigned long RESPONSE_WINDOW_MS = 300 * 1000UL; // 5 minutes
 const unsigned long HISTORY_PUBLISH_MS = 5 * 60 * 1000UL;
 const unsigned long ENERGY_PERSIST_MS = 5 * 60 * 1000UL;
 // ---------------------------------------------------------------------------
-// Voltage — CONFIGURED, not measured
+// Voltage — CONFIGURED, or MEASURED when a sensor is fitted
 // ---------------------------------------------------------------------------
-// THE ACS712 CANNOT MEASURE VOLTAGE. This is worth stating plainly because the bill of materials
-// describes it as monitoring "current, voltage, and power (V, A, W, kWh)". That is not something an
-// ACS712 does: it is a Hall-effect CURRENT sensor with an analogue output proportional to current
-// only. There is no voltage channel anywhere on this board.
+// TWO MODES, and the device always says which one it is in (see `voltage_source` in the telemetry).
 //
-// So every voltage figure the system reports is the value configured below (or set at runtime),
-// never a reading. It is a reasonable estimate for a nominal 230 V supply, and it is honest as long
-// as it is labelled as an assumption — which the UI does.
+// MODE A — no voltage sensor (HAS_VOLTAGE_SENSE off, the default).
+//   THE ACS712 CANNOT MEASURE VOLTAGE. It is a Hall-effect CURRENT sensor with an analogue output
+//   proportional to current only. The written bill of materials describes monitoring "current,
+//   voltage, and power (V, A, W, kWh)", which an ACS712 alone cannot deliver — so in this mode every
+//   voltage figure is the value configured below, never a reading.
 //
-// The consequence, worth being explicit about:
+//   The consequence, stated plainly: `currentA_rms * voltage` is APPARENT power (VA), not real
+//   power (W). The two are equal only for a purely resistive load at unity power factor. A laptop
+//   brick or switched-mode supply can sit at 0.5-0.7 PF, so the real draw is materially LOWER than
+//   the number computed here — typically 30-50 % lower for exactly the electronics this device is
+//   built to monitor. The UI labels the figure as apparent power and the kWh totals are not
+//   billing-grade. This is a hardware limitation, not a firmware bug.
 //
-//   `currentA_rms * voltage` is APPARENT power (VA), not real power (W). The two are equal only for
-//   a purely resistive load at unity power factor. A laptop brick, a switched-mode supply or a motor
-//   can sit at 0.5-0.7 PF, so the real draw is materially LOWER than the number computed here —
-//   typically 30-50% lower for exactly the electronics this device is built to monitor.
+// MODE B — voltage sensor fitted and HAS_VOLTAGE_SENSE enabled.
+//   Real power is computed as `mean(v(t) * i(t))` over whole mains cycles — the same method a true
+//   energy meter uses. That is NOT the same as `V_rms * I_rms`; the sample-by-sample product is
+//   what captures the phase relationship, and therefore what turns VA into W. Power factor then
+//   falls out as `W / VA`, measured rather than assumed.
 //
-// This is a hardware limitation, not a firmware bug: fixing it properly needs a voltage-sense
-// channel so power factor can be computed (P = V*I*cos(phi)), e.g. a ZMPT101B. Until then the values
-// are optimistic by an unknown factor, and the UI labels them as apparent power. Do not use the kWh
-// totals for billing.
-//
-// P2-7: rather than pretending 230.0 is a measurement, the nominal is now a *fallback*. A user who
-// measures their actual supply (or a board that gains a voltage-sense channel later) can set
-// `settings/nominal_voltage` in the database, which takes precedence and is persisted to NVS so it
-// survives a reboot. The pushed `voltage` field is then an honest number: it is the value the
-// device actually used, not a hardcoded constant. The power-factor caveat is unchanged either way —
-// a better voltage does not make VA into W.
+// P2-7: even in mode A the nominal is a *fallback*, not a hardcoded pretence. A user who measures
+// their supply can set `settings/nominal_voltage`, which takes precedence and is persisted to NVS
+// so it survives a reboot. The pushed `voltage` field is then the value the device actually used.
 const float VOLTAGE = 230.0;
 
 // Runtime-overridable supply voltage. Written by streamCallback when the app changes
@@ -213,19 +265,74 @@ const float VOLTAGE = 230.0;
 // path reads it every 2 s and NVS reads are slow.
 float nominalVoltage = VOLTAGE;
 
-// Fraction of apparent power that is real power, for the whole-home rollup. Deliberately a
-// conservative single figure for a mixed load — better to under-report than to invent precision
-// that the hardware cannot deliver. The per-port `power_watts` field stays as VA so the app can
-// show what was actually measured.
-const float ASSUMED_POWER_FACTOR = 0.85;
+#ifdef HAS_VOLTAGE_SENSE
+// ---------------------------------------------------------------------------
+// Voltage-sense calibration
+// ---------------------------------------------------------------------------
+// The sensor's transfer function: how many millivolts (RMS) appear at the ADC for each volt (RMS)
+// of mains. This is NOT a datasheet number — the common ZMPT101B module sets its gain with an
+// on-board potentiometer, so it varies module to module and moves if the pot is knocked.
+//
+// CALIBRATION PROCEDURE (do this before trusting any wattage):
+//   1. Measure the real mains voltage at the socket with a multimeter.
+//   2. Read what the device reports for `voltage`.
+//   3. Set `settings/voltage_cal_mv_per_v` so the two agree. It is persisted to NVS and applied
+//      immediately — no reflash needed.
+//
+// The default below is a plausible starting point for a module trimmed to swing ~1.06 V RMS at
+// 230 V (which keeps the peak inside the ESP32's 3.3 V range with headroom). It is a GUESS until
+// calibrated, and an uncalibrated scale makes every wattage wrong by that same factor.
+const float VOLTAGE_CAL_MV_PER_V = 4.60f;
 
-// The single source of truth for "what voltage are we multiplying by?". Every power computation
-// calls this rather than the constant, so a later voltage-sense channel only has to change one
-// place. Falls back to the nominal if the configured value is absurd, so a typo cannot produce a
-// garbage reading.
+// Runtime-overridable, NVS-backed, same shape as nominalVoltage. Bounded so a typo cannot scale
+// every reading into nonsense: a real module lands somewhere in 1-20 mV/V.
+float voltageCalMvPerV = VOLTAGE_CAL_MV_PER_V;
+
+// Most recent measured mains RMS. Written by every sampling pass that touches the voltage channel;
+// read by supplyVoltage() and by the telemetry. Zero means "no valid reading yet".
+float measuredVoltageRms = 0.0f;
+
+// When the voltage channel was last read. Port passes only read it while a port is energised, so
+// with every port off the reading would otherwise freeze at its last value — and, worse, a user
+// with nothing plugged in could not calibrate at all, because calibration means comparing the
+// reported voltage against a multimeter. refreshVoltageOnly() uses this to stay current.
+unsigned long lastVoltageSampleMs = 0;
+
+/** Is a measured voltage available and physically plausible? */
+bool measuredVoltageIsUsable() {
+  return measuredVoltageRms >= 50.0f && measuredVoltageRms <= 300.0f;
+}
+#endif
+
+/**
+ * The single source of truth for "what voltage are we multiplying by?".
+ *
+ * Every power computation calls this rather than the constant, which is what made adding a
+ * voltage-sense channel a change in one place. With a sensor fitted and a plausible reading it
+ * returns the MEASUREMENT; otherwise it falls back to the configured nominal. Both bands are
+ * range-checked so a typo or a floating pin cannot produce a garbage multiplier.
+ */
 float supplyVoltage() {
+#ifdef HAS_VOLTAGE_SENSE
+  if (measuredVoltageIsUsable()) return measuredVoltageRms;
+#endif
   if (nominalVoltage >= 50.0f && nominalVoltage <= 300.0f) return nominalVoltage;
   return VOLTAGE;
+}
+
+/**
+ * Is the voltage figure a reading, or a configured assumption?
+ *
+ * The app needs this to label the power figure honestly — VA vs W is the difference between an
+ * estimate and a measurement, and showing the wrong unit is how a prototype ends up claiming a
+ * precision it does not have. Reported in telemetry as `voltage_source`.
+ */
+bool voltageIsMeasured() {
+#ifdef HAS_VOLTAGE_SENSE
+  return measuredVoltageIsUsable();
+#else
+  return false;
+#endif
 }
 
 String roomPath = "";
@@ -428,12 +535,8 @@ void setNvsString(const char* key, const String& value) {
 // touches `relay_status`. It exists only to turn a silent failure into a legible serial log.
 // ---------------------------------------------------------------------------
 
-struct ProbeResult {
-  bool reachable;   // TLS + HTTP both completed
-  bool tlsFailed;   // TCP got there but the handshake did not
-  int code;         // HTTPClient code (negative = transport error)
-  String detail;    // human-readable reason
-};
+// `struct ProbeResult` is declared in VoltSenseTypes.h — it appears in a function signature, so it
+// must be visible above the prototypes the Arduino build generates. See that file for the details.
 
 // A TLS handshake failure and a plain network failure both come back as a negative HTTPClient code,
 // so the distinction has to be made from the error STRING, not the number. Keep this in one place.
@@ -678,7 +781,8 @@ String dayOffsetToDate(int daysAgo);
 void publishDailyRange(const String& key, int startDaysAgo, int endDaysAgo);
 void sendAlert(const String& title, const String& body, const String& tag);
 // Defined in the relay derating section further down; every relay write routes through it.
-enum RelaySwitchResult { RELAY_SWITCHED, RELAY_NOOP, RELAY_SUPPRESSED };
+// The enum itself is in VoltSenseTypes.h (it appears in a signature, so it must precede the
+// prototypes the Arduino build generates — defining it here as well was a duplicate definition).
 RelaySwitchResult runRelaySwitch(int port, bool on, bool force = false);
 void runRelaySwitchAndSync(int port, bool on);
 
@@ -770,6 +874,133 @@ float readACS712RMS(int pin) {
   return vRms / (ACS712_MV_PER_AMP / 1000.0f);
 }
 
+#ifdef HAS_VOLTAGE_SENSE
+// ---------------------------------------------------------------------------
+// True-power sampling — the entire reason the voltage channel exists
+// ---------------------------------------------------------------------------
+// `readACS712RMS` above derives RMS from the peak-to-peak swing and assumes a SINE. That is fine
+// for a rough current figure and it is inherently immune to the sensor's DC bias (a peak-to-peak
+// difference cancels any constant offset). But it cannot produce real power, for two reasons:
+//
+//   1. NO PRODUCT TERM. Real power is `mean(v(t) * i(t))`. Min/max discards every sample except
+//      two, including the sign information that carries the phase relationship between voltage and
+//      current. Multiplying two RMS values gives APPARENT power — always positive, always too high
+//      for anything with a power factor below 1.
+//
+//   2. THE SINE ASSUMPTION IS WRONG FOR THE LOADS THIS DEVICE TARGETS. A switch-mode supply draws
+//      a narrow current pulse train, not a sine. A peak-derived "RMS" of that waveform is not its
+//      RMS at all.
+//
+// So this path accumulates the three sums a true energy meter needs, in one pass over the samples:
+//
+//   sumV2 = SUM (v - biasV)^2      -> V_rms
+//   sumI2 = SUM (i - biasI)^2      -> I_rms
+//   sumVI = SUM (v - biasV)(i - biasI) -> real power (the phase-carrying term)
+//
+// BIAS REMOVAL IS MANDATORY HERE, unlike the peak-to-peak path. Both sensors idle at a DC offset
+// (the ACS712 at Vcc/2, the voltage module at its mid-rail bias). That offset must be subtracted
+// BEFORE multiplying, or the product carries a spurious DC term that inflates the watts. The bias
+// is taken as the mean of the window — valid because the window is a whole number of mains cycles,
+// so the AC component averages to zero and what remains is the offset.
+//
+// ACCUMULATORS ARE int64_t, NOT float. A sample can reach ~3300 mV, so one squared term is ~1.1e7;
+// over 512 samples the sum reaches ~5.6e9, which overflows a 32-bit int and would silently wrap.
+// Integer accumulation is also exact, so the only rounding is the final square root.
+// ---------------------------------------------------------------------------
+
+struct PowerReading {
+  float volts;  // measured mains RMS
+  float amps;   // true RMS current
+  float watts;  // real power, mean(v*i) — the phase-correct figure
+  float va;     // apparent power, V_rms * I_rms
+  float pf;     // measured power factor, watts/va
+  bool valid;   // false = too few samples / flat line, caller must not trust the numbers
+};
+
+// ~400 samples at the 250 us cadence over a 100 ms window; 512 leaves headroom for a slower loop.
+#define POWER_SAMPLE_MAX 512
+static int16_t powerSampV[POWER_SAMPLE_MAX];
+static int16_t powerSampI[POWER_SAMPLE_MAX];
+
+/**
+ * Sample voltage and current together and compute true RMS, real power and power factor.
+ *
+ * The two channels are read BACK TO BACK inside one iteration. That matters: a phase error between
+ * them maps directly into a power-factor error. At 50 Hz a 250 us skew is ~4.5 degrees, which at
+ * PF 0.6 is roughly a 10 % error in the wattage — so the reads stay adjacent and the inter-sample
+ * delay comes after both.
+ */
+PowerReading readPowerPort(int currentPin) {
+  PowerReading out = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false};
+
+  int n = 0;
+  uint32_t start = millis();
+  while ((millis() - start) < CURRENT_SAMPLE_MS && n < POWER_SAMPLE_MAX) {
+    // Adjacent reads: minimal skew between the two channels.
+    int mvV = analogReadMilliVolts(VOLTAGE_SENSE_PIN);
+    int mvI = analogReadMilliVolts(currentPin);
+    powerSampV[n] = (int16_t)mvV;
+    powerSampI[n] = (int16_t)mvI;
+    n++;
+    delayMicroseconds(CURRENT_SAMPLE_US);
+  }
+
+  // Too few samples to span a mains cycle, or a buffer that filled instantly (a stuck ADC).
+  if (n < 16) return out;
+
+  // ---- DC bias, as the mean of the window ---------------------------------
+  int64_t sumV = 0;
+  int64_t sumI = 0;
+  for (int k = 0; k < n; k++) {
+    sumV += powerSampV[k];
+    sumI += powerSampI[k];
+  }
+  const int32_t biasV = (int32_t)(sumV / n);
+  const int32_t biasI = (int32_t)(sumI / n);
+
+  // ---- the three sums -----------------------------------------------------
+  int64_t sumV2 = 0;
+  int64_t sumI2 = 0;
+  int64_t sumVI = 0;
+  for (int k = 0; k < n; k++) {
+    const int32_t dv = (int32_t)powerSampV[k] - biasV;
+    const int32_t di = (int32_t)powerSampI[k] - biasI;
+    sumV2 += (int64_t)dv * dv;
+    sumI2 += (int64_t)di * di;
+    sumVI += (int64_t)dv * di;
+  }
+
+  const double dn = (double)n;
+  const float adcVrms_mV = (float)sqrt((double)sumV2 / dn);
+  const float adcIrms_mV = (float)sqrt((double)sumI2 / dn);
+  const float product_mVmV = (float)((double)sumVI / dn);
+
+  // A flat line means no signal — the sensor is unpowered, unwired, or the port is dead.
+  if (adcVrms_mV <= 0.0f || adcIrms_mV <= 0.0f) return out;
+
+  // ---- scale to engineering units -----------------------------------------
+  // voltageCalMvPerV is the sensor's mV-per-mains-volt transfer, so it DIVIDES.
+  const float volts = adcVrms_mV / voltageCalMvPerV;
+  const float amps = adcIrms_mV / ACS712_MV_PER_AMP;
+  // v_V * i_A = (v_mV * i_mV) / (1000 * mV_per_A)
+  const float watts = product_mVmV / (1000.0f * ACS712_MV_PER_AMP);
+  const float va = volts * amps;
+
+  out.volts = volts;
+  out.amps = amps;
+  // Real power cannot be negative for a load. A small negative here is noise around zero, so clamp
+  // rather than reporting a load that generates power.
+  out.watts = watts > 0.0f ? watts : 0.0f;
+  out.va = va;
+  // PF is a ratio of two noisy quantities; bound it to the physical range so a near-zero VA cannot
+  // produce a meaningless value (or a divide-by-zero).
+  out.pf = (va > 0.01f) ? (out.watts / va) : 0.0f;
+  if (out.pf > 1.0f) out.pf = 1.0f;
+  out.valid = true;
+  return out;
+}
+#endif
+
 /**
  * Per-port current cache — one ADC sweep per port per cycle.
  *
@@ -792,20 +1023,79 @@ struct CurrentReading {
   float amps;          // raw RMS, noise floor NOT applied (callers choose their own threshold)
   bool valid;          // false = never sampled, or invalidated by a relay change
   bool relayWasOn;     // which relay state the reading was taken under
+#ifdef HAS_VOLTAGE_SENSE
+  // Populated only when the voltage channel is compiled in AND the port was actually sampled.
+  // `powerValid` distinguishes "measured 0 W" from "never measured" — a de-energised port is the
+  // former, an unsampled one the latter, and the telemetry must not conflate them.
+  float watts;         // real power
+  float va;            // apparent power
+  float pf;            // measured power factor
+  float volts;         // mains RMS measured during this port's pass
+  bool powerValid;
+#endif
 };
 
-CurrentReading currentCache[NUM_PORTS] = {{0, false, false}, {0, false, false}, {0, false, false}};
+CurrentReading currentCache[NUM_PORTS] = {
+  {0, false, false},
+  {0, false, false},
+  {0, false, false}
+};
+
+/**
+ * Sample one port and store the result in the cache. The single sampling entry point, shared by the
+ * bulk refresh and the cold-cache fallback so the two can never drift apart.
+ */
+void samplePortIntoCache(int i) {
+  const bool relayOn = digitalRead(RELAY_PINS[i]) == HIGH;
+  CurrentReading& c = currentCache[i];
+
+#ifdef HAS_VOLTAGE_SENSE
+  if (relayOn) {
+    PowerReading p = readPowerPort(CURRENT_SENSOR_PINS[i]);
+    if (p.valid) {
+      c.amps = p.amps;
+      c.watts = p.watts;
+      c.va = p.va;
+      c.pf = p.pf;
+      c.volts = p.volts;
+      c.powerValid = true;
+      // Publish the newest plausible mains reading. supplyVoltage() and the telemetry both read
+      // this, so the two always agree about which voltage the watts were computed against.
+      if (p.volts >= 50.0f && p.volts <= 300.0f) {
+        measuredVoltageRms = p.volts;
+        lastVoltageSampleMs = millis();
+      }
+    } else {
+      // Sampled but unusable (flat line / too few samples). Report zero and say so, rather than
+      // leaving a stale wattage on screen for a port whose sensor has failed.
+      c.amps = 0.0f;
+      c.watts = 0.0f;
+      c.va = 0.0f;
+      c.pf = 0.0f;
+      c.volts = 0.0f;
+      c.powerValid = false;
+    }
+  } else {
+    c.amps = 0.0f;
+    c.watts = 0.0f;
+    c.va = 0.0f;
+    c.pf = 0.0f;
+    c.volts = 0.0f;
+    c.powerValid = false;
+  }
+#else
+  // A de-energised port draws nothing by definition — do not spend 100 ms proving it, and do not
+  // let the sensor's own noise register as a load on a socket that is switched off.
+  c.amps = relayOn ? readACS712RMS(CURRENT_SENSOR_PINS[i]) : 0.0f;
+#endif
+
+  c.valid = true;
+  c.relayWasOn = relayOn;
+}
 
 /** Take one fresh reading for every port and refresh the cache. Call once per loop iteration. */
 void refreshCurrentCache() {
-  for (int i = 0; i < NUM_PORTS; i++) {
-    bool relayOn = digitalRead(RELAY_PINS[i]) == HIGH;
-    // A de-energised port draws nothing by definition — do not spend 100 ms proving it, and do not
-    // let the sensor's own noise register as a load on a socket that is switched off.
-    currentCache[i].amps = relayOn ? readACS712RMS(CURRENT_SENSOR_PINS[i]) : 0.0f;
-    currentCache[i].valid = true;
-    currentCache[i].relayWasOn = relayOn;
-  }
+  for (int i = 0; i < NUM_PORTS; i++) samplePortIntoCache(i);
 }
 
 /**
@@ -821,11 +1111,7 @@ float currentAmpsFor(int port, unsigned long staleAfterMs = 5000) {
 
   CurrentReading& c = currentCache[port];
   bool usable = c.valid && c.relayWasOn == relayOn;
-  if (!usable) {
-    c.amps = relayOn ? readACS712RMS(CURRENT_SENSOR_PINS[port]) : 0.0f;
-    c.valid = true;
-    c.relayWasOn = relayOn;
-  }
+  if (!usable) samplePortIntoCache(port);
   (void)staleAfterMs; // retained for callers that need an explicit freshness policy
   return c.amps;
 }
@@ -870,6 +1156,95 @@ float readACS712ForDisplay(int port) {
   float amps = currentAmpsFor(port);
   return amps < CURRENT_NOISE_FLOOR_A ? 0.0f : amps;
 }
+
+#ifdef HAS_VOLTAGE_SENSE
+// ---------------------------------------------------------------------------
+// Voltage-only sampling, and the power accessors
+// ---------------------------------------------------------------------------
+// Port passes read the voltage channel only while a port is energised, because the product needs a
+// simultaneous current. That leaves two gaps: with every port off the reported voltage would freeze
+// at its last value, and — more practically — a bench unit with nothing plugged in could never be
+// CALIBRATED, since calibration means comparing the reported voltage against a multimeter.
+//
+// So the voltage channel also gets a standalone true-RMS read, rate-limited so it costs nothing in
+// the common case. The rate limit matters: a pass is ~100 ms of blocking ADC work, and the loop
+// also has an occupancy state machine running on millis().
+#define VOLTAGE_ONLY_MIN_INTERVAL_MS 5000UL
+
+/** True-RMS read of the voltage channel alone. Same method as readPowerPort, minus the current. */
+float readVoltageOnly() {
+  int n = 0;
+  uint32_t start = millis();
+  while ((millis() - start) < CURRENT_SAMPLE_MS && n < POWER_SAMPLE_MAX) {
+    powerSampV[n] = (int16_t)analogReadMilliVolts(VOLTAGE_SENSE_PIN);
+    n++;
+    delayMicroseconds(CURRENT_SAMPLE_US);
+  }
+  if (n < 16) return 0.0f;
+
+  int64_t sum = 0;
+  for (int k = 0; k < n; k++) sum += powerSampV[k];
+  const int32_t bias = (int32_t)(sum / n);
+
+  int64_t sumSq = 0;
+  for (int k = 0; k < n; k++) {
+    const int32_t d = (int32_t)powerSampV[k] - bias;
+    sumSq += (int64_t)d * d;
+  }
+  const float adcVrms_mV = (float)sqrt((double)sumSq / (double)n);
+  if (adcVrms_mV <= 0.0f) return 0.0f;
+  return adcVrms_mV / voltageCalMvPerV;
+}
+
+/**
+ * Keep the measured voltage fresh when no port is energised.
+ *
+ * Called once per loop. Cheap in the normal case (a timestamp compare); only pays for a real
+ * sampling pass when every port is off AND the reading is older than the interval.
+ */
+void refreshVoltageOnlyIfStale() {
+  bool anyPortOn = false;
+  for (int i = 0; i < NUM_PORTS; i++) {
+    if (digitalRead(RELAY_PINS[i]) == HIGH) {
+      anyPortOn = true;
+      break;
+    }
+  }
+  // With a port energised, its pass already refreshed the voltage — nothing to do.
+  if (anyPortOn) return;
+  if (lastVoltageSampleMs != 0 && (millis() - lastVoltageSampleMs) < VOLTAGE_ONLY_MIN_INTERVAL_MS) return;
+
+  const float v = readVoltageOnly();
+  lastVoltageSampleMs = millis();
+  if (v >= 50.0f && v <= 300.0f) measuredVoltageRms = v;
+}
+
+/** Real power for a port, or its apparent power when no voltage channel was compiled in. */
+float wattsFor(int port) {
+  if (port < 0 || port >= NUM_PORTS) return 0.0f;
+  currentAmpsFor(port); // ensure the cache is populated
+  const CurrentReading& c = currentCache[port];
+  if (c.powerValid) return c.watts;
+  // Sensing compiled in but this port was not sampled (relay off) — no power by definition.
+  return 0.0f;
+}
+
+/** Apparent power for a port. Equals the real power only at unity power factor. */
+float vaFor(int port) {
+  if (port < 0 || port >= NUM_PORTS) return 0.0f;
+  currentAmpsFor(port);
+  const CurrentReading& c = currentCache[port];
+  return c.powerValid ? c.va : 0.0f;
+}
+
+/** Measured power factor for a port, or 0 when nothing was measured. */
+float powerFactorFor(int port) {
+  if (port < 0 || port >= NUM_PORTS) return 0.0f;
+  currentAmpsFor(port);
+  const CurrentReading& c = currentCache[port];
+  return c.powerValid ? c.pf : 0.0f;
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Soft overcurrent cutoff — a SECOND line of defence, NOT a fuse
@@ -1537,6 +1912,25 @@ void streamCallback(FirebaseStream data) {
     } else {
       Serial.printf("Ignoring overcurrent_limit_a %.2f (outside 0.5-5.0 A)\n", a);
     }
+#ifdef HAS_VOLTAGE_SENSE
+  } else if (path == "/settings/voltage_cal_mv_per_v") {
+    // The voltage sensor's transfer function. Adjustable at runtime so a unit can be CALIBRATED
+    // without a reflash: measure the socket with a multimeter, compare against the reported
+    // voltage, and correct this until they agree. Persisted to NVS.
+    //
+    // Bounded to 1-20 mV/V, which brackets every realistic divider/op-amp combination. The bound is
+    // load-bearing rather than tidy: this value DIVIDES into every voltage reading, so a typo like
+    // 460 instead of 4.6 would scale the whole system down by 100x and every wattage with it —
+    // producing confident, plausible, completely wrong numbers.
+    float cal = data.floatData();
+    if (cal >= 1.0f && cal <= 20.0f) {
+      voltageCalMvPerV = cal;
+      setNvsString("voltage_cal", String(cal, 3));
+      Serial.printf("Voltage calibration set to %.3f mV/V\n", cal);
+    } else {
+      Serial.printf("Ignoring voltage_cal_mv_per_v %.3f (outside 1-20 mV/V)\n", cal);
+    }
+#endif
   } else if (path == "/") {
     // Handle full object initialization
     FirebaseJson json;
@@ -1784,9 +2178,12 @@ void relayRecordSwitch(int port, unsigned long nowMs) {
  * `force` = true skips BOTH rules and is reserved for safety paths (overcurrent cutoff, boot
  * restore). If you are adding an ordinary control path, leave it false — that is the whole point.
  */
-enum RelaySwitchResult { RELAY_SWITCHED, RELAY_NOOP, RELAY_SUPPRESSED };
+// NOTE: `RelaySwitchResult` is declared once, with the other forward declarations near the top of
+// this file. Defining it a second time here is a duplicate definition and does not compile.
 
-RelaySwitchResult runRelaySwitch(int port, bool on, bool force = false) {
+// The default for `force` lives on the forward declaration above, NOT here — repeating it in the
+// definition is a redefinition of the default argument, which the compiler warns about.
+RelaySwitchResult runRelaySwitch(int port, bool on, bool force) {
   if (port < 0 || port >= NUM_PORTS) return RELAY_NOOP;
 
   bool current = digitalRead(RELAY_PINS[port]) == HIGH;
@@ -1981,6 +2378,24 @@ void setup() {
         Serial.printf("Overcurrent limit restored from NVS: %.2f A\n", a);
       }
     }
+
+#ifdef HAS_VOLTAGE_SENSE
+    // Voltage-sensor calibration. Restored for the same reason as the nominal: losing it on every
+    // reboot would mean every wattage was wrong until someone re-entered the value, and the error
+    // is a silent scale factor — the numbers stay plausible.
+    String savedCal = getNvsString("voltage_cal");
+    if (savedCal.length() > 0) {
+      float cal = savedCal.toFloat();
+      if (cal >= 1.0f && cal <= 20.0f) {
+        voltageCalMvPerV = cal;
+        Serial.printf("Voltage calibration restored from NVS: %.3f mV/V\n", cal);
+      }
+    } else {
+      Serial.printf("Voltage calibration: default %.3f mV/V — NOT CALIBRATED. Measure the supply\n",
+                    voltageCalMvPerV);
+      Serial.println("  with a multimeter and set settings/voltage_cal_mv_per_v to match.");
+    }
+#endif
   }
 
   // WiFiManager handles WiFi connection and Captive Portal
@@ -2077,15 +2492,26 @@ void setup() {
     }
   }
 
+  // WHERE SIGN-IN CREDENTIALS LIVE. The Firebase Arduino Client Library keeps sign-in details on
+  // the AUTH object and only token/signing machinery on `config.signer`. Writing
+  // `config.signer.email` compiles against nothing — `firebase_token_signer_resources_t` has no
+  // such member — so this block previously failed to build. The rest of this file already used
+  // `auth.user.*` (see the clear() calls above), which is what made the inconsistency easy to miss.
   if (deviceEmail.length() > 0 && devicePassword.length() > 0) {
     config.signer.anonymous = false;
-    config.signer.email = deviceEmail;
-    config.signer.password = devicePassword;
+    auth.user.email = deviceEmail;
+    auth.user.password = devicePassword;
     Serial.println("Device identity loaded (email/password account).");
   } else if (deviceIdToken.length() > 0 && deviceRefreshToken.length() > 0) {
     config.signer.anonymous = false;
-    config.signer.tokens.id_token = deviceIdToken;
-    config.signer.tokens.refresh_token = deviceRefreshToken;
+    // A pre-existing token is supplied through setCustomToken(), NOT by writing into the token
+    // struct. The REFRESH token is the right one to hand over: the library treats any value that
+    // is not in `header.payload.signature` form as a refresh token and mints fresh ID tokens from
+    // it indefinitely, which is exactly what this device wants — a fielded unit must not expire
+    // after an hour because its baked-in ID token did.
+    //
+    // Must be called AFTER config.api_key / config.database_url are set and BEFORE Firebase.begin().
+    Firebase.setCustomToken(&config, deviceRefreshToken);
     Serial.println("Device identity loaded (custom token with device_mac claim).");
   } else if (ALLOW_ANONYMOUS_FALLBACK) {
     config.signer.anonymous = true;
@@ -2194,6 +2620,11 @@ void loop() {
   //
   // Done here, before the state machine, because the shutdown decision inside it needs the values.
   refreshCurrentCache();
+#ifdef HAS_VOLTAGE_SENSE
+  // Keep the measured mains voltage current when nothing is drawing power. Rate-limited, so this is
+  // a timestamp compare in the normal case — see the function's own comment for why it exists.
+  refreshVoltageOnlyIfStale();
+#endif
   watchdogFeed();
 
   // Overcurrent check runs on the SAME cached reading, right after it is taken — so the trip sees
@@ -2303,13 +2734,38 @@ void loop() {
 
     for (int i = 0; i < NUM_PORTS; i++) {
       float currentAmps = 0.0;
+      float currentWatts = 0.0;
+      float currentVa = 0.0;
+      float currentPf = 0.0;
+      float portVolts = volts;
+
       if (digitalRead(RELAY_PINS[i]) == HIGH) {
         // Display/history path: the noise floor is applied here, and only here, so a de-energised
         // port reads as exactly 0 A rather than as sensor hiss that creeps into the energy total.
         currentAmps = readACS712ForDisplay(i);
+#ifdef HAS_VOLTAGE_SENSE
+        // REAL power and MEASURED power factor. The apparent figure is published alongside rather
+        // than instead, so the app can show both and the difference is visible rather than hidden.
+        // `power_watts` therefore means watts here, and apparent power when no sensor is fitted —
+        // `voltage_source` is what tells the consumer which, so the unit on screen is never a guess.
+        currentWatts = wattsFor(i);
+        currentVa = vaFor(i);
+        currentPf = powerFactorFor(i);
+        // Each port's pass measured its own voltage; prefer it, since the watts were computed
+        // against it and reporting a different number would make the two disagree.
+        const CurrentReading& c = currentCache[i];
+        if (c.powerValid && c.volts >= 50.0f && c.volts <= 300.0f) portVolts = c.volts;
+#else
+        // No voltage channel: `I_rms * configured_voltage` is APPARENT power (VA), not watts. The
+        // UI labels it as such. See the voltage section for why this cannot be fixed in software.
+        currentWatts = currentAmps * volts;
+        currentVa = currentWatts;
+#endif
       }
-      float currentWatts = currentAmps * volts;
 
+      // Energy integrates whatever `currentWatts` holds, so with a voltage channel this becomes
+      // real energy (Wh) rather than apparent — which is the difference between a figure that can
+      // be checked against a utility meter and one that cannot.
       float deltaKwh = (currentWatts / 1000.0) * deltaHours;
       portEnergyKWh[i] += deltaKwh;
       todayHourlyKwh[localHour] += deltaKwh;
@@ -2320,12 +2776,18 @@ void loop() {
       String portPrefix = "ports/port_0" + String(i + 1) + "/";
       json.set(portPrefix + "current_amps", currentAmps);
       json.set(portPrefix + "power_watts", currentWatts);
+      json.set(portPrefix + "power_va", currentVa);
+      json.set(portPrefix + "power_factor", currentPf);
       json.set(portPrefix + "energy_kwh", portEnergyKWh[i]);
-      json.set(portPrefix + "voltage", volts);
+      json.set(portPrefix + "voltage", portVolts);
 
       // Also continuously push relay_status to ensure Web App is synced with physical reality
       json.set(portPrefix + "relay_status", digitalRead(RELAY_PINS[i]) == HIGH);
     }
+
+    // Which kind of number the power fields hold. The app switches its unit label on this, so a
+    // device with no voltage sensor can never present an apparent-power figure as watts.
+    json.set("voltage_source", voltageIsMeasured() ? "measured" : "configured");
 
     if (motionDetected) todayHourlyOccupied[localHour] = true;
 

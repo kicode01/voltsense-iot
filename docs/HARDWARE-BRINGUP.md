@@ -46,10 +46,79 @@ reflash. Nothing else you do will help.
 | 3-ch relay module | **23, 21, 19** | Active-low modules are what the firmware assumes — verify |
 | ACS712 ×3 (`5 A` variant) | **34, 35, 32** | **ADC1 only.** Never move to ADC2 — ADC2 reads 0 while Wi-Fi is up |
 | mmWave radar | `MMWAVE_PIN` = **4** | Supported but **read is compiled out** by default (`HAS_MMWAVE`) |
+| AC voltage sensor (ZMPT101B) | `VOLTAGE_SENSE_PIN` = **33** | **ADC1.** Optional; **gated off** by default (`HAS_VOLTAGE_SENSE`). See the next section |
 
-**There is no voltage sensor.** An ACS712 measures current only. Everything the dashboard calls
-"power" is **VA** (a current × assumed nominal voltage), not true watts. This is by design — see
-`VoltSense.ino:70`. Do not report voltage as a measurement.
+### Two modes — the device tells you which one it is in
+
+**Without a voltage sensor** an ACS712 measures current only, so everything the dashboard calls
+"power" is **VA** (current × a *configured* nominal voltage), not true watts. The firmware reports
+`voltage_source: "configured"` and the UI labels the figure **VA**. Do not present it as a
+measurement — it is an estimate, and it is optimistic by the power factor (typically 30–50 % high
+for switch-mode loads).
+
+**With the sensor fitted, enabled and calibrated**, the firmware computes real power as
+`mean(v(t)·i(t))` — the sample-by-sample product, which is what captures the phase relationship —
+and reports `voltage_source: "measured"` plus a measured `power_factor`. The UI then labels the
+figure **W**. See `docs/VOLTAGE-SENSING.md` for the bring-up and calibration procedure.
+
+> **The unit is not cosmetic.** VA can be 30–50 % higher than W for exactly the loads this device
+> monitors, so showing "W" without a sensor overstates every reading by an amount the user cannot
+> see. The app switches the unit on `voltage_source` for this reason, and the harness asserts it.
+
+### Fitting the sensor later
+
+| Step | Detail |
+|---|---|
+| 1. Wire | Sensor output → `VOLTAGE_SENSE_PIN` (GPIO 33), **share ground** with the ESP32 |
+| 2. **Check the voltage range** | The common ZMPT101B module runs its op-amp at 5 V and can swing **past the ESP32's 3.3 V ADC limit, which damages the pin.** Scale/bias it into 0–3.3 V with the mid-point at ~1.65 V. The signal is bipolar AC, so it needs a mid-rail bias. |
+| 3. Calibrate | The module's gain is set by an on-board potentiometer and is **not calibrated**. Compare the reported `voltage` against a multimeter and set `settings/voltage_cal_mv_per_v` (1–20 mV/V, NVS-persisted, no reflash). |
+| 4. Enable | Uncomment `HAS_VOLTAGE_SENSE` in `VoltSense.ino` and reflash |
+
+Until step 4 the firmware behaves exactly as before — the gate ships closed so a floating pin
+cannot invent a voltage and be multiplied into every wattage.
+
+---
+
+## Stage 0.4 — Build the firmware (do this before anything else)
+
+**The sketch does not fit the default partition.** Verify a clean build before you touch hardware —
+a firmware that does not build is the one failure no amount of bench work can work around.
+
+### Required libraries
+
+| Library | Notes |
+|---|---|
+| **Firebase Arduino Client Library for ESP8266 and ESP32** | mobizt. Provides `Firebase_ESP_Client.h`. **Not** the `FirebaseArduino` / `FireBase32` libraries. |
+| **WiFiManager** | tzapu — the captive portal |
+| `NTPClient` | Fabrice Weinberg |
+| `WiFi`, `HTTPClient`, `Preferences`, `esp_task_wdt`, … | Bundled with the ESP32 core — do not install separately |
+
+### Partition scheme — **change this or the build fails**
+
+The sketch needs **~1.48 MB**, but the ESP32 default partition allocates only **1.2 MB**, so a stock
+build stops with:
+
+```
+Sketch uses 1482683 bytes (113%) of program storage space. Maximum is 1310720 bytes.
+Error during build: text section exceeds available space in board
+```
+
+In the Arduino IDE set **Tools → Partition Scheme → "Huge APP (3MB No OTA/1MB SPIFFS)"**. The
+firmware uses no OTA and stores its state in NVS (not SPIFFS), so trading the OTA slot for app space
+costs nothing.
+
+### Command-line build
+
+```bash
+arduino-cli compile --fqbn "esp32:esp32:esp32:PartitionScheme=huge_app" esp32/VoltSense
+```
+
+> **Why this section exists.** The firmware in this repository had **never been compiled**. It
+> carried three separate build errors (an auth API that does not exist in the current library, a
+> duplicated `enum`, and a type-ordering problem with the Arduino auto-generated prototypes). The
+> fixes are in `VoltSenseTypes.h` and the device-identity block; the details are in
+> `docs/PROJECT-RULES.md`. A clean build is now the cheapest possible regression check — run it
+> before blaming the hardware.
 
 ---
 

@@ -11,18 +11,57 @@
 
 Every rule below was learned the hard way.
 
+## Firmware BUILD — read before touching the .ino (2026-10-08)
+
+**The firmware had never been compiled.** Three separate errors were shipped, each masking the next.
+Compile before reasoning about behaviour:
+
+```bash
+arduino-cli compile --fqbn "esp32:esp32:esp32:PartitionScheme=huge_app" esp32/VoltSense
+```
+
+- **The partition scheme is not optional.** The sketch needs ~1.48 MB; the ESP32 default gives
+  1.2 MB, so a stock build dies with *"text section exceeds available space in board"*. Use
+  **Huge APP (3MB No OTA/1MB SPIFFS)**. No OTA code, and state lives in NVS rather than SPIFFS, so
+  the OTA slot is free to spend.
+- **Types named in a FUNCTION SIGNATURE live in `VoltSenseTypes.h`**, not in the .ino. The Arduino
+  build inserts generated prototypes near the top of the sketch — *above* anything the .ino defines
+  below them — so `ProbeResult probeEndpoint(...)` fails with *"does not name a type"*. The
+  insertion point moves as functions are added, so "define it high enough in the .ino" silently
+  rots. (The original workaround — defining `enum RelaySwitchResult` twice — trades that error for
+  "multiple definition" and compiles neither way.)
+- **Sign-in credentials live on `auth`, not `config.signer`.** `auth.user.email` /
+  `auth.user.password`; a pre-existing token goes through `Firebase.setCustomToken(&config, token)`
+  before `begin()`. `firebase_token_signer_resources_t` has no `email`/`password`/`tokens.id_token`
+  members at all.
+- **Do not repeat a default argument** on both the declaration and the definition.
+- **Adjacent string literals concatenate only with macros.** `"a" NVS_NAMESPACE "b"` is a syntax
+  error when the name is a `const char*` — use `printf("%s")`.
+- Required libraries: **Firebase Arduino Client Library for ESP8266 and ESP32** (mobizt), WiFiManager,
+  NTPClient. Not `FirebaseArduino` or `FireBase32`.
+
 ## Hardware BOM — the authoritative build (user-supplied)
 - **ESP32** dev board. **HC-SR501 PIR** = the ONLY occupancy sensor → `PIR_PIN` (GPIO 22).
 - **3-ch relay** → `RELAY_PINS` {23,21,19}, HIGH = energised. **5 V regulated supply**, enclosure, phone.
 - **3× ACS712** → `CURRENT_SENSOR_PINS` {34,35,32}. **ADC1 only** — ADC2 dies while Wi-Fi is up (reads
   a permanent 0 A). Default part is the **5 A -05B, 185 mV/A**; the 20 A (100) / 30 A (66) parts silently
   rescale every reading if substituted. **ACS712 is a Hall CURRENT sensor — it cannot measure voltage.**
-  Every voltage reported is `settings/nominal_voltage` or the 230 V fallback, never a measurement, so
-  power is **apparent VA, not W** (`ASSUMED_POWER_FACTOR 0.85` for rollups). Fixing it needs a separate
-  channel (e.g. ZMPT101B). Never claim voltage sensing; never present kWh as billing-grade.
+- **Voltage sensing is OPTIONAL and gated off** (`HAS_VOLTAGE_SENSE`, `VOLTAGE_SENSE_PIN` = GPIO 33,
+  ADC1). **Two modes, and the device reports which** via `voltage_source`:
+  - *Off (default)* — voltage is `settings/nominal_voltage` or the 230 V fallback, never a measurement,
+    so power is **apparent VA, not W**. Never claim voltage sensing; never present kWh as billing-grade.
+  - *On* — real power is `mean(v(t)·i(t))`, i.e. **W**, with a measured `power_factor`. **`V_rms × I_rms`
+    is still VA** — the sample-by-sample product is the only thing that captures phase. DC bias must be
+    removed *before* multiplying (peak-to-peak never needed this; the product does).
+  - The UI unit is switched on `voltage_source` (harness-asserted). **VA can be 30–50 % above W** for
+    SMPS loads, so showing "W" without a sensor overstates every reading invisibly.
+  - Gate ships **closed**: an unwired ADC pin floats, and here the noise would be *multiplied* into
+    every current reading — confident fictional wattages. Full procedure: `docs/VOLTAGE-SENSING.md`.
+  - Calibration (`settings/voltage_cal_mv_per_v`, 1–20 mV/V, NVS-backed) **divides** into every voltage
+    reading — unbounded, a typo scales the whole system silently.
 
 **mmWave radar is SUPPORTED, not present.** The thesis (`GROUP-7_MANUSCRIPT.txt`) specifies a dual
-PIR+mmWave module; the written BOM lists only the PIR; there is NO voltage sensor. `MMWAVE_PIN` is
+PIR+mmWave module; the written BOM lists only the PIR. `MMWAVE_PIN` is
 declared **unconditionally** (GPIO 4) so it is collision-checked + app-provisionable, but the **read is
 compile-gated** behind `HAS_MMWAVE`, which **ships commented out** (user decision 2026-10-05:
 "supported, enable later"). Must not default on: an unwired pin floats (noise, often HIGH) and since
@@ -254,7 +293,7 @@ enumerate them. The firmware never writes a `custom_*` key. `toHistoryKey` keeps
   `chrome-win64/chrome.exe`, which makes the CI job fail instantly with ENOENT. Use
   `chromium.executablePath()` with multi-platform cache roots as fallbacks. `playwright` is a
   devDependency so CI's `npm ci` installs it (CI has no npx cache).
-- **`node verify-fixes.mjs`** (`npm run test:integration`) — **124 checks** against `dist/`, run after
+- **`node verify-fixes.mjs`** (`npm run test:integration`) — **139 checks** against `dist/`, run after
   `npm run build`. **Clear `dist/` first** (`rm -rf dist`, own turn — sandbox bulk-delete guard). **Beware
   a stale `dist/`** — the harness validating the OLD artifact returns a falsely green result.
 - Harness rules learned the hard way:

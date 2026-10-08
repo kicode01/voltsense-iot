@@ -917,10 +917,22 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
   // No bare "W" unit next to a power figure. The old UI printed `${x.toFixed(1)} W` and a "Watts"
   // label on the hero — both were false precision for a value with no voltage/power-factor sensing.
   const claimsWatts = /\}\s*W\s*</.test(dashSrc) || />\s*Watts\s*</.test(dashSrc);
+  // The label must now FOLLOW the hardware rather than being hard-coded either way: VA by default
+  // (honest for a device with no sensor), W only on the firmware's explicit "measured" signal.
+  // Asserting a literal "VA" would pass on a device that measures voltage and is therefore showing
+  // the wrong unit — the assertion has to test the CONDITIONAL, not one of its outcomes.
+  const keysOffSource = /voltage_source\s*===\s*'measured'/.test(dashSrc);
+  const unitIsConditional = /powerIsMeasured/.test(dashSrc) && /'W'\s*:\s*'VA'/.test(dashSrc);
   record(
-    'Dashboard labels power as VA, not watts',
-    !claimsWatts && /VA/.test(dashSrc),
-    claimsWatts ? '*** still claims real watts ***' : 'apparent power labelled honestly'
+    'Dashboard unit follows the device: W when measured, VA otherwise',
+    keysOffSource && unitIsConditional && !claimsWatts,
+    !keysOffSource
+      ? '*** the unit is not keyed to voltage_source ***'
+      : !unitIsConditional
+        ? '*** W/VA is not conditional ***'
+        : claimsWatts
+          ? '*** still claims real watts unconditionally ***'
+          : 'VA by default, W only when the device measures voltage'
   );
 
   record(
@@ -951,6 +963,127 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
     'Voltage override survives a reboot (NVS-backed)',
     /setNvsString\("nominal_voltage"/.test(fwSrc) && /getNvsString\("nominal_voltage"\)/.test(fwSrc),
     'boot does not silently revert to 230 V'
+  );
+}
+
+// 4d-ii. Voltage SENSING (HAS_VOLTAGE_SENSE) — the optional channel that turns VA into W.
+//
+// These assertions exist because the change is one `#define` away from being live, and the failure
+// modes are all silent: a floating pin invents a voltage, an uncalibrated scale multiplies every
+// wattage by a constant, and V_rms x I_rms looks exactly like real power until you compare it
+// against a meter. Each is cheap to assert and expensive to discover in the field.
+{
+  // 1. The read must be COMPILE-GATED and ship closed — same reasoning as the mmWave radar. An
+  //    unwired ADC pin floats, and here the noise would be multiplied into every current reading,
+  //    producing confident fictional wattages. Assert the gate is commented out.
+  const gateCommentedOut = /^\s*\/\/\s*#define HAS_VOLTAGE_SENSE/m.test(fwSrc);
+  const gateUsed = /#ifdef HAS_VOLTAGE_SENSE/.test(fwSrc);
+  record(
+    'Voltage sensing ships CLOSED behind a compile gate',
+    gateCommentedOut && gateUsed,
+    gateCommentedOut
+      ? 'gate commented out; a floating pin cannot invent a voltage'
+      : '*** HAS_VOLTAGE_SENSE is ENABLED in the committed source ***'
+  );
+
+  // 2. The voltage pin must be ADC1. ADC2 is dead while Wi-Fi is up, and a dead voltage channel
+  //    reads 0 V — which is worse than no sensor, because 0 V x any current is 0 W and every port
+  //    would silently report no load.
+  const vPinMatch = fwSrc.match(/#define\s+VOLTAGE_SENSE_PIN\s+(\d+)/);
+  const vPin = vPinMatch ? Number(vPinMatch[1]) : -1;
+  record(
+    'Voltage-sense pin is on ADC1',
+    vPin >= 32 && vPin <= 39,
+    vPin < 0 ? '*** VOLTAGE_SENSE_PIN not declared ***' : `GPIO ${vPin} ${vPin >= 32 && vPin <= 39 ? '(ADC1)' : '*** NOT ADC1 ***'}`
+  );
+
+  // 3. It must not collide with any pin already in use. GPIO 33 was chosen because 34/35/32 are the
+  //    current sensors; a collision would silently break whichever channel lost.
+  const usedPins = [];
+  for (const m of fwSrc.matchAll(/RELAY_PINS\[NUM_PORTS\]\s*=\s*\{([^}]*)\}/g)) {
+    usedPins.push(...m[1].split(',').map((x) => Number(x.trim())).filter((n) => !Number.isNaN(n)));
+  }
+  for (const m of fwSrc.matchAll(/CURRENT_SENSOR_PINS\[NUM_PORTS\]\s*=\s*\{([^}]*)\}/g)) {
+    usedPins.push(...m[1].split(',').map((x) => Number(x.trim())).filter((n) => !Number.isNaN(n)));
+  }
+  for (const m of fwSrc.matchAll(/#define\s+(?:PIR_PIN|MMWAVE_PIN)\s+(\d+)/g)) usedPins.push(Number(m[1]));
+  record(
+    'Voltage-sense pin collides with no other configured pin',
+    vPin > 0 && !usedPins.includes(vPin),
+    `in use: [${usedPins.join(',')}] — voltage pin ${vPin}`
+  );
+
+  // 4. REAL power must come from the sample-by-sample product. This is the assertion that actually
+  //    matters: `V_rms * I_rms` is apparent power and would look right while being wrong by the
+  //    power factor. Require the sum-of-products accumulator AND its use in the watts line.
+  const hasProductSum = /sumVI\s*\+=/.test(fwSrc);
+  const wattsFromProduct = /watts\s*=\s*product_mVmV\s*\//.test(fwSrc);
+  record(
+    'Real power comes from the instantaneous product, not RMS multiplication',
+    hasProductSum && wattsFromProduct,
+    hasProductSum && wattsFromProduct
+      ? 'mean(v*i) — phase-correct, so VA becomes W'
+      : `*** sumVI=${hasProductSum} wattsFromProduct=${wattsFromProduct} — this would report VA as W ***`
+  );
+
+  // 5. DC bias must be removed BEFORE the product. Both sensors idle at a DC offset; without this
+  //    the product carries a spurious DC term that inflates every wattage. The peak-to-peak path
+  //    never needed it (a difference cancels any offset), which is exactly why it is easy to omit.
+  const hasBias = /biasV/.test(fwSrc) && /biasI/.test(fwSrc);
+  const biasUsedInProduct = /\(\s*int32_t\s*\)\s*powerSampV\[k\]\s*-\s*biasV/.test(fwSrc);
+  record(
+    'DC bias is removed before the product',
+    hasBias && biasUsedInProduct,
+    hasBias && biasUsedInProduct ? 'offset subtracted per channel' : '*** a DC term would inflate the watts ***'
+  );
+
+  // 6. Power factor must be derived AND bounded. Derived because it is not a sensor; bounded
+  //    because it is a ratio of two noisy quantities, and a near-zero VA would otherwise produce a
+  //    meaningless value or a divide-by-zero.
+  const pfDerived = /out\.pf\s*=\s*\(va\s*>\s*0\.01f\)/.test(fwSrc);
+  const pfBounded = /if\s*\(\s*out\.pf\s*>\s*1\.0f\s*\)\s*out\.pf\s*=\s*1\.0f/.test(fwSrc);
+  record(
+    'Power factor is derived from W/VA and bounded',
+    pfDerived && pfBounded,
+    `derived=${pfDerived} bounded=${pfBounded}`
+  );
+
+  // 7. The calibration constant DIVIDES into every voltage reading, so an unbounded value would
+  //    scale the whole system. A typo of 460 instead of 4.6 would divide by 100 and every wattage
+  //    with it — plausible numbers, all wrong.
+  const calBounded = /cal\s*>=\s*1\.0f\s*&&\s*cal\s*<=\s*20\.0f/.test(fwSrc);
+  record(
+    'Voltage calibration is range-bounded and runtime-adjustable',
+    calBounded && /settings\/voltage_cal_mv_per_v/.test(fwSrc),
+    calBounded ? '1-20 mV/V; calibratable without a reflash' : '*** an unbounded divisor scales every reading ***'
+  );
+
+  // 8. The telemetry must SAY whether the power figure is measured or assumed. The app switches its
+  //    unit label on this, so a device with no sensor can never present VA as watts.
+  //
+  //    COMMENTS MUST BE STRIPPED. This block's own explanatory prose contains the word
+  //    `voltage_source`, so an unstripped search is satisfied by the COMMENT explaining the field
+  //    rather than by the field itself — and the assertion survives deleting the very line it
+  //    exists to protect. (That is not hypothetical: it is what the first mutation run did.)
+  const telemetryCode = fwSrc
+    .slice(fwSrc.indexOf('float totalAmps = 0'))
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  record(
+    'Telemetry declares whether the voltage is measured or configured',
+    /json\.set\(\s*"voltage_source"/.test(telemetryCode) &&
+      /voltageIsMeasured\s*\(\s*\)/.test(telemetryCode),
+    'the app switches its unit label on this, so VA is never shown as W'
+  );
+
+  // 9. The per-port power path must not stall the loop: the voltage-only refresh is rate-limited,
+  //    because a sampling pass is ~100 ms of blocking ADC work and the occupancy state machine is
+  //    driven by millis().
+  record(
+    'Voltage-only sampling is rate-limited so it cannot stall the loop',
+    /VOLTAGE_ONLY_MIN_INTERVAL_MS/.test(fwSrc) &&
+      /millis\(\)\s*-\s*lastVoltageSampleMs\)\s*<\s*VOLTAGE_ONLY_MIN_INTERVAL_MS/.test(fwSrc),
+    'a timestamp compare in the common case'
   );
 }
 
@@ -1556,6 +1689,83 @@ const alertStartEnd = (src, from) => {
     fnBlock.length === 0
       ? '*** recordAlert not found ***'
       : `cheapProbe=${hasCheapProbe} fullSweep=${hasFullSweep} bulkDelete=${hasBulkDelete}`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Firmware COMPILES — the structural fixes that got it building (2026-10-08)
+// ---------------------------------------------------------------------------
+// The firmware had never been built. Three separate errors shipped, each masking the next. These
+// assertions cannot run the compiler (arduino-cli is not guaranteed to be installed), but each one
+// pins the specific structure whose absence caused a build failure, so a regression is caught here
+// rather than at the first flash attempt.
+{
+  const fwDir = path.join(ROOT, 'esp32', 'VoltSense');
+  const typesPath = path.join(fwDir, 'VoltSenseTypes.h');
+  const typesSrc = fs.existsSync(typesPath) ? fs.readFileSync(typesPath, 'utf8') : '';
+  const inoSrc = fs.readFileSync(path.join(fwDir, 'VoltSense.ino'), 'utf8');
+  const inoCode = inoSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  // 1. Signature types must be in the header. The Arduino build inserts generated prototypes ABOVE
+  //    anything the .ino defines below them, so a signature type declared in the .ino fails with
+  //    "does not name a type" — and the insertion point moves as functions are added, so an
+  //    in-file ordering fix silently rots.
+  const headerDeclaresProbe = /struct\s+ProbeResult\b/.test(typesSrc);
+  const headerDeclaresRelay = /enum\s+RelaySwitchResult\b/.test(typesSrc);
+  const inoIncludesHeader = /#include\s+"VoltSenseTypes\.h"/.test(inoSrc);
+  record(
+    'Signature types live in VoltSenseTypes.h, above the generated prototypes',
+    headerDeclaresProbe && headerDeclaresRelay && inoIncludesHeader,
+    `header(ProbeResult=${headerDeclaresProbe} RelaySwitchResult=${headerDeclaresRelay}) included=${inoIncludesHeader}`
+  );
+
+  // 2. ...and must NOT also be defined in the .ino. Defining them twice was the original (failed)
+  //    workaround: it trades "does not name a type" for "multiple definition".
+  const inoRedefines = /struct\s+ProbeResult\s*\{/.test(inoCode) || /enum\s+RelaySwitchResult\s*\{/.test(inoCode);
+  record(
+    'Those types are not redefined in the sketch',
+    !inoRedefines,
+    inoRedefines ? '*** duplicate definition — does not compile ***' : 'declared once, in the header'
+  );
+
+  // 3. Sign-in credentials belong on `auth`, not `config.signer`. The latter has no email/password
+  //    members at all in the library this project builds against.
+  const usesWrongAuthApi = /config\.signer\.(email|password)\b/.test(inoCode);
+  const usesRightAuthApi = /auth\.user\.email\b/.test(inoCode) && /auth\.user\.password\b/.test(inoCode);
+  record(
+    'Device auth uses the real API (auth.user.*, not config.signer.*)',
+    !usesWrongAuthApi && usesRightAuthApi,
+    usesWrongAuthApi
+      ? '*** config.signer.email/password do not exist in this library ***'
+      : 'auth.user.email / auth.user.password'
+  );
+
+  // 4. A default argument may be given once — repeating it on the definition is an error.
+  const fwLines = inoCode.split(/\r?\n/);
+  const defaultOnDefinition = fwLines.some((l) => /^RelaySwitchResult\s+runRelaySwitch\s*\([^;]*=\s*false\s*\)\s*\{/.test(l));
+  record(
+    'Default argument is not repeated on the definition',
+    !defaultOnDefinition,
+    defaultOnDefinition ? '*** default given twice ***' : 'declared once, on the forward declaration'
+  );
+
+  // 5. Adjacent string literals concatenate only with MACROS. `"a" NAME "b"` is a syntax error when
+  //    NAME is a const char* — which is how ProvisionToken failed to build.
+  const provSrc = fs.readFileSync(path.join(ROOT, 'esp32', 'ProvisionToken', 'ProvisionToken.ino'), 'utf8');
+  const badConcat = /"[^"]*"\s+[A-Z_][A-Z0-9_]*\s+"/.test(provSrc.replace(/^\s*\/\/.*$/gm, ''));
+  record(
+    'No string-literal concatenation with a variable name',
+    !badConcat,
+    badConcat ? '*** a const char* cannot be concatenated into a literal ***' : 'clean'
+  );
+
+  // 6. The partition scheme must be documented: the sketch needs ~1.48 MB and the default ESP32
+  //    partition provides only 1.2 MB, so an undocumented build fails on size, not on code.
+  const bringup = fs.readFileSync(path.join(ROOT, 'docs', 'HARDWARE-BRINGUP.md'), 'utf8');
+  record(
+    'The required partition scheme is documented',
+    /huge_app/.test(bringup) && /Partition Scheme/i.test(bringup),
+    'the sketch does not fit the default partition'
   );
 }
 

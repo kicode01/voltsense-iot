@@ -99,7 +99,10 @@ bool storeValue(const char* nvsKey, const String& raw, const char* label) {
 
 void printSummary() {
   preferences.begin(NVS_NAMESPACE, true);
-  Serial.println("\n--- Stored in NVS (namespace \"" NVS_NAMESPACE "\") ---");
+  // NOT `"..." NVS_NAMESPACE "..."`. Adjacent string literals concatenate at compile time, but
+  // NVS_NAMESPACE is a `const char*` VARIABLE, not a macro — so the concatenation is a syntax
+  // error. printf keeps it readable and matches the style used below.
+  Serial.printf("\n--- Stored in NVS (namespace \"%s\") ---\n", NVS_NAMESPACE);
   for (int i = 0; i < FIELD_COUNT; i++) {
     String v = preferences.getString(FIELDS[i].nvsKey, "");
     Serial.printf("  %-20s %s\n", FIELDS[i].nvsKey,
