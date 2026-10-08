@@ -2,10 +2,13 @@ name: verify
 
 # The same gate the project runs locally, on every push and pull request.
 #
-# IMPORTANT PREREQUISITE: this project is not yet a git repository, and has no
-# GitHub remote. This workflow does nothing until the code is pushed to GitHub —
-# it is committed now so the gate exists from the first commit, rather than being
-# added after the first regression. See docs/PROJECT-RULES.md -> Verification.
+# PREREQUISITE: the eight VITE_FIREBASE_* values must exist as repository secrets
+# (Settings -> Secrets and variables -> Actions). They are the PUBLIC web config —
+# the same strings that ship in the browser bundle — but they live in `.env`, which
+# is gitignored, so CI has to be given them explicitly. Without them the build still
+# SUCCEEDS and merely produces a bundle with the values missing, which surfaces much
+# later as a puzzling harness assertion ("VAPID key present in bundle — MISSING").
+# The "Verify build configuration" step below exists to fail at the real cause.
 #
 # Order matters: lint and typecheck are fast and fail early; the integration
 # harness launches Chromium and is the slowest step, so it runs last.
@@ -65,7 +68,46 @@ jobs:
       # here (locally, `rm -rf dist` is required first — see the rules doc).
       # ---------------------------------------------------------------------
 
+      # Fail at the cause, not the symptom. A missing secret produces a green build
+      # and a red harness ~90 seconds later, which reads like a code bug.
+      - name: Verify build configuration
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
+        run: |
+          missing=""
+          for name in VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN \
+                      VITE_FIREBASE_DATABASE_URL VITE_FIREBASE_PROJECT_ID \
+                      VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID \
+                      VITE_FIREBASE_APP_ID VITE_FIREBASE_VAPID_KEY; do
+            if [ -z "${!name}" ]; then
+              missing="$missing $name"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secret(s):$missing"
+            echo "Add them under Settings -> Secrets and variables -> Actions."
+            echo "Values are in the local .env (gitignored) or the Firebase console."
+            exit 1
+          fi
+          echo "All 8 build configuration values present."
+
       - name: Build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
         run: npm run build
 
       # ---------------------------------------------------------------------
