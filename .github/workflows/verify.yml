@@ -1,0 +1,90 @@
+name: verify
+
+# The same gate the project runs locally, on every push and pull request.
+#
+# IMPORTANT PREREQUISITE: this project is not yet a git repository, and has no
+# GitHub remote. This workflow does nothing until the code is pushed to GitHub —
+# it is committed now so the gate exists from the first commit, rather than being
+# added after the first regression. See docs/PROJECT-RULES.md -> Verification.
+#
+# Order matters: lint and typecheck are fast and fail early; the integration
+# harness launches Chromium and is the slowest step, so it runs last.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ---------------------------------------------------------------------
+      # Static gates
+      # ---------------------------------------------------------------------
+
+      - name: Lint
+        run: npm run lint
+
+      # No type annotation files are required: tsconfig.json uses checkJs, so
+      # tsc validates the existing .js/.jsx sources directly.
+      - name: Type check
+        run: npm run typecheck
+
+      # ---------------------------------------------------------------------
+      # Unit tests
+      #
+      # These cover pure logic and config drift (.env / VAPID assertions) only.
+      # Anything that needs a real HTTP server or a browser lives in the
+      # integration harness below.
+      # ---------------------------------------------------------------------
+
+      - name: Unit tests
+        run: npm run test
+
+      # ---------------------------------------------------------------------
+      # Build
+      #
+      # The integration harness asserts against dist/, so this must run before
+      # it. CI starts from a clean checkout, so there is no stale-dist hazard
+      # here (locally, `rm -rf dist` is required first — see the rules doc).
+      # ---------------------------------------------------------------------
+
+      - name: Build
+        run: npm run build
+
+      # ---------------------------------------------------------------------
+      # Integration harness — serves dist/ and drives real Chromium
+      # ---------------------------------------------------------------------
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Integration harness
+        run: npm run test:integration
+
+      # Keep the built app when the harness fails, so a CI failure can be
+      # inspected without reproducing it locally.
+      - name: Upload build output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: ignore
+          retention-days: 7

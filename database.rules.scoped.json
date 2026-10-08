@@ -1,0 +1,141 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "owned_devices": {
+          "$mac": {
+            ".validate": "newData.isBoolean()"
+          }
+        }
+      }
+    },
+    "pushTokens": {
+      ".read": false,
+      "$uid": {
+        ".read": false,
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "!newData.exists() || (newData.hasChildren(['token', 'updated_at']) && newData.child('token').isString() && newData.child('token').val().length <= 4096)"
+      }
+    },
+    "pairingCodes": {
+      ".read": false,
+      ".write": false
+    },
+    "devices": {
+      "$mac": {
+        ".read": "auth != null",
+        "alert_secret_hash": {
+          ".read": false,
+          ".write": false,
+          ".validate": "newData.isString()"
+        },
+        "owners": {
+          ".read": false,
+          ".write": false,
+          "$uid": {
+            ".validate": "newData.isBoolean()"
+          }
+        },
+        "is_occupied": {
+          ".write": "auth != null",
+          ".validate": "newData.isBoolean()"
+        },
+        "state": {
+          ".write": "auth != null",
+          ".validate": "newData.isString() && newData.val().length <= 32"
+        },
+        "countdown_remaining_seconds": {
+          ".write": "auth != null",
+          ".validate": "newData.isNumber()"
+        },
+        "night_mode_active": {
+          ".write": "auth != null",
+          ".validate": "newData.isBoolean()"
+        },
+        "total_current_amps": {
+          ".write": "auth != null",
+          ".validate": "newData.isNumber()"
+        },
+        "total_power_watts": {
+          ".write": "auth != null",
+          ".validate": "newData.isNumber()"
+        },
+        "inactivity_limit": {
+          ".write": "auth != null",
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1440"
+        },
+        "override": {
+          ".write": "auth != null",
+          ".validate": "newData.isBoolean()"
+        },
+        "ports": {
+          "$portId": {
+            "relay_status": {
+              ".write": "auth != null",
+              ".validate": "newData.isBoolean()"
+            },
+            "current_amps": {
+              ".write": "auth != null",
+              ".validate": "newData.isNumber()"
+            },
+            "power_watts": {
+              ".write": "auth != null",
+              ".validate": "newData.isNumber()"
+            },
+            "energy_kwh": {
+              ".write": "auth != null",
+              ".validate": "newData.isNumber()"
+            },
+            "voltage": {
+              ".write": "auth != null",
+              ".validate": "newData.isNumber()"
+            },
+            "name": {
+              ".write": "auth != null && root.child('users').child(auth.uid).child('owned_devices').child($mac).exists()",
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 40"
+            },
+            "icon": {
+              ".write": "auth != null && root.child('users').child(auth.uid).child('owned_devices').child($mac).exists()",
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            }
+          }
+        },
+        "settings": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('owned_devices').child($mac).exists()",
+          "night_mode_enabled": {
+            ".validate": "newData.isBoolean()"
+          },
+          "night_mode_start": {
+            ".validate": "newData.isString() && newData.val().matches(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)"
+          },
+          "night_mode_end": {
+            ".validate": "newData.isString() && newData.val().matches(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)"
+          },
+          "inactivity_limit_minutes": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1440"
+          }
+        },
+        "history": {
+          "$rangeKey": {
+            ".write": "auth != null"
+          }
+        },
+        "alerts": {
+          "$alertId": {
+            ".validate": "newData.hasChildren(['title', 'body', 'at']) && newData.child('title').isString() && newData.child('title').val().length <= 80 && newData.child('body').isString() && newData.child('body').val().length <= 400 && newData.child('at').isNumber()"
+          }
+        },
+        "alert_reads": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "!newData.exists() || (newData.hasChildren(['last_seen_at']) && newData.child('last_seen_at').isNumber())"
+          }
+        }
+      }
+    }
+  }
+}

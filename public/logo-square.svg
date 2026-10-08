@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"><title>VoltSense</title><g transform="translate(5.12 5.12) scale(0.48)">
+  <defs>
+    <!-- Deep Maroon to Crimson Gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9f1239" /> <!-- Tailwind rose-700 -->
+      <stop offset="100%" stop-color="#4c0519" /> <!-- Tailwind rose-950 -->
+    </linearGradient>
+    
+    <!-- Subtle Glass Edge Reflection -->
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05" />
+    </linearGradient>
+
+    <!-- Deep Drop Shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- iOS-Style Squircle Background -->
+  <rect x="32" y="32" width="448" height="448" rx="100" fill="url(#bgGrad)" />
+
+  <!-- Background Radar Waves -->
+  <g fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round" filter="url(#shadow)">
+    <!-- Outer wave -->
+    <path d="M 144 368 A 158 158 0 0 1 368 144" stroke-opacity="0.15" />
+    <!-- Inner wave -->
+    <path d="M 192 320 A 90 90 0 0 1 320 192" stroke-opacity="0.3" />
+  </g>
+
+  <!-- Foreground Lightning Bolt (Smooth Corners) -->
+  <path d="M 286 121 L 166 271 L 246 271 L 226 391 L 346 241 L 266 241 Z" fill="#ffffff" stroke="#ffffff" stroke-width="16" stroke-linejoin="round" filter="url(#shadow)" />
+</g></svg>

@@ -1,0 +1,58 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Firebase CLI deploy cache (regenerated on every deploy)
+.firebase/
+
+# Secrets — a Firebase service account grants full database access. If this ever
+# gets committed, rotate the key in the Firebase Console; deleting the file is
+# not enough.
+.env
+.env.*
+!.env.example
+serviceAccountKey.json
+*serviceAccount*.json
+.vercel
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ---------------------------------------------------------------------------
+# Not part of the project source. Excluded by explicit decision.
+# These stay on disk and keep working — they are only untracked.
+# ---------------------------------------------------------------------------
+
+# Third-party skill with its OWN nested .git repository. Tracking it would make
+# git commit a broken "gitlink" (a pointer to a commit that does not exist in
+# this repo), and contributes ~25 MB / 1579 files. Untracked is correct.
+logo-design-skill/
+
+# Personal document, not code.
+GROUP-7_MANUSCRIPT.txt
+
+# WorkBuddy agent state: working memory, the .workbuddy-ai/removed/ archive of
+# files moved out during cleanup, and the generated icon contact sheet
+# (.workbuddy-ai/icon-preview.png). Internal state, not project source.
+.workbuddy-ai/
+
+.vercel
+.env*

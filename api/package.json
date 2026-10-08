@@ -1,0 +1,4 @@
+{
+  "//": "Scoped to api/ only. The repo root has \"type\": \"module\", which makes .js files ESM and silently turns every `module.exports = {...}` in this directory into a no-op (ESM has no module/exports binding). The result is functions that import cleanly but export nothing, so every endpoint dies with FUNCTION_INVOCATION_FAILED / 500. Declaring CommonJS here scopes the correct module system to the serverless handlers without changing the app's ESM build.",
+  "type": "commonjs"
+}

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Tab icon. .ico covers legacy, .svg is the sharpest, PNG is the fallback. -->
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+    <link rel="icon" href="/favicon.svg" sizes="any" type="image/svg+xml">
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+    <!-- Home screen icon. iOS reads ONLY PNG here — it ignores SVG entirely —
+         and picks the entry matching the device, falling back to 180x180.
+         These are full-bleed squares because iOS applies its own rounded mask. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/apple-touch-icon-167x167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/apple-touch-icon-152x152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/apple-touch-icon-120x120.png">
+    <!-- The web app manifest is generated and injected by vite-plugin-pwa (see vite.config.js).
+         Do NOT hand-write a second manifest link here: when two manifests are present the
+         browser only honours the first one, silently overriding the PWA settings. -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- black-translucent = edge-to-edge: content is drawn UNDER the status bar / Dynamic Island.
+         Every top-level container must therefore add env(safe-area-inset-top) padding,
+         otherwise the app header ends up hidden behind the clock + notch. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <!-- iOS uses this for the home-screen label; without it it falls back to
+         <title>, which would show the lowercase "voltsense". -->
+    <meta name="apple-mobile-web-app-title" content="VoltSense">
+    <!-- Tells iOS/Android the page is light, so status bar icons render dark and stay readable
+         against the light #F0F2F5 header. -->
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#F0F2F5">
+    <!-- NOTE: do NOT add interactive-widget=resizes-content here. It lets the browser shrink the
+         LAYOUT viewport (e.g. for the keyboard accessory bar) and on iOS that shrink can persist
+         after the keyboard closes, leaving the app ~59px short of the screen with a dead band
+         under the nav. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+    <title>VoltSense</title>
+    <link rel="preload" href="/logo.svg" as="image" type="image/svg+xml" fetchpriority="high">
+    <!-- Premium Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

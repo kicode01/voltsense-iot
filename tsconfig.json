@@ -1,0 +1,36 @@
+{
+  "//": "Type checking for a plain-JSX project. `checkJs` + `allowJs` means tsc validates the existing .js/.jsx sources WITHOUT renaming any of them. Gate: `npm run typecheck` (tsc --noEmit).",
+  "//tuning": "This gate is deliberately NOT fully strict. Full `strict` produced 205 errors on this untyped codebase and 190 of them were the SAME root cause — `useState()`/`useRef()` with no type argument infers `null`/`never`, so every later read/write on that value is flagged. Those are typing gaps, not bugs. What this config DOES keep is the set that found real defects: untyped `catch` values read as if they were Error, a genuinely missing prop, and `EventTarget` vs `currentTarget`.",
+  "//see-also": "docs/PROJECT-RULES.md -> Verification. Diagnostics for the two OFF options are recorded in the log for 2026-10-05.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+
+    "strict": true,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "useUnknownInCatchVariables": true,
+
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+
+    "types": ["vite/client", "vite-plugin-pwa/client"]
+  },
+  "//includes-dts": "`src/**/*.d.ts` must be listed explicitly — a glob of `src/**/*.js` does NOT pull in the ambient declaration files, and their types would then be silently missing.",
+  "include": ["src/**/*.js", "src/**/*.jsx", "src/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "logo-design-skill", ".workbuddy-ai"]
+}

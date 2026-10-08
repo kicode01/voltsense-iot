@@ -1,0 +1,241 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ------------------------------------------------------------------
+   Mobile safe-area tokens
+   ------------------------------------------------------------------
+   The app runs edge-to-edge (viewport-fit=cover + black-translucent),
+   so the viewport extends underneath the iOS status bar / Dynamic
+   Island and the Android status bar / gesture bar. env() reports how
+   much space those system UI areas occupy; they are 0 on devices
+   without a notch, so padding with them is always safe.
+------------------------------------------------------------------- */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    /* Stops iOS inflating text when the device rotates to landscape. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+    /* Paints the status-bar strip the same colour as the app header,
+       so the notch area never shows a mismatched white bar. */
+    background-color: #f0f2f5;
+    /* Tells the browser the UI is light, so form controls, scrollbars and the
+       status bar render light even when the device is in dark mode. */
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-[#F0F2F5] text-slate-900 antialiased font-sans m-0 flex flex-col;
+    /* min-height only — the app shell is positioned independently (see .app-shell).
+       Deliberately 100vh, not 100dvh: dvh proved unreliable on iOS standalone. */
+    min-height: 100vh;
+    overscroll-behavior-y: none;
+    overflow-y: scroll;
+  }
+
+  /* Removes the 300ms double-tap-zoom delay on iOS/Android and stops rapid taps
+     on toggles from zooming the page. Panning and pinch-zoom still work, so
+     scrollable areas are unaffected. Text remains selectable. */
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  label,
+  [role='button'] {
+    touch-action: manipulation;
+  }
+
+  /* Custom Native-like Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.15);
+    border-radius: 20px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.3);
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* App shell. Pinned to the viewport instead of using a vh/dvh height.
+     100vh is the *large* viewport on mobile and 100dvh proved unreliable on iOS
+     standalone (observed resolving ~59px short of the screen, which left a dead
+     band under the bottom nav and clipped the last card).
+
+     Offsets are written out longhand rather than using `inset: 0`, because
+     `inset` needs Chrome 87+ / Safari 14.1+ — older Android WebViews and
+     Samsung Internet would otherwise get a `position: fixed` element with no
+     offsets at all, which collapses the entire app. */
+  .app-shell {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    /* Keeps scroll chaining inside the app: no pull-to-refresh, no rubber-banding
+       the whole page behind the fixed shell. */
+    overscroll-behavior: contain;
+  }
+
+  /* Full-height pages that scroll normally (Login, loading screens). min-height
+     only, so being slightly tall is harmless. */
+  .min-h-app {
+    min-height: 100vh;
+  }
+
+  /* Centred overlay dialogs. Padding grows with the safe area so the dialog is
+     never tucked under the status bar or the home indicator / gesture bar. */
+  .safe-modal {
+    padding-top: calc(1rem + var(--safe-top));
+    padding-bottom: calc(1rem + var(--safe-bottom));
+    padding-left: calc(1rem + var(--safe-left));
+    padding-right: calc(1rem + var(--safe-right));
+  }
+
+  /* Scroll containers inside the shell. */
+  .app-scroll {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @keyframes marquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
+  }
+  .animate-marquee-infinite {
+    animation: marquee 8s linear infinite;
+  }
+}
+
+/* Respect the OS "Reduce Motion" setting — it is a real accessibility need and
+   also spares low-end Android devices the compositing cost. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* --- Driver.js Premium VoltSense Theme --- */
+
+@keyframes driver-fade-in {
+  0% { opacity: 0; transform: scale(0.95) translateY(15px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.driver-popover {
+  border-radius: 24px !important;
+  border: 1px solid rgba(255,255,255,0.6) !important;
+  box-shadow: 0 20px 40px -10px rgba(131, 24, 67, 0.15), 0 0 20px rgba(0,0,0,0.05) !important;
+  padding: 24px 24px 20px 24px !important;
+  font-family: inherit !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(16px) !important;
+  min-width: 320px !important;
+      max-width: 360px !important;
+    animation: driver-fade-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+    transition: top 0.7s cubic-bezier(0.16, 1, 0.3, 1), left 0.7s cubic-bezier(0.16, 1, 0.3, 1), right 0.7s cubic-bezier(0.16, 1, 0.3, 1), bottom 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.driver-popover-title {
+  font-size: 1.25rem !important;
+  font-weight: 800 !important;
+  color: #4c0519 !important; /* maroon-900 */
+  margin-bottom: 12px !important;
+}
+
+.driver-popover-description {
+  font-size: 0.875rem !important;
+  color: #6b7280 !important; /* gray-500 */
+  line-height: 1.6 !important;
+  margin-bottom: 24px !important;
+  font-weight: 500 !important;
+}
+
+.driver-popover-footer {
+  margin-top: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.driver-popover-progress-text {
+  font-size: 0.75rem !important;
+  font-weight: 800 !important;
+  color: #9ca3af !important;
+  letter-spacing: 0.05em !important;
+}
+
+.driver-popover-navigation-btns {
+  display: flex !important;
+  gap: 12px !important;
+}
+
+.driver-popover-prev-btn, .driver-popover-next-btn {
+  border-radius: 9999px !important;
+  padding: 8px 16px !important;
+  font-size: 0.75rem !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border: none !important;
+  text-shadow: none !important;
+  cursor: pointer !important;
+}
+
+.driver-popover-prev-btn {
+  background-color: #f3f4f6 !important; /* gray-100 */
+  color: #6b7280 !important; /* gray-500 */
+}
+
+.driver-popover-prev-btn:hover {
+  background-color: #e5e7eb !important; /* gray-200 */
+  color: #4b5563 !important;
+}
+
+.driver-popover-next-btn {
+  background-color: #831843 !important; /* maroon-800 */
+  color: white !important;
+}
+
+.driver-popover-next-btn:hover {
+  background-color: #4c0519 !important; /* maroon-900 */
+  transform: translateY(-1px) !important;
+}
+
+/* Hide the arrow for a cleaner floating bubble look */
+.driver-popover-arrow {
+  display: none !important;
+}
+
+body.tutorial-active .animate-in { animation: none !important; opacity: 1 !important; transform: none !important; }

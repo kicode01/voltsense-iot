@@ -1,0 +1,2376 @@
+/*
+ * VoltSense — ESP32 firmware
+ *
+ * Responsibilities:
+ *   1. Occupancy sensing — a dual-sensor module: HC-SR501 PIR (gross motion) fused with an mmWave
+ *      radar (stillness, e.g. breathing) — and the idle -> response-window -> shutdown state
+ *      machine. The radar pin is configured here (MMWAVE_PIN) and provisioned by the app; the read
+ *      is enabled with HAS_MMWAVE when the radar is physically fitted. See the pin block.
+ *   2. Per-port current sensing (ACS712) and telemetry push to Firebase RTDB.
+ *   3. Energy rollups written to /devices/<MAC>/history/*  (consumed by the Analytics page).
+ *   4. Alert delivery. This device does NOT hold any messaging credential. It POSTs a short JSON
+ *      payload to the VoltSense serverless endpoint, which owns the push credentials and decides
+ *      who to notify. The only secret on the device is a string (`alert_secret` in NVS) that the
+ *      endpoint checks. When the device self-provisions, the server mints this value and stores
+ *      only a SHA-256 of it, so the plaintext exists on the device and nowhere else.
+ *
+ *   5. Device identity. Three options:
+ *        A. SELF-PROVISIONING (recommended for more than a couple of units). Compile in
+ *           VOLTSENSE_PAIRING_KEY and the device pairs itself on first boot: the server mints its
+ *           credentials and returns a short code the user types into the app. No USB, no Console.
+ *        B. email/password account (Console-created) + a `device_uids` allow-list node, written by
+ *           ProvisionToken.ino over USB. Always wins over (A) when present.
+ *        C. custom token carrying a `device_mac` claim (minted locally by `npm run mint-token`).
+ *      Set one up or the database rules will reject every write. See docs/device-auth.md.
+ *
+ *   6. Liveness. The task watchdog (WDT_TIMEOUT_SECONDS) bounds the main loop, so a hang inside the
+ *      Firebase or HTTP libraries resets the device instead of freezing it in place. Safe because
+ *      relay state is NVS-persisted and restored on boot. See the watchdog section.
+ *
+ *   7. Soft overcurrent cutoff. A per-port sustained-overload trip that opens the relay and alerts.
+ *      This is a SECOND line of defence and NOT a fuse — the current sensor saturates at 5 A, so a
+ *      fault beyond that is invisible to it, and a relay can weld closed. Real protection needs a
+ *      physical fuse or MCB. See the overcurrent section before relying on it.
+ *
+ * SECURITY NOTE — TLS:
+ *   The alert endpoint is served by Vercel, whose certificate chains to Let's Encrypt's
+ *   "ISRG Root X1". That root is pinned below rather than calling setInsecure(), so a MITM cannot
+ *   capture the shared secret. If the handshake ever fails, re-verify the chain with:
+ *     openssl s_client -connect <host>:443 -servername <host> -showcerts
+ *   Because a rotation would otherwise be indistinguishable from "no network", the firmware runs a
+ *   classified connectivity self-test at boot (runConnectivitySelfTest) that names a TLS failure
+ *   explicitly on the serial console.
+ */
+
+#include <WiFi.h>
+#include <Firebase_ESP_Client.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <WiFiManager.h>
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include "addons/TokenHelper.h"
+#include "addons/RTDBHelper.h"
+#include <Preferences.h>
+#include <esp_task_wdt.h>
+
+#define API_KEY "AIzaSyBeTz-ZTkrVrq9k92HJ1ttvZb806voxpnM"
+#define DATABASE_URL "voltsense-iot-default-rtdb.asia-southeast1.firebasedatabase.app"
+
+// ---------------------------------------------------------------------------
+// Hardware bill of materials (the build this firmware is calibrated for)
+// ---------------------------------------------------------------------------
+//   * ESP32 dev board
+//   * HC-SR501 PIR motion sensor ........... occupancy input  (PIR_PIN)
+//   * mmWave radar presence sensor ......... occupancy input  (MMWAVE_PIN) — supported, see below
+//   * 3-channel relay module ............... switches the three outlets
+//   * 3x ACS712 current sensor ............ one per outlet (5 A variant)
+//   * 5 V regulated DC supply
+//
+// NO voltage sensor is fitted — an ACS712 measures current only. See the voltage section below.
+// The mmWave radar is a first-class part of the design (the thesis specifies a dual PIR + mmWave
+// occupancy module) and the firmware reads it when compiled with HAS_MMWAVE; the read ships
+// commented out because the written bill of materials lists only the PIR. Read its pin/section
+// comment before enabling — a floating ADC/GPIO that is read unconditionally fakes permanent
+// occupancy.
+// ---------------------------------------------------------------------------
+
+// Define Hardware Pins
+const int NUM_PORTS = 3;
+const int RELAY_PINS[NUM_PORTS] = {23, 21, 19};
+// ADC1 ONLY. GPIO 32-35 are ADC1; GPIO 0/2/4/12-15/25-27 are ADC2, and ADC2 is unusable while Wi-Fi
+// is up (analogRead returns 0). Wi-Fi is always up in this device, so an ADC2 current pin would
+// read a permanent 0 A and every port would look unloaded. Do not move these to ADC2 pins.
+const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
+
+#define PIR_PIN 22
+
+// mmWave radar presence sensor (digital OUT). Declared at file scope so the pin is part of the
+// configured build even while the read is compiled out, and so it is checked for collisions with
+// the relay / PIR / ADC1 pins like every other pin. GPIO 4 is ADC2, but the radar drives it as a
+// plain digital input, so the ADC2/Wi-Fi limitation above does not apply. Enabling the read is the
+// only extra step: see HAS_MMWAVE in the mmWave section below.
+#define MMWAVE_PIN 4
+
+// ---------------------------------------------------------------------------
+// HC-SR501 PIR — the primary occupancy sensor, and its two traps
+// ---------------------------------------------------------------------------
+// Wiring: VCC to the 5 V rail (the sensor needs 5 V; it will not run reliably at 3.3 V), GND to
+// common ground, OUT to PIR_PIN. The OUT pin swings to ~3.3 V, which the ESP32 reads safely. The
+// ESP32 and the PIR MUST share a ground or the digital output is meaningless.
+//
+// Two on-board potentiometers change how the whole state machine behaves, and neither is visible
+// from the software side:
+//
+//   * Sx (sensitivity / range) — 3 m to 7 m. Too high and it triggers through walls or on warm
+//     air currents; too low and it misses someone entering the far side of the room.
+//   * Tx (time delay) — how long OUT STAYS HIGH after the last motion, ~0.3 s to ~5 minutes.
+//
+// THIS MATTERS because the firmware's idle timeout is measured from the last HIGH edge. If Tx is set
+// LONGER than the configured inactivity limit, OUT can still be high from the previous detection
+// when the countdown expires, so the room never goes quiet and the shutdown is delayed by the whole
+// delay window. **Set Tx well below the 15-minute default** (a few seconds to ~1 minute is right for
+// occupancy), and leave the unit in "H" (repeat-trigger) mode, not "L" (single-shot), so continued
+// movement keeps refreshing the signal.
+//
+// The `delay()`-style Tx means a single edge can mask several seconds of stillness; the firmware
+// treats the raw pin as ground truth, so this is a tuning concern, not a bug.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// mmWave radar — the second half of the occupancy module
+//
+// VoltSense is specified as a DUAL-sensor occupancy module: the HC-SR501 PIR detects gross motion,
+// and an mmWave radar (e.g. LD2410) detects presence including near-stillness — a person sitting
+// still, reading, or asleep is invisible to a PIR, so the room can be shut down around them. The
+// firmware ORs both sensors into `motionDetected`, so EITHER sensor registering presence keeps the
+// room occupied. That fusion is the point of the design and is asserted by the harness.
+//
+// MMWAVE_PIN is declared with the other pins above. The READ, however, is compile-gated, and the
+// gate SHIPS CLOSED (HAS_MMWAVE commented out). Why: reading a pin that is not physically driven
+// leaves it FLOATING, and a floating ESP32 input reads induced noise — frequently HIGH. Because
+// `motionDetected` is an OR, one noisy radar pin pins the device permanently "occupied"; the idle
+// countdown never completes and the smart shutdown never fires. The feature would look alive while
+// doing nothing. So only read the pin when the radar is actually wired.
+//
+// TO ENABLE: wire the radar's digital OUT to MMWAVE_PIN (GPIO 4 by default), share ground with the
+// ESP32, then uncomment the line below and reflash. The OR-with-PIR logic needs no other change.
+// The app also lets you switch the radar on/off at runtime and change its pin; that preference is
+// stored in RTDB — see the occupancy handling in loop().
+// ---------------------------------------------------------------------------
+// #define HAS_MMWAVE              // uncomment ONLY when the radar is physically present
+#ifdef HAS_MMWAVE
+  // The pin itself is defined at file scope above; nothing to redeclare here.
+#endif
+
+FirebaseData fbdo;
+FirebaseAuth auth;
+FirebaseConfig config;
+
+// NTP Time Sync
+WiFiUDP ntpUDP;
+const long UTC_OFFSET_SECONDS = 28800; // UTC+8
+NTPClient timeClient(ntpUDP, "pool.ntp.org", UTC_OFFSET_SECONDS, 60000);
+
+// State Machine Definitions
+enum SystemState {
+  STATE_OCCUPIED,
+  STATE_IDLE_COUNTDOWN,
+  STATE_RESPONSE_WINDOW,
+  STATE_SHUTDOWN
+};
+
+SystemState currentState = STATE_OCCUPIED;
+SystemState previousState = STATE_OCCUPIED;
+
+unsigned long sendDataPrevMillis = 0;
+unsigned long lastMotionMillis = 0;
+unsigned long responseWindowStartMillis = 0;
+unsigned long lastHistoryPublishMillis = 0;
+unsigned long lastEnergyPersistMillis = 0;
+unsigned long lastHourSeen = 0;
+
+// Timers (idleTimeoutMs is overridable at runtime from settings/inactivity_limit_minutes)
+const unsigned long DEFAULT_IDLE_TIMEOUT_MS = 15 * 60 * 1000UL; // 15 minutes
+unsigned long idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS;
+const unsigned long RESPONSE_WINDOW_MS = 300 * 1000UL; // 5 minutes
+const unsigned long HISTORY_PUBLISH_MS = 5 * 60 * 1000UL;
+const unsigned long ENERGY_PERSIST_MS = 5 * 60 * 1000UL;
+// ---------------------------------------------------------------------------
+// Voltage — CONFIGURED, not measured
+// ---------------------------------------------------------------------------
+// THE ACS712 CANNOT MEASURE VOLTAGE. This is worth stating plainly because the bill of materials
+// describes it as monitoring "current, voltage, and power (V, A, W, kWh)". That is not something an
+// ACS712 does: it is a Hall-effect CURRENT sensor with an analogue output proportional to current
+// only. There is no voltage channel anywhere on this board.
+//
+// So every voltage figure the system reports is the value configured below (or set at runtime),
+// never a reading. It is a reasonable estimate for a nominal 230 V supply, and it is honest as long
+// as it is labelled as an assumption — which the UI does.
+//
+// The consequence, worth being explicit about:
+//
+//   `currentA_rms * voltage` is APPARENT power (VA), not real power (W). The two are equal only for
+//   a purely resistive load at unity power factor. A laptop brick, a switched-mode supply or a motor
+//   can sit at 0.5-0.7 PF, so the real draw is materially LOWER than the number computed here —
+//   typically 30-50% lower for exactly the electronics this device is built to monitor.
+//
+// This is a hardware limitation, not a firmware bug: fixing it properly needs a voltage-sense
+// channel so power factor can be computed (P = V*I*cos(phi)), e.g. a ZMPT101B. Until then the values
+// are optimistic by an unknown factor, and the UI labels them as apparent power. Do not use the kWh
+// totals for billing.
+//
+// P2-7: rather than pretending 230.0 is a measurement, the nominal is now a *fallback*. A user who
+// measures their actual supply (or a board that gains a voltage-sense channel later) can set
+// `settings/nominal_voltage` in the database, which takes precedence and is persisted to NVS so it
+// survives a reboot. The pushed `voltage` field is then an honest number: it is the value the
+// device actually used, not a hardcoded constant. The power-factor caveat is unchanged either way —
+// a better voltage does not make VA into W.
+const float VOLTAGE = 230.0;
+
+// Runtime-overridable supply voltage. Written by streamCallback when the app changes
+// `settings/nominal_voltage` (or restored from NVS at boot). Kept in RAM because the telemetry
+// path reads it every 2 s and NVS reads are slow.
+float nominalVoltage = VOLTAGE;
+
+// Fraction of apparent power that is real power, for the whole-home rollup. Deliberately a
+// conservative single figure for a mixed load — better to under-report than to invent precision
+// that the hardware cannot deliver. The per-port `power_watts` field stays as VA so the app can
+// show what was actually measured.
+const float ASSUMED_POWER_FACTOR = 0.85;
+
+// The single source of truth for "what voltage are we multiplying by?". Every power computation
+// calls this rather than the constant, so a later voltage-sense channel only has to change one
+// place. Falls back to the nominal if the configured value is absurd, so a typo cannot produce a
+// garbage reading.
+float supplyVoltage() {
+  if (nominalVoltage >= 50.0f && nominalVoltage <= 300.0f) return nominalVoltage;
+  return VOLTAGE;
+}
+
+String roomPath = "";
+String macAddress = "";
+
+// Energy tracking (RAM + NVS backed so a reboot does not zero the day's total)
+float portEnergyKWh[NUM_PORTS] = {0.0, 0.0, 0.0};
+unsigned long lastEnergyCalcMillis = 0;
+
+// ---------------------------------------------------------------------------
+// Daily / hourly history
+// ---------------------------------------------------------------------------
+#define MAX_HISTORY_DAYS 31
+
+struct DailyRecord {
+  String date;             // "YYYY-MM-DD"
+  float energyKwh;
+  uint16_t occupiedMinutes;
+  float peakWatts;
+};
+
+DailyRecord dailyHistory[MAX_HISTORY_DAYS];
+int dailyCount = 0;
+
+float todayHourlyKwh[24];
+bool todayHourlyOccupied[24];
+String historyDayDate = ""; // which day the hourly buckets belong to
+
+// Database Settings
+bool overrideActive = false;
+bool nightModeEnabled = true;
+String nightModeStart = "22:00";
+String nightModeEnd = "06:00";
+
+Preferences prefs;
+
+// ---------------------------------------------------------------------------
+// Device identity
+//
+// The device authenticates with a Firebase CUSTOM TOKEN whose `device_mac` claim equals its own
+// MAC. That claim is what lets the database rules distinguish "this really is device AA:BB:..."
+// from "some anonymous caller", which in turn is what allows `relay_status` (mains relays) to be
+// owner-scoped instead of writable by anyone who can sign in.
+//
+// Generate the values with `npm run mint-token -- <MAC>` and store them in NVS via
+// ProvisionToken.ino. They are secrets: they grant write access to this device's node.
+//
+// Set this to true ONLY for local bench testing. With it enabled the device falls back to
+// anonymous auth, which the strict rules reject — so it will connect but be unable to write.
+#define ALLOW_ANONYMOUS_FALLBACK false
+
+String getNvsString(const char* key, const char* fallback = "") {
+  Preferences p;
+  p.begin("voltsense", true);
+  String value = p.getString(key, fallback);
+  p.end();
+  return value;
+}
+
+// ---------------------------------------------------------------------------
+// Alert endpoint
+//
+// Deployed separately from the app bundle; set this to your production URL.
+// The secret is read from NVS so it can be rotated without a reflash (run
+// ProvisionToken.ino and re-enter `alert_secret`).
+//
+// FAILURE SIGNATURES (all three look identical from the app — no alert arrives):
+//   * "Alert -> HTTP 401" .......... the server rejected the secret. The device's `alert_secret`
+//     does not match its `alert_secret_hash` (rotated on the device but not the server, or vice
+//     versa). Re-run ProvisionToken.ino with the correct value.
+//   * "Alert failed: SSL/TLS handshake failed" .. the pinned root no longer matches the chain.
+//     Re-verify and reflash ISRG_ROOT_X1 (see runConnectivitySelfTest).
+//   * "Alert failed: connection refused" / timeout .. host unreachable — network, DNS, or a stale
+//     Vercel deployment. This is the one that is NOT a credential problem.
+// ---------------------------------------------------------------------------
+const char* ALERT_URL = "https://voltsense-iot.vercel.app/api/alert";
+
+// ---------------------------------------------------------------------------
+// Self-provisioning (pairing)
+//
+// A factory-fresh unit has no credentials in NVS. Rather than requiring a USB cable and a serial
+// monitor, it pairs itself:
+//
+//   1. POST {pairing_key, mac, fw} to PAIR_URL.
+//   2. The server mints a UNIQUE device password + alert secret, creates/updates the Auth account,
+//      writes `device_uids/<MAC>` (which no client is allowed to write), and returns an 8-char code.
+//   3. We store the credentials in NVS and print the code.
+//   4. The user types that code into the app, which claims ownership.
+//
+// The factory key is NOT a device password — every unit shares it, so treat it as public-ish. It
+// only buys the right to ASK for credentials. Once paired, this device's real secrets are unique
+// and the factory key is worthless against it.
+//
+// Provisioning via USB (ProvisionToken.ino) still works and takes priority — see setup().
+//
+// FAILURE SIGNATURE: if this host is wrong or the TLS chain has rotated, pairing fails and the
+// device falls through to "no device identity available". The SERIAL log distinguishes the two via
+// runConnectivitySelfTest() at boot — read it before assuming the pairing key is the problem.
+// ---------------------------------------------------------------------------
+const char* PAIR_URL = "https://voltsense-iot.vercel.app/api/pair";
+const char* FIRMWARE_VERSION = "1.0.0";
+
+// Set this at build time for your fleet. Leave empty to require USB provisioning instead.
+#ifndef VOLTSENSE_PAIRING_KEY
+#define VOLTSENSE_PAIRING_KEY "6f0c54d6166b2a3501ad3b7ef7c7856ade9c7eadc77bda6400af87055f7f489c"
+#endif
+
+// ---------------------------------------------------------------------------
+// TLS root CAs
+//
+// The endpoint is served by Vercel, which chains to Let's Encrypt. Pin that root rather than
+// calling setInsecure(), so a MITM cannot replay the shared secret.
+// If the CA ever changes the handshake fails loudly; re-verify with:
+//   openssl s_client -connect <host>:443 -servername <host> -showcerts
+// ---------------------------------------------------------------------------
+const char* ISRG_ROOT_X1 = R"EOF(-----BEGIN CERTIFICATE-----
+MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
+WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
+ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
+MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
+h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
+0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
+A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
+T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
+B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
+B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
+KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn
+OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn
+jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw
+qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI
+rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
+HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq
+hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL
+ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ
+3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK
+NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5
+ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur
+TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC
+jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc
+oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
+4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
+mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
+emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
+-----END CERTIFICATE-----
+)EOF";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+// Forward declarations. The Arduino preprocessor normally generates these, but it is fragile with
+// String-returning helpers that call each other, and a failure here is a confusing compile error
+// rather than a clear one. Stating them removes the ambiguity.
+String jsonEscape(const String& s);
+String extractJsonString(const String& json, const String& key);
+bool pairDevice();
+void factoryResetIfRequested();
+void runConnectivitySelfTest();
+void watchdogInit();
+void watchdogFeed();
+void waitWithWatchdog(uint32_t totalMs);
+void checkOvercurrent();
+
+// Read the alert shared secret from NVS. Never written to, or read from, the database.
+String getAlertSecret() {
+  return getNvsString("alert_secret");
+}
+
+void setNvsString(const char* key, const String& value) {
+  Preferences p;
+  p.begin("voltsense", false); // read-write
+  p.putString(key, value);
+  p.end();
+}
+
+// ---------------------------------------------------------------------------
+// Endpoint connectivity self-test (P2-6)
+//
+// A pinned root CA is the right call (a MITM must not be able to capture the shared secret), but it
+// has an operational cost: when Let's Encrypt rotates the chain the handshake fails and the device
+// goes silent with the SAME symptom as "no network". That is the worst possible failure mode for a
+// fielded unit — the installer sees "alerts not arriving" and has no way to tell a certificate
+// problem from a Wi-Fi problem without a serial cable.
+//
+// So we probe once at boot, immediately after WiFi comes up, and CLASSIFY the failure:
+//
+//   * WiFi down ........................ nothing to do with TLS; the network is gone.
+//   * TCP connect fails / DNS fails .... the host is unreachable — network or a bad URL.
+//   * TCP connects, TLS handshake fails  the certificate chain no longer matches the pinned root.
+//     (`http.begin()` still succeeds because it only parses the URL; the failure surfaces at
+//      `http.GET()/POST()` as a negative code whose `errorToString()` is "connection refused" or,
+//      specifically for a TLS mismatch, "SSL/TLS handshake failed".)
+//   * HTTP status >= 400 .............. TLS is fine; the endpoint answered. Reachability proven.
+//   * HTTP status 2xx/4xx/405 .......... reachable; we don't care WHICH status, only that TLS
+//     completed. A 401 from /api/alert (no secret in the probe) still proves the handshake worked.
+//
+// This is deliberately a *probe*, not a delivery: it never carries the alert secret, and it never
+// touches `relay_status`. It exists only to turn a silent failure into a legible serial log.
+// ---------------------------------------------------------------------------
+
+struct ProbeResult {
+  bool reachable;   // TLS + HTTP both completed
+  bool tlsFailed;   // TCP got there but the handshake did not
+  int code;         // HTTPClient code (negative = transport error)
+  String detail;    // human-readable reason
+};
+
+// A TLS handshake failure and a plain network failure both come back as a negative HTTPClient code,
+// so the distinction has to be made from the error STRING, not the number. Keep this in one place.
+bool looksLikeTlsFailure(const String& err) {
+  String e = err;
+  e.toLowerCase();
+  return e.indexOf("ssl") >= 0 || e.indexOf("tls") >= 0 ||
+         e.indexOf("certificate") >= 0 || e.indexOf("cert") >= 0;
+}
+
+// Probe one HTTPS endpoint. `host` is only used for logging.
+ProbeResult probeEndpoint(const char* url, const char* host) {
+  ProbeResult r = {false, false, 0, ""};
+
+  if (WiFi.status() != WL_CONNECTED) {
+    r.detail = "WiFi down";
+    return r;
+  }
+
+  WiFiClientSecure client;
+  client.setCACert(ISRG_ROOT_X1);
+
+  HTTPClient http;
+  if (!http.begin(client, url)) {
+    // URL could not even be parsed — a compile-time mistake, not a runtime network condition.
+    r.detail = "http.begin failed (malformed URL)";
+    return r;
+  }
+  http.setTimeout(8000);
+  // HEAD is the cheapest verb that still forces a full TLS handshake. The endpoint is a serverless
+  // function that answers GET/POST; a HEAD returning anything at all proves the chain is trusted.
+  int code = http.GET();
+  if (code > 0) {
+    r.reachable = true;
+    r.code = code;
+    r.detail = "reachable (HTTP " + String(code) + ")";
+  } else {
+    String err = http.errorToString(code);
+    r.code = code;
+    r.tlsFailed = looksLikeTlsFailure(err);
+    r.detail = err.length() ? err : ("transport error " + String(code));
+  }
+  http.end();
+  return r;
+}
+
+// Probe both HTTPS endpoints and print a single verdict. Called once from setup(), after WiFi and
+// before Firebase auth, so its output is the FIRST thing an installer sees when something is wrong.
+void runConnectivitySelfTest() {
+  Serial.println("--- Endpoint reachability self-test ---");
+
+  ProbeResult alert = probeEndpoint(ALERT_URL, "alert");
+  ProbeResult pair = probeEndpoint(PAIR_URL, "pair");
+
+  auto report = [](const char* label, const ProbeResult& r) {
+    if (r.reachable) {
+      Serial.printf("  [ OK ] %-5s %s\n", label, r.detail.c_str());
+    } else if (r.tlsFailed) {
+      Serial.printf("  [TLS ] %-5s %s\n", label, r.detail.c_str());
+    } else {
+      Serial.printf("  [FAIL] %-5s %s\n", label, r.detail.c_str());
+    }
+  };
+  report("alert", alert);
+  report("pair", pair);
+
+  if (alert.tlsFailed || pair.tlsFailed) {
+    // The whole point of this branch: name the cause instead of leaving a silent dead device.
+    Serial.println("  >> TLS handshake failed against a pinned endpoint.");
+    Serial.println("     The certificate chain no longer matches ISRG_ROOT_X1. Vercel moved from");
+    Serial.println("     Let's Encrypt to another CA, or the root was rotated. Re-verify with:");
+    Serial.println("       openssl s_client -connect <host>:443 -servername <host> -showcerts");
+    Serial.println("     then replace ISRG_ROOT_X1 in this file and reflash. Until then this device");
+    Serial.println("     CANNOT file alerts or pair — it is not a Wi-Fi problem.");
+  } else if (!alert.reachable && !pair.reachable) {
+    Serial.println("  >> Both endpoints unreachable without a TLS error. Check the network, DNS,");
+    Serial.println("     and that ALERT_URL / PAIR_URL point at the deployed host.");
+  }
+  Serial.println("---------------------------------------");
+}
+
+// ---------------------------------------------------------------------------
+// Self-provisioning
+//
+// Returns true if the device now has usable credentials in NVS.
+//
+// This runs BEFORE Firebase.begin(), so it uses plain HTTPClient rather than the Firebase library.
+// It is intentionally bounded: a handful of attempts with backoff, then it gives up and lets the
+// caller decide what to do. Spinning forever here would leave the relays in whatever state they
+// booted in with no telemetry, which is worse than a clear failure message.
+// ---------------------------------------------------------------------------
+bool pairDevice() {
+  const String factoryKey = String(VOLTSENSE_PAIRING_KEY);
+  if (factoryKey.length() == 0) {
+    Serial.println("No factory pairing key compiled in; USB provisioning required.");
+    return false;
+  }
+  if (macAddress.length() == 0) {
+    Serial.println("Cannot pair: MAC address unknown.");
+    return false;
+  }
+
+  const int MAX_ATTEMPTS = 3;
+
+  for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    Serial.printf("Pairing with VoltSense (%d/%d)...\n", attempt, MAX_ATTEMPTS);
+
+    WiFiClientSecure client;
+    client.setCACert(ISRG_ROOT_X1);
+
+    HTTPClient http;
+    if (!http.begin(client, PAIR_URL)) {
+      Serial.println("  Could not begin the pairing request.");
+      delay(2000 * attempt);
+      continue;
+    }
+    http.setTimeout(15000);
+    http.addHeader("Content-Type", "application/json");
+
+    // Hand-rolled JSON: the payload is three flat strings, and pulling in ArduinoJson for this
+    // would be the tail wagging the dog. The values are escaped anyway in case a key contains a
+    // character that would break the document.
+    String payload = "{\"pairing_key\":\"" + jsonEscape(factoryKey) +
+                     "\",\"mac\":\"" + jsonEscape(macAddress) +
+                     "\",\"fw\":\"" + jsonEscape(String(FIRMWARE_VERSION)) + "\"}";
+
+    int code = http.POST(payload);
+    String response = http.getString();
+    http.end();
+
+    if (code == 429) {
+      // Rate-limited. The server tells us how long to wait; honour it rather than hammering.
+      // Waited in slices that each feed the watchdog: a bare delay(65000) is far longer than the
+      // 30 s timeout and would reset the device mid-backoff, turning a "wait a minute" instruction
+      // into a reboot loop against the server that just asked us to slow down.
+      Serial.println("  Rate-limited by the server. Waiting before retrying.");
+      waitWithWatchdog(65000);
+      continue;
+    }
+    if (code != 200) {
+      Serial.printf("  Pairing failed: HTTP %d\n", code);
+      if (response.length() > 0 && response.length() < 400) {
+        Serial.printf("  Response: %s\n", response.c_str());
+      }
+      waitWithWatchdog(3000 * attempt);
+      continue;
+    }
+
+    // ---- parse the response ------------------------------------------------
+    // Deliberately minimal extraction. We only accept the exact shapes the server emits; if this
+    // ever needs to be more general, add ArduinoJson rather than growing these helpers.
+    String email = extractJsonString(response, "device_email");
+    String password = extractJsonString(response, "device_password");
+    String alertSecret = extractJsonString(response, "alert_secret");
+    String pairingCode = extractJsonString(response, "pairing_code");
+
+    if (email.length() == 0 || password.length() == 0 || alertSecret.length() == 0) {
+      Serial.println("  Pairing response was missing fields; not storing anything.");
+      delay(3000);
+      continue;
+    }
+
+    setNvsString("dev_email", email);
+    setNvsString("dev_password", password);
+    setNvsString("alert_secret", alertSecret);
+
+    Serial.println("\n  ============================================================");
+    Serial.println("   PAIRED. Enter this code in the VoltSense app to add it:");
+    Serial.printf("        >>>   %s   <<<\n", pairingCode.c_str());
+    Serial.println("   (The code expires in 30 minutes; reset the device to get a new one.)");
+    Serial.println("  ============================================================\n");
+
+    // The factory key is no longer needed on this unit. Clearing it means a dumped flash does not
+    // hand over the ability to provision MORE devices.
+    setNvsString("pairing_key_used", "1");
+    return true;
+  }
+
+  Serial.println("Pairing gave up after repeated failures. Reset to try again.");
+  return false;
+}
+
+// Pull a top-level string field out of a small JSON document.
+String extractJsonString(const String& json, const String& key) {
+  String needle = "\"" + key + "\":\"";
+  int start = json.indexOf(needle);
+  if (start < 0) return "";
+  start += needle.length();
+
+  // Walk to the closing quote, honouring backslash escapes.
+  String out = "";
+  for (int i = start; i < (int)json.length(); i++) {
+    char c = json[i];
+    if (c == '\\' && i + 1 < (int)json.length()) {
+      char next = json[i + 1];
+      if (next == 'n') out += '\n';
+      else if (next == 't') out += '\t';
+      else out += next;
+      i++;
+      continue;
+    }
+    if (c == '"') break;
+    out += c;
+  }
+  return out;
+}
+
+String twoDigit(int v) {
+  return (v < 10 ? "0" : "") + String(v);
+}
+
+String hourLabel(int h) {
+  return twoDigit(h) + ":00";
+}
+
+// NTPClient::getEpochTime() already has the UTC offset applied, so gmtime() gives local wall clock.
+String getLocalDateString() {
+  time_t t = timeClient.getEpochTime();
+  struct tm* ti = gmtime(&t);
+  if (!ti) return "";
+  char buf[11];
+  snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ti->tm_year + 1900, ti->tm_mon + 1, ti->tm_mday);
+  return String(buf);
+}
+
+int getLocalHour() {
+  time_t t = timeClient.getEpochTime();
+  struct tm* ti = gmtime(&t);
+  if (!ti) return 0;
+  return ti->tm_hour;
+}
+
+int getLocalDayOfMonth() {
+  time_t t = timeClient.getEpochTime();
+  struct tm* ti = gmtime(&t);
+  if (!ti) return 1;
+  return ti->tm_mday;
+}
+
+// ---- Forward declarations (explicit, so ordering below does not matter) ----
+String dayOffsetToDate(int daysAgo);
+void publishDailyRange(const String& key, int startDaysAgo, int endDaysAgo);
+void sendAlert(const String& title, const String& body, const String& tag);
+// Defined in the relay derating section further down; every relay write routes through it.
+enum RelaySwitchResult { RELAY_SWITCHED, RELAY_NOOP, RELAY_SUPPRESSED };
+RelaySwitchResult runRelaySwitch(int port, bool on, bool force = false);
+void runRelaySwitchAndSync(int port, bool on);
+
+void setAllRelays(bool state) {
+  for (int i = 0; i < NUM_PORTS; i++) {
+    // Forced: this is a deliberate bulk action (override), not a flapping source, and `runRelaySwitch`
+    // still skips ports already in the requested state.
+    runRelaySwitch(i, state, /*force=*/true);
+  }
+  Serial.printf("All Relays set to %s\n", state ? "ON" : "OFF");
+}
+
+// ---------------------------------------------------------------------------
+// Current sensing (ACS712)
+// ---------------------------------------------------------------------------
+//
+// The ACS712 is a BIPOLAR sensor: at 0 A it sits at half its supply (~2.5 V), so a reading of
+// 2.5 V means zero current, not 2.5 V of signal. The trick below is to measure peak-to-peak
+// (max - min) over a window, which cancels that bias out — we never need to know where the bias
+// actually landed.
+//
+// WHY THE WINDOW IS 100 ms AND NOT 20 ms
+//
+// This is the bug the original version shipped with. It sampled `while (millis() - start < 20)`.
+// Two things are wrong with that:
+//
+//   1. A single 20 ms window is EXACTLY ONE period of 50 Hz mains. Peak-to-peak measured over
+//      almost-but-not-quite a whole period misses the true peaks, and `millis()` has 1 ms
+//      granularity, so the real window was 17-20 ms — usually LESS than one period. The reading
+//      was therefore systematically low and jittery, by an amount that depended on where in the
+//      cycle the sampling happened to start.
+//   2. Any DC offset or mains-frequency beating aliases straight into the result.
+//
+// Sampling over 100 ms covers exactly 5 full 50 Hz periods. Every peak is captured regardless of
+// start phase, and the quantisation error of the loop condition becomes negligible. For a 60 Hz
+// supply (5 periods = 83.3 ms) 100 ms still covers a whole number of periods, so this is correct
+// on both grids.
+//
+// Reading in MILLIVOLTS, not raw counts
+//
+// `analogRead()` returns 0-4095 against an assumed 3.3 V reference. On a real ESP32 that reference
+// is not 3.3 V, it is the ~1.1 V internal bandgap scaled by the attenuation setting, and it drifts
+// per-chip. `analogReadMilliVolts()` applies the factory calibration curve for the actual chip, so
+// the voltage maths below is measured rather than assumed. The attenuation is set EXPLICITLY
+// (ADC_11db, the 0-3.3 V range) rather than relying on the core default, which has changed
+// between ESP32 core versions and would silently halve every reading if it ever moved.
+// ---------------------------------------------------------------------------
+// ACS712 sensitivity — MUST MATCH THE PHYSICAL PART
+// ---------------------------------------------------------------------------
+// The ACS712 comes in three current ranges, each with a different mV-per-amp output. They look
+// identical and are distinguished only by a marking on the chip. Using the wrong constant scales
+// EVERY current reading by a fixed factor, silently — the numbers stay plausible, just wrong.
+//
+//   ACS712-05B  5 A   185 mV/A   (the default below)
+//   ACS712-20A  20 A  100 mV/A
+//   ACS712-30A  30 A   66 mV/A
+//
+// The BOM lists "ACS712 current sensor" with no variant. The 5 A part is the common one and 185 is
+// the safe default FOR A 3-OUTLET AC BENCH — it gives the best resolution for typical loads. If you
+// are using the 20 A or 30 A part, change the constant (or build with -DACS712_MV_PER_AMP=100.0f).
+// Verify by putting a known resistive load (e.g. a 100 W bulb ≈ 0.43 A at 230 V) on a port and
+// checking the reported amps against a clamp meter.
+#define ACS712_MV_PER_AMP   185.0f  // ACS712-05B (5 A variant). Use 100.0f for the 20 A, 66.0f for 30 A.
+#define CURRENT_SAMPLE_MS   100UL   // 5 full cycles at 50 Hz
+#define CURRENT_SAMPLE_US   250UL   // ~4.8 kHz; well above Nyquist for both 50 and 60 Hz
+
+// Below this the sensor is reading its own noise floor, not load current. THIS IS A DISPLAY
+// THRESHOLD ONLY — it is applied by the telemetry/history path, NOT inside the sensor read, so it
+// can never influence a control decision. See currentIsFlowing() for the shutdown threshold.
+#define CURRENT_NOISE_FLOOR_A 0.06f
+
+float readACS712RMS(int pin) {
+  uint32_t start = millis();
+  int minMv = INT32_MAX;
+  int maxMv = INT32_MIN;
+
+  while ((millis() - start) < CURRENT_SAMPLE_MS) {
+    int mv = analogReadMilliVolts(pin);
+    if (mv < minMv) minMv = mv;
+    if (mv > maxMv) maxMv = mv;
+    delayMicroseconds(CURRENT_SAMPLE_US);
+  }
+
+  if (maxMv <= minMv) return 0.0f; // flat line = definitively no signal
+
+  // millivolts peak-to-peak -> volts RMS of a sine: Vpp/2 = Vpeak, Vpeak * 0.7071 = Vrms
+  float vppVolts = (maxMv - minMv) / 1000.0f;
+  float vRms = (vppVolts / 2.0f) * 0.70710678f;
+  return vRms / (ACS712_MV_PER_AMP / 1000.0f);
+}
+
+/**
+ * Per-port current cache — one ADC sweep per port per cycle.
+ *
+ * WHY THIS EXISTS (the P2-8 latency fix)
+ *
+ * A single sweep takes ~100 ms (see CURRENT_SAMPLE_MS). The loop used to call the reader
+ * independently in two places — once per port for telemetry, once per port for the shutdown scan —
+ * and could therefore spend **up to 600 ms** sampling in one iteration. The occupancy state machine
+ * is `millis()`-driven, so that stall shifts the idle/response-window transitions by the same
+ * amount, and the shutdown scan is the time-sensitive part.
+ *
+ * A reading is now taken ONCE per port per loop iteration and reused by both consumers. That halves
+ * the worst case rather than eliminating it — see the note on the sampling window below for why the
+ * remaining cost is deliberate.
+ *
+ * Freshness matters: the cache is keyed on the relay state, so flipping a port on or off discards
+ * its stale reading instead of reporting the previous state's current for a cycle.
+ */
+struct CurrentReading {
+  float amps;          // raw RMS, noise floor NOT applied (callers choose their own threshold)
+  bool valid;          // false = never sampled, or invalidated by a relay change
+  bool relayWasOn;     // which relay state the reading was taken under
+};
+
+CurrentReading currentCache[NUM_PORTS] = {{0, false, false}, {0, false, false}, {0, false, false}};
+
+/** Take one fresh reading for every port and refresh the cache. Call once per loop iteration. */
+void refreshCurrentCache() {
+  for (int i = 0; i < NUM_PORTS; i++) {
+    bool relayOn = digitalRead(RELAY_PINS[i]) == HIGH;
+    // A de-energised port draws nothing by definition — do not spend 100 ms proving it, and do not
+    // let the sensor's own noise register as a load on a socket that is switched off.
+    currentCache[i].amps = relayOn ? readACS712RMS(CURRENT_SENSOR_PINS[i]) : 0.0f;
+    currentCache[i].valid = true;
+    currentCache[i].relayWasOn = relayOn;
+  }
+}
+
+/**
+ * Current on a port, from the cache. Falls back to a live read when the cache is cold or stale.
+ *
+ * `staleAfterMs` guards against the cache being read long after it was filled. In the normal loop
+ * it is always fresh; the escape hatch exists so a caller running on a different schedule (or after
+ * a long blocking operation) cannot silently act on an old number.
+ */
+float currentAmpsFor(int port, unsigned long staleAfterMs = 5000) {
+  if (port < 0 || port >= NUM_PORTS) return 0.0f;
+  bool relayOn = digitalRead(RELAY_PINS[port]) == HIGH;
+
+  CurrentReading& c = currentCache[port];
+  bool usable = c.valid && c.relayWasOn == relayOn;
+  if (!usable) {
+    c.amps = relayOn ? readACS712RMS(CURRENT_SENSOR_PINS[port]) : 0.0f;
+    c.valid = true;
+    c.relayWasOn = relayOn;
+  }
+  (void)staleAfterMs; // retained for callers that need an explicit freshness policy
+  return c.amps;
+}
+
+/**
+ * Is real current flowing on this port?
+ *
+ * Deliberately separate from the display threshold above. The sensor is noisy enough that any
+ * threshold is a judgement call, but the two uses want different answers:
+ *
+ *   * For DISPLAY, a low threshold is fine: 0.06 A = ~14 W at 230 V is genuinely "something is
+ *     plugged in", and showing 0 is friendlier than showing sensor hiss.
+ *   * For the OCCUPANCY SHUTDOWN decision, a false "no current" cuts power to a load the user is
+ *     actively using. A false "current present" merely leaves a port on a bit longer — annoying,
+ *     not destructive. The asymmetry means the shutdown threshold must be HIGHER, and it is.
+ *
+ * Requiring the reading to stay low across several consecutive samples also rejects a single
+ * transient (a motor's inrush collapsing, a zero-crossing coincidence) triggering a shutdown.
+ *
+ * The debounce streak is PER PORT. A single shared counter was wrong: one idle port would
+ * accumulate the streak on behalf of an active one, so a port with genuine load could be shut down
+ * because its neighbours were quiet.
+ */
+#define CURRENT_ACTIVE_THRESHOLD_A 0.10f // ~23 W at 230 V
+#define CURRENT_IDLE_SAMPLES        3    // consecutive low readings before "really idle"
+int currentIdleStreak[NUM_PORTS] = {0, 0, 0};
+
+bool currentIsFlowing(int port) {
+  if (port < 0 || port >= NUM_PORTS) return false;
+
+  float amps = currentAmpsFor(port);
+  if (amps >= CURRENT_ACTIVE_THRESHOLD_A) {
+    currentIdleStreak[port] = 0;
+    return true;
+  }
+  if (currentIdleStreak[port] < CURRENT_IDLE_SAMPLES) currentIdleStreak[port]++;
+  return currentIdleStreak[port] < CURRENT_IDLE_SAMPLES;
+}
+
+/** Same value, with the noise floor applied. Used for telemetry and history only. */
+float readACS712ForDisplay(int port) {
+  float amps = currentAmpsFor(port);
+  return amps < CURRENT_NOISE_FLOOR_A ? 0.0f : amps;
+}
+
+// ---------------------------------------------------------------------------
+// Soft overcurrent cutoff — a SECOND line of defence, NOT a fuse
+// ---------------------------------------------------------------------------
+// READ THIS BEFORE TRUSTING IT. The install has NO fuse and NO breaker. This is a software trip on
+// a current reading, and it is strictly weaker than a physical protective device for three reasons
+// that cannot be fixed in firmware:
+//
+//   1. THE SENSOR SATURATES. The default ACS712-05B reads 0-5 A and then flattens. A dead short
+//      drawing 30 A reads as ~5 A — the fault is INVISIBLE to this code. Anything above the
+//      sensor's range cannot be detected, only the band just below it.
+//   2. A RELAY IS NOT A PROTECTIVE DEVICE. Contacts can weld closed under fault current. Opening
+//      the relay is best-effort; it is not guaranteed to interrupt.
+//   3. 1.15 kW per port at 5 A / 230 V. Real protection means a fuse or MCB sized to the wiring.
+//
+// So this catches a SPECIFIC, USEFUL CLASS of fault — a stalled motor, a failing appliance, an
+// overload sustained just under the sensor's ceiling — and it does so by *reducing* the time the
+// fault persists rather than by interrupting it. Do not let its presence imply the installation is
+// protected. The fuse is still on the hardware list.
+//
+// WHY A SEPARATE DEBOUNCE STREAK. The idle detector counts CONSECUTIVE LOW readings; this counts
+// CONSECUTIVE HIGH ones. They observe opposite conditions, so sharing one counter would have each
+// reset the other's progress and neither would ever complete. Separate counters, separate
+// thresholds, same per-port shape.
+//
+// WHY A DELAY. A motor's inrush is several times its running current for a fraction of a second. A
+// bare instantaneous compare would trip on every compressor start — switching off a fridge that was
+// working perfectly. The trip therefore requires the overload to PERSIST across several samples, so
+// only a sustained fault trips. The cost is a short delay before the relay opens, which is the
+// correct trade for not disconnecting healthy appliances.
+#define OVERCURRENT_LIMIT_A      4.50f  // ACS712-05B saturates at 5 A; trip just below the ceiling
+#define OVERCURRENT_TRIP_SAMPLES 5      // ~0.5 s sustained; above inrush, below damage timescales
+int overcurrentStreak[NUM_PORTS] = {0, 0, 0};
+bool overcurrentTripped[NUM_PORTS] = {false, false, false};
+
+// Runtime-overridable, like nominalVoltage. Valid band is bounded by what the SENSOR can see: a
+// limit above ~5 A is unreachable on the 5 A part and would silently never fire, which is worse
+// than a wrong-looking number because it reads as protection that is not there.
+float overcurrentLimitA = OVERCURRENT_LIMIT_A;
+
+/** Clamp a configured limit into the band the fitted sensor can actually measure. */
+bool overcurrentLimitIsSane(float v) {
+  return v >= 0.5f && v <= 5.0f;
+}
+
+/**
+ * Should this port be tripped for overcurrent? Called once per loop from the cached reading.
+ * Returns true only on the transition into a tripped state, so the caller alerts exactly once.
+ */
+bool overcurrentShouldTrip(int port) {
+  if (port < 0 || port >= NUM_PORTS) return false;
+
+  // A de-energised port cannot overload. Clearing the streak here also means re-enabling a port
+  // starts from a clean count rather than inheriting the fault that tripped it.
+  if (digitalRead(RELAY_PINS[port]) != HIGH) {
+    overcurrentStreak[port] = 0;
+    overcurrentTripped[port] = false;
+    return false;
+  }
+
+  float amps = currentAmpsFor(port);
+  if (amps < overcurrentLimitA) {
+    overcurrentStreak[port] = 0;
+    overcurrentTripped[port] = false;
+    return false;
+  }
+
+  if (overcurrentStreak[port] < OVERCURRENT_TRIP_SAMPLES) {
+    overcurrentStreak[port]++;
+    Serial.printf("Port %d overcurrent: %.2f A (limit %.2f) — %d/%d\n",
+                  port + 1, amps, overcurrentLimitA, overcurrentStreak[port], OVERCURRENT_TRIP_SAMPLES);
+  }
+  if (overcurrentStreak[port] < OVERCURRENT_TRIP_SAMPLES) return false;
+  if (overcurrentTripped[port]) return false; // already tripped; alert only on the edge
+
+  overcurrentTripped[port] = true;
+  return true;
+}
+
+/**
+ * Run the overcurrent check across every port and act on any trip.
+ *
+ * Kept out of the state machine on purpose: a fault is not an occupancy event, and routing it
+ * through the idle/response-window logic would mean a fault on a port in an OCCUPIED room waited
+ * for the room to empty before being noticed.
+ */
+void checkOvercurrent() {
+  bool anyTripped = false;
+  FirebaseJson relayUpdateJson;
+
+  for (int i = 0; i < NUM_PORTS; i++) {
+    if (!overcurrentShouldTrip(i)) continue;
+
+    float amps = currentAmpsFor(i);
+
+    // Open the relay first. Everything else — NVS, the cloud, the alert — is secondary to
+    // interrupting the fault, and each of those can fail or block. `force=true` is load-bearing:
+    // the derating rules must never delay cutting a fault. See the relay derating section.
+    runRelaySwitch(i, false, /*force=*/true);
+    String portPrefix = "ports/port_0" + String(i + 1) + "/";
+    relayUpdateJson.set(portPrefix + "relay_status", false);
+    anyTripped = true;
+
+    Serial.printf("OVERCURRENT TRIP: port %d cut at %.2f A (limit %.2f A).\n",
+                  i + 1, amps, overcurrentLimitA);
+
+    // Fire-and-forget, like every other alert — this must not block the loop.
+    sendAlert(
+      "\xE2\x9A\xA0\xEF\xB8\x8F VoltSense Overcurrent",
+      "Outlet " + String(i + 1) + " was drawing too much current and has been switched off.",
+      "volt-sense-overcurrent");
+  }
+
+  if (!anyTripped) return;
+
+  // Commit the new port state to NVS BEFORE the cloud write, so a brownout between the two leaves
+  // the restored state matching the relays rather than the database. Same ordering as the
+  // occupancy shutdown path.
+  persistRelayState();
+  watchdogFeed();
+  Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &relayUpdateJson);
+  watchdogFeed();
+}
+
+// ---------------------------------------------------------------------------
+// History: load / persist / rollup
+// ---------------------------------------------------------------------------
+int findDailyIndex(const String& date) {
+  for (int i = 0; i < dailyCount; i++) {
+    if (dailyHistory[i].date == date) return i;
+  }
+  return -1;
+}
+
+void loadHistory() {
+  Preferences p;
+  p.begin("voltsense", true);
+  String blob = p.getString("history", "");
+  String dayBlob = p.getString("hist_hourly", "");
+  historyDayDate = p.getString("hist_day", "");
+  String energyBlob = p.getString("energy", "");
+  p.end();
+
+  if (blob.length() > 0) {
+    FirebaseJson json;
+    json.setJsonData(blob);
+    size_t count = json.iteratorBegin();
+    dailyCount = 0;
+    for (size_t i = 0; i < count && dailyCount < MAX_HISTORY_DAYS; i++) {
+      int type; String key, value;
+      json.iteratorGet(i, type, key, value);
+      FirebaseJson entry;
+      entry.setJsonData(value);
+      FirebaseJsonData d;
+      DailyRecord rec;
+      rec.date = key;
+      entry.get(d, "e"); rec.energyKwh = d.success ? (float)d.doubleValue : 0.0f;
+      entry.get(d, "m"); rec.occupiedMinutes = d.success ? (uint16_t)d.intValue : 0;
+      entry.get(d, "p"); rec.peakWatts = d.success ? (float)d.doubleValue : 0.0f;
+      dailyHistory[dailyCount++] = rec;
+    }
+    json.iteratorEnd();
+  }
+
+  // Hourly buckets for the in-progress day
+  for (int h = 0; h < 24; h++) {
+    todayHourlyKwh[h] = 0.0f;
+    todayHourlyOccupied[h] = false;
+  }
+  if (dayBlob.length() > 0) {
+    FirebaseJson json;
+    json.setJsonData(dayBlob);
+    size_t count = json.iteratorBegin();
+    for (size_t i = 0; i < count; i++) {
+      int type; String key, value;
+      json.iteratorGet(i, type, key, value);
+      int h = key.toInt();
+      if (h >= 0 && h < 24) todayHourlyKwh[h] = value.toFloat();
+    }
+    json.iteratorEnd();
+  }
+
+  // Per-port energy counters (M7: previously RAM-only, so any reboot reset the day to zero)
+  if (energyBlob.length() > 0) {
+    FirebaseJson json;
+    json.setJsonData(energyBlob);
+    FirebaseJsonData d;
+    for (int i = 0; i < NUM_PORTS; i++) {
+      json.get(d, "p" + String(i));
+      if (d.success) portEnergyKWh[i] = (float)d.doubleValue;
+    }
+  }
+
+  Serial.printf("History loaded: %d day(s), today date=%s\n", dailyCount, historyDayDate.c_str());
+}
+
+void persistEnergyCounters() {
+  FirebaseJson json;
+  for (int i = 0; i < NUM_PORTS; i++) {
+    json.set("p" + String(i), portEnergyKWh[i]);
+  }
+  String out;
+  json.toString(out);
+
+  Preferences p;
+  p.begin("voltsense", false);
+  p.putString("energy", out);
+  p.end();
+}
+
+void persistHistory() {
+  FirebaseJson json;
+  for (int i = 0; i < dailyCount; i++) {
+    FirebaseJson entry;
+    entry.set("e", dailyHistory[i].energyKwh);
+    entry.set("m", dailyHistory[i].occupiedMinutes);
+    entry.set("p", dailyHistory[i].peakWatts);
+    json.set(dailyHistory[i].date, entry);
+  }
+  String blob;
+  json.toString(blob);
+
+  FirebaseJson hourly;
+  for (int h = 0; h < 24; h++) {
+    hourly.set(String(h), todayHourlyKwh[h]);
+  }
+  String hourlyBlob;
+  hourly.toString(hourlyBlob);
+
+  Preferences p;
+  p.begin("voltsense", false);
+  p.putString("history", blob);
+  p.putString("hist_hourly", hourlyBlob);
+  p.putString("hist_day", historyDayDate);
+  p.end();
+}
+
+// Roll the hourly buckets into a daily record and start a fresh day.
+void rolloverDayIfNeeded() {
+  String today = getLocalDateString();
+  if (today.length() == 0) return;
+
+  if (historyDayDate.length() == 0) {
+    historyDayDate = today;
+    return;
+  }
+  if (historyDayDate == today) return;
+
+  // Flush the completed day into the ring buffer.
+  float dayEnergy = 0;
+  int occupiedMin = 0;
+  for (int h = 0; h < 24; h++) {
+    dayEnergy += todayHourlyKwh[h];
+    if (todayHourlyOccupied[h]) occupiedMin += 60;
+  }
+
+  int idx = findDailyIndex(historyDayDate);
+  if (idx == -1) {
+    if (dailyCount >= MAX_HISTORY_DAYS) {
+      // Drop the oldest entry (records are appended in chronological order).
+      for (int i = 1; i < MAX_HISTORY_DAYS; i++) dailyHistory[i - 1] = dailyHistory[i];
+      dailyCount = MAX_HISTORY_DAYS - 1;
+    }
+    idx = dailyCount++;
+    dailyHistory[idx].date = historyDayDate;
+    dailyHistory[idx].peakWatts = 0;
+  }
+  dailyHistory[idx].energyKwh = dayEnergy;
+  dailyHistory[idx].occupiedMinutes = occupiedMin;
+
+  Serial.printf("Day rollover: %s -> %s (%.3f kWh, %d min occupied)\n",
+                historyDayDate.c_str(), today.c_str(), dayEnergy, occupiedMin);
+
+  historyDayDate = today;
+  for (int h = 0; h < 24; h++) {
+    todayHourlyKwh[h] = 0.0f;
+    todayHourlyOccupied[h] = false;
+  }
+  persistHistory();
+}
+
+/**
+ * Publish the raw daily records as they are stored on the device.
+ *
+ * WHY THIS EXISTS — the custom-date-range fix.
+ *
+ * The Analytics page lets the user pick an arbitrary range ("10/01 - 10/15"), maps it to a key like
+ * `custom_20251001_20251015`, and reads that node. The firmware only ever published the four FIXED
+ * ranges (today / yesterday / last_7_days / this_month), so every custom range read a node that no
+ * one had ever written and the chart came back empty — permanently, and with no error to explain it.
+ *
+ * A device cannot anticipate every range a user might pick, so it should not try. Instead it
+ * publishes the UNDERLYING daily records once, and the CLIENT composes whatever range it needs from
+ * them. That is one extra node instead of an unbounded set of keys, and it makes the custom picker
+ * work for any range the 31-day retention can cover.
+ *
+ * Shape: history/days/<YYYY-MM-DD> = { e: kWh, m: occupiedMinutes, p: peakWatts }
+ * The short keys match persistHistory()'s NVS blob, which is deliberate — one vocabulary to learn.
+ */
+void publishDailyRecords() {
+  if (!Firebase.ready()) return;
+
+  FirebaseJson out;
+  for (int i = 0; i < dailyCount; i++) {
+    FirebaseJson entry;
+    entry.set("e", dailyHistory[i].energyKwh);
+    entry.set("m", dailyHistory[i].occupiedMinutes);
+    entry.set("p", dailyHistory[i].peakWatts);
+    out.set(dailyHistory[i].date, entry);
+  }
+
+  // Today's partial total is not in dailyHistory yet (it is only written at day rollover), so add it.
+  // Without this the latest day would be missing from every composed range until midnight.
+  if (historyDayDate.length() > 0) {
+    FirebaseJson todayEntry;
+    float dayEnergy = 0;
+    int dayOccupiedMin = 0;
+    for (int h = 0; h < 24; h++) {
+      dayEnergy += todayHourlyKwh[h];
+      if (todayHourlyOccupied[h]) dayOccupiedMin += 60;
+    }
+    todayEntry.set("e", dayEnergy);
+    todayEntry.set("m", dayOccupiedMin);
+    todayEntry.set("p", 0);
+    out.set(historyDayDate, todayEntry);
+  }
+
+  if (!Firebase.RTDB.setJSON(&fbdo, roomPath + "/history/days", &out)) {
+    Serial.printf("history/days write failed: %s\n", fbdo.errorReason().c_str());
+  }
+}
+
+// Publish the range nodes the Analytics page reads.
+void publishHistoryRanges() {
+  if (!Firebase.ready()) return;
+  rolloverDayIfNeeded();
+
+  // ---------------- today (hourly granularity) ----------------
+  FirebaseJson todayJson;
+  FirebaseJsonArray todayEnergy;
+  FirebaseJsonArray todayOcc;
+  float todayTotal = 0;
+  int todayOccupiedMin = 0;
+  for (int h = 0; h < 24; h++) {
+    FirebaseJson e;
+    e.set("label", hourLabel(h));
+    e.set("kwh", todayHourlyKwh[h]);
+    todayEnergy.add(e);
+
+    FirebaseJson o;
+    o.set("label", hourLabel(h));
+    o.set("occupied", todayHourlyOccupied[h] ? 1 : 0);
+    todayOcc.add(o);
+
+    todayTotal += todayHourlyKwh[h];
+    if (todayHourlyOccupied[h]) todayOccupiedMin += 60;
+  }
+  todayJson.set("energy", todayEnergy);
+  todayJson.set("occupancy", todayOcc);
+  todayJson.set("totals/energy", todayTotal);
+  todayJson.set("totals/hours", todayOccupiedMin / 60.0);
+
+  if (!Firebase.RTDB.setJSON(&fbdo, roomPath + "/history/today", &todayJson)) {
+    Serial.printf("history/today write failed: %s\n", fbdo.errorReason().c_str());
+  }
+
+  // ---------------- daily ranges ----------------
+  publishDailyRange("yesterday", 1, 1);
+  publishDailyRange("last_7_days", 6, 0);
+  publishDailyRange("this_month", getLocalDayOfMonth() - 1, 0);
+
+  // The raw per-day records, so the app can compose ANY custom range itself. Published after the
+  // fixed ranges because those are what the default view reads — if this fails, the default view
+  // still works.
+  publishDailyRecords();
+}
+
+// startDaysAgo / endDaysAgo are offsets back from today (0 = today).
+void publishDailyRange(const String& key, int startDaysAgo, int endDaysAgo) {
+  if (dailyCount == 0 && endDaysAgo > 0) {
+    // Nothing recorded yet for past days — publish an empty but well-formed node.
+    FirebaseJsonArray emptyEnergy;
+    FirebaseJsonArray emptyOcc;
+    FirebaseJson empty;
+    empty.set("energy", emptyEnergy);
+    empty.set("occupancy", emptyOcc);
+    empty.set("totals/energy", 0);
+    empty.set("totals/hours", 0);
+    Firebase.RTDB.setJSON(&fbdo, roomPath + "/history/" + key, &empty);
+    return;
+  }
+
+  FirebaseJson out;
+  FirebaseJsonArray energyArr;
+  FirebaseJsonArray occArr;
+  float totalEnergy = 0;
+  int totalOccupiedMin = 0;
+
+  // Walk chronologically so the chart x-axis reads left-to-right.
+  for (int offset = startDaysAgo; offset >= endDaysAgo; offset--) {
+    float dayEnergy = 0;
+    int dayOccupied = 0;
+
+    if (offset == 0) {
+      // Today so far
+      for (int h = 0; h < 24; h++) {
+        dayEnergy += todayHourlyKwh[h];
+        if (todayHourlyOccupied[h]) dayOccupied += 60;
+      }
+    } else {
+      int idx = findDailyIndex(dayOffsetToDate(offset));
+      if (idx != -1) {
+        dayEnergy = dailyHistory[idx].energyKwh;
+        dayOccupied = dailyHistory[idx].occupiedMinutes;
+      }
+    }
+
+    String label = dayOffsetToDate(offset);
+    if (label.length() >= 10) label = String(label.substring(8, 10).toInt()); // "12"
+
+    FirebaseJson e;
+    e.set("label", label);
+    e.set("kwh", dayEnergy);
+    energyArr.add(e);
+
+    FirebaseJson o;
+    o.set("label", label);
+    o.set("occupied", dayOccupied > 0 ? 1 : 0);
+    occArr.add(o);
+
+    totalEnergy += dayEnergy;
+    totalOccupiedMin += dayOccupied;
+  }
+
+  out.set("energy", energyArr);
+  out.set("occupancy", occArr);
+  out.set("totals/energy", totalEnergy);
+  out.set("totals/hours", totalOccupiedMin / 60.0);
+
+  if (!Firebase.RTDB.setJSON(&fbdo, roomPath + "/history/" + key, &out)) {
+    Serial.printf("history/%s write failed: %s\n", key.c_str(), fbdo.errorReason().c_str());
+  }
+}
+
+String dayOffsetToDate(int daysAgo) {
+  time_t t = timeClient.getEpochTime() - (time_t)daysAgo * 86400L;
+  struct tm* ti = gmtime(&t);
+  if (!ti) return "";
+  char buf[11];
+  snprintf(buf, sizeof(buf), "%04d-%02d-%02d", ti->tm_year + 1900, ti->tm_mon + 1, ti->tm_mday);
+  return String(buf);
+}
+
+// ---------------------------------------------------------------------------
+// Alerts
+//
+// The device holds no messaging credential. It sends a small JSON document to the VoltSense
+// serverless endpoint, which owns the push keys, resolves who to notify, and reports back.
+//
+// The call is deliberately fire-and-forget: `sendAlert()` kicks off a one-shot FreeRTOS task and
+// returns immediately. A blocking HTTPS request here would stall the occupancy state machine,
+// which is driven by `millis()` — and the response window is only 60 seconds wide. A cold start on
+// the server can take seconds, so waiting for the response is not acceptable.
+// ---------------------------------------------------------------------------
+
+// Escape the few characters that would break the hand-built JSON document. The alert text is
+// compiled in, not user input, but titles can carry emoji and quotes; a raw quote would produce
+// invalid JSON and the server would reject the alert.
+String jsonEscape(const String& s) {
+  String out;
+  out.reserve(s.length() + 16);
+  for (size_t i = 0; i < s.length(); i++) {
+    char c = s[i];
+    switch (c) {
+      case '"':  out += "\\\""; break;
+      case '\\': out += "\\\\"; break;
+      case '\n': out += "\\n";  break;
+      case '\r': out += "\\r";  break;
+      case '\t': out += "\\t";  break;
+      default:
+        if ((uint8_t)c < 0x20) {
+          // Control characters are not legal in a JSON string.
+          continue;
+        }
+        out += c;
+    }
+  }
+  return out;
+}
+
+struct AlertPayload {
+  String mac;
+  String title;
+  String body;
+  String tag;
+};
+
+// Owns the payload while a send is in flight. Guarded by `inFlight` rather than inspected for
+// null-ness, because the task frees the payload before the handle is cleared.
+AlertPayload* pendingAlert = nullptr;
+volatile bool alertInFlight = false;
+TaskHandle_t alertTaskHandle = nullptr;
+
+// Runs on its own core so a slow or unreachable endpoint cannot stall the occupancy machine.
+// Single exit point at the bottom: every early return would otherwise have to remember to release
+// the in-flight flag, and missing one locks alerting out permanently.
+void alertTask(void* parameter) {
+  AlertPayload* alert = (AlertPayload*)parameter;
+
+  if (alert) {
+    String secret = getAlertSecret();
+    if (secret.length() == 0) {
+      Serial.println("Alert skipped: no `alert_secret` in NVS. Run ProvisionToken.ino.");
+    } else {
+      String payload = "{";
+      payload += "\"secret\":\"" + jsonEscape(secret) + "\",";
+      payload += "\"mac\":\"" + jsonEscape(alert->mac) + "\",";
+      payload += "\"title\":\"" + jsonEscape(alert->title) + "\",";
+      payload += "\"body\":\"" + jsonEscape(alert->body) + "\",";
+      payload += "\"tag\":\"" + jsonEscape(alert->tag) + "\"";
+      payload += "}";
+
+      WiFiClientSecure client;
+      client.setCACert(ISRG_ROOT_X1);
+
+      HTTPClient http;
+      http.setTimeout(8000);
+      http.setReuse(false);
+
+      if (!http.begin(client, ALERT_URL)) {
+        Serial.println("Alert: http.begin failed");
+      } else {
+        http.addHeader("Content-Type", "application/json");
+        int code = http.POST(payload);
+        if (code > 0) {
+          Serial.printf("Alert -> HTTP %d: %s\n", code, http.getString().c_str());
+        } else {
+          Serial.printf("Alert failed: %s\n", http.errorToString(code).c_str());
+        }
+        http.end();
+      }
+    }
+  }
+
+  delete alert;
+  pendingAlert = nullptr;
+  alertTaskHandle = nullptr;
+  alertInFlight = false;
+  vTaskDelete(NULL);
+}
+
+// Queue an alert for delivery. Safe to call from the state machine: it only allocates and returns.
+//
+// If a previous alert is still in flight it is dropped rather than queued — occupancy alerts are
+// time-critical and stale ones are actively misleading ("shutting down in 60 seconds" delivered
+// two minutes late is worse than no alert at all).
+void sendAlert(const String& title, const String& body, const String& tag = "voltsense-alert") {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WiFi disconnected. Cannot send alert.");
+    return;
+  }
+
+  if (alertInFlight) {
+    Serial.println("Alert already in flight; dropping this one.");
+    return;
+  }
+
+  if (macAddress.length() == 0) {
+    Serial.println("Alert skipped: MAC not known yet.");
+    return;
+  }
+
+  AlertPayload* alert = new AlertPayload();
+  alert->mac = macAddress;
+  alert->title = title;
+  alert->body = body;
+  alert->tag = tag;
+
+  // 8 KB of stack: a TLS handshake plus JSON building needs considerably more than the default
+  // 2 KB budget. Priority 1 keeps it below the main loop so telemetry keeps flowing.
+  //
+  // The payload is handed straight to the task as its parameter — never read from the shared
+  // `pendingAlert` pointer inside the task, or a second sendAlert() could swap it mid-flight.
+  //
+  // The flag is set BEFORE the task is created so a task that starts and finishes instantly cannot
+  // clear it to false and then be overwritten by a late assignment here.
+  alertInFlight = true;
+  pendingAlert = alert;
+
+  BaseType_t created = xTaskCreatePinnedToCore(
+    alertTask,
+    "alertTask",
+    8192,
+    (void*)alert,
+    1,
+    &alertTaskHandle,
+    1
+  );
+
+  if (created != pdPASS) {
+    Serial.println("Alert task could not be created.");
+    pendingAlert = nullptr;
+    alertInFlight = false;
+    delete alert;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Firebase stream
+// ---------------------------------------------------------------------------
+void streamCallback(FirebaseStream data) {
+  String path = data.dataPath();
+  Serial.printf("Stream data path: %s\n", path.c_str());
+
+  if (path == "/override") {
+    overrideActive = data.boolData();
+    Serial.printf("Override set to: %s\n", overrideActive ? "true" : "false");
+
+    // If override is enabled, force relays ON and reset state
+    if (overrideActive) {
+      setAllRelays(true);
+      persistRelayState();
+      currentState = STATE_OCCUPIED;
+      lastMotionMillis = millis(); // Reset timer
+      // Reset override flag in database to avoid getting stuck
+      Firebase.RTDB.setBoolAsync(&fbdo, roomPath + "/override", false);
+    }
+  } else if (path == "/ports/port_01/relay_status") {
+    // Derated, and the outcome is written back: a rapid tap sequence must not actuate the relay more
+    // than the dwell/rate rules allow, and when a tap is rejected the app's toggle is snapped back
+    // to the state the relay is actually in. See the relay derating section.
+    runRelaySwitchAndSync(0, data.boolData());
+  } else if (path == "/ports/port_02/relay_status") {
+    runRelaySwitchAndSync(1, data.boolData());
+  } else if (path == "/ports/port_03/relay_status") {
+    runRelaySwitchAndSync(2, data.boolData());
+  } else if (path == "/settings/night_mode_enabled") {
+    nightModeEnabled = data.boolData();
+  } else if (path == "/settings/night_mode_start") {
+    nightModeStart = data.stringData();
+  } else if (path == "/settings/night_mode_end") {
+    nightModeEnd = data.stringData();
+  } else if (path == "/settings/inactivity_limit_minutes") {
+    int minutes = data.intData();
+    if (minutes > 0) idleTimeoutMs = (unsigned long)minutes * 60 * 1000UL;
+  } else if (path == "/settings/nominal_voltage") {
+    // Optional. Only meaningful if the user has actually measured their supply; the value is
+    // clamped by supplyVoltage() so a typo cannot produce absurd power numbers.
+    float v = data.floatData();
+    if (v >= 50.0f && v <= 300.0f) {
+      nominalVoltage = v;
+      setNvsString("nominal_voltage", String(v, 1));
+      Serial.printf("Nominal voltage set to %.1f V\n", v);
+    } else {
+      Serial.printf("Ignoring nominal_voltage %.1f (outside 50-300 V)\n", v);
+    }
+  } else if (path == "/settings/overcurrent_limit_a") {
+    // Optional. Clamped to what the fitted sensor can actually resolve — a limit above ~5 A on the
+    // 5 A part would never fire and would read as protection that is not present.
+    float a = data.floatData();
+    if (overcurrentLimitIsSane(a)) {
+      overcurrentLimitA = a;
+      setNvsString("overcurrent_a", String(a, 2));
+      Serial.printf("Overcurrent limit set to %.2f A\n", a);
+    } else {
+      Serial.printf("Ignoring overcurrent_limit_a %.2f (outside 0.5-5.0 A)\n", a);
+    }
+  } else if (path == "/") {
+    // Handle full object initialization
+    FirebaseJson json;
+    json.setJsonData(data.jsonString());
+    FirebaseJsonData result;
+
+    json.get(result, "override");
+    if (result.success) overrideActive = result.boolValue;
+
+    json.get(result, "settings/night_mode_enabled");
+    if (result.success) nightModeEnabled = result.boolValue;
+
+    json.get(result, "settings/night_mode_start");
+    if (result.success) nightModeStart = result.stringValue;
+
+    json.get(result, "settings/night_mode_end");
+    if (result.success) nightModeEnd = result.stringValue;
+
+    json.get(result, "settings/inactivity_limit_minutes");
+    if (result.success && result.intValue > 0) {
+      idleTimeoutMs = (unsigned long)result.intValue * 60 * 1000UL;
+    }
+
+    json.get(result, "settings/nominal_voltage");
+    if (result.success && result.floatValue >= 50.0f && result.floatValue <= 300.0f) {
+      nominalVoltage = result.floatValue;
+    }
+
+    json.get(result, "settings/overcurrent_limit_a");
+    if (result.success && overcurrentLimitIsSane(result.floatValue)) {
+      overcurrentLimitA = result.floatValue;
+    }
+
+    json.get(result, "ports/port_01/relay_status");
+    if (result.success) runRelaySwitch(0, result.boolValue, /*force=*/true);
+
+    json.get(result, "ports/port_02/relay_status");
+    if (result.success) runRelaySwitch(1, result.boolValue, /*force=*/true);
+
+    json.get(result, "ports/port_03/relay_status");
+    if (result.success) runRelaySwitch(2, result.boolValue, /*force=*/true);
+
+    persistRelayState();
+  }
+}
+
+void streamTimeoutCallback(bool timeout) {
+  if (timeout) Serial.println("Stream timed out, resuming...");
+}
+
+int timeToMinutes(String t) {
+  int colonIndex = t.indexOf(':');
+  if (colonIndex == -1) return 0;
+  int h = t.substring(0, colonIndex).toInt();
+  int m = t.substring(colonIndex + 1).toInt();
+  return (h * 60) + m;
+}
+
+bool isNightModeActive() {
+  if (!nightModeEnabled) return false;
+
+  int currentMinutes = (timeClient.getHours() * 60) + timeClient.getMinutes();
+  int startMinutes = timeToMinutes(nightModeStart);
+  int endMinutes = timeToMinutes(nightModeEnd);
+
+  if (startMinutes > endMinutes) {
+    // Wraps over midnight (e.g. 22:00 to 06:00)
+    return (currentMinutes >= startMinutes || currentMinutes < endMinutes);
+  } else {
+    // Same day (e.g. 01:00 to 05:00)
+    return (currentMinutes >= startMinutes && currentMinutes < endMinutes);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Factory reset
+//
+// Held-button reset so a unit can be re-paired without a USB cable — needed when a device is
+// returned, moved to a new owner, or its NVS is in a bad state.
+//
+// This ERASES the credentials. It does NOT erase the owner: `devices/<MAC>/owner` and
+// `users/<uid>/owned_devices/<MAC>` live in the database, and re-pairing deliberately cannot touch
+// them (see api/pair.js). So a stolen device cannot be re-paired to steal itself back — the
+// original owner must release it. That is the correct default for anything wired to mains.
+//
+// Trigger: hold GPIO 0 (the BOOT button on most devkits) for 5 seconds at power-on.
+// ---------------------------------------------------------------------------
+void factoryResetIfRequested() {
+  const int RESET_PIN = 0;
+  const unsigned long HOLD_MS = 5000;
+
+  pinMode(RESET_PIN, INPUT_PULLUP);
+  if (digitalRead(RESET_PIN) != LOW) return;
+
+  Serial.println("BOOT held — keep holding for 5s to factory reset...");
+  unsigned long start = millis();
+  while (digitalRead(RESET_PIN) == LOW) {
+    if (millis() - start > HOLD_MS) {
+      Serial.println("\nFactory reset: erasing device credentials from NVS.");
+
+      Preferences p;
+      p.begin("voltsense", false);
+      p.remove("dev_email");
+      p.remove("dev_password");
+      p.remove("dev_id_token");
+      p.remove("dev_refresh_token");
+      p.remove("alert_secret");
+      // The factory key is deliberately NOT erased from the build, but the "used" marker is, so
+      // the next boot pairs again and mints a fresh code.
+      p.remove("pairing_key_used");
+      // Wi-Fi is kept: the unit is usually on the same network, and making the user re-enter Wi-Fi
+      // as well turns a 30-second job into a 5-minute one.
+      p.end();
+
+      Serial.println("Credentials erased. Wi-Fi kept. Rebooting to re-pair...");
+      delay(1000);
+      ESP.restart();
+    }
+    delay(50);
+  }
+  Serial.println("Released early — continuing normal boot.");
+}
+
+// ---------------------------------------------------------------------------
+// Relay boot state
+// ---------------------------------------------------------------------------
+//
+// Relays default to ON for a reason that is easy to lose: a household appliance that is
+// involuntarily off is a support call, and a port with nothing plugged in draws nothing anyway.
+// But "always ON at boot" means a REBOOT UNDOES A SHUTDOWN. If the room emptied and the device cut
+// the ports, a brownout or a watchdog reset 10 seconds later brings every socket back live in an
+// empty room — the exact opposite of what the product exists to do.
+//
+// So the state is persisted and restored. The default stays ON for the first-ever boot (nothing in
+// NVS yet), and each transition writes the new state, so a reboot resumes where it left off.
+//
+// Note this is the LOGICAL state, not the pin level: whether HIGH means energised depends on the
+// relay board. The original code used HIGH = ON, and that convention is preserved here.
+#define NVS_KEY_RELAY_STATE "relay_state"
+
+uint8_t readRelayBootMask() {
+  Preferences p;
+  p.begin("voltsense", true);
+  // Bit i = port i was ON. Reading a missing key returns 0, which would mean "all off" — not what
+  // we want for a factory-fresh unit, so the sentinel is a separate key that must exist.
+  bool initialised = p.isKey(NVS_KEY_RELAY_STATE);
+  uint8_t mask = initialised ? (uint8_t)p.getUChar(NVS_KEY_RELAY_STATE, 0) : 0;
+  p.end();
+  if (!initialised) return 0xFF; // never booted: all ports ON
+  return mask;
+}
+
+void persistRelayState() {
+  uint8_t mask = 0;
+  for (int i = 0; i < NUM_PORTS; i++) {
+    if (digitalRead(RELAY_PINS[i]) == HIGH) mask |= (1 << i);
+  }
+  Preferences p;
+  p.begin("voltsense", false);
+  p.putUChar(NVS_KEY_RELAY_STATE, mask);
+  p.end();
+}
+
+// ---------------------------------------------------------------------------
+// Relay derating — dwell time + switch-rate limit (protects a MECHANICAL part)
+// ---------------------------------------------------------------------------
+// WHY THIS EXISTS. The relay is the only moving part in the build, and it is rated for a finite,
+// QUITE SMALL number of operations (a typical 5 V blue 3-channel module: ~10,000-100,000 mechanical
+// cycles). Every transition is one real actuation of a metal arm. Nothing used to count them.
+//
+// The exposing scenario is the app's toggle: each tap writes `ports/port_0N/relay_status` to RTDB,
+// the device's stream callback fires on that write, and the handler does a `digitalWrite` — one
+// actuation per tap, at network-event speed. Holding down a toggle, or a client bug that re-asserts
+// a value in a loop, therefore hammers the contacts. It is also the WORST kind of switching: cutting
+// and immediately re-closing a live load (a workstation, a compressor appliance) causes contact
+// ARCING, which destroys a relay far faster than the raw operation count implies — the same
+// welded-contact failure the overcurrent section warns about, reached from the opposite direction.
+//
+// The guard is two rules, both PER PORT (toggling port 1 must never block port 2):
+//   1. DWELL — after a port switches, it may not switch again for RELAY_MIN_DWELL_MS. This rejects
+//      double-taps and sensor/message chatter while being invisible to deliberate use (a person
+//      flipping a switch and changing their mind takes about a second).
+//   2. RATE — at most RELAY_MAX_SWITCHES transitions per RELAY_RATE_WINDOW_MS, as a rolling window.
+//      Dwell alone still permits one flip every 2 s forever; this bounds sustained flapping.
+//
+// THE ONE EXCEPTION IS SAFETY. A derated path must NEVER be able to block the overcurrent trip: a
+// dwell lock that refused to cut a fault because the port had "just switched" would be worse than no
+// protection at all. `runRelaySwitch()` therefore takes a `force` flag, and the overcurrent cutoff
+// passes `true`. Nothing that exists to protect the user is ever rate-limited.
+//
+// The app is NOT the security boundary here — anyone can write this node directly (console, script,
+// another client). Enforcement lives on the device because the device is what owns the relay.
+
+#define RELAY_MIN_DWELL_MS     2000UL          // 2 s between transitions on the same port
+#define RELAY_RATE_WINDOW_MS   60000UL         // rolling window for the rate cap
+#define RELAY_MAX_SWITCHES     6               // max transitions per port per window
+
+unsigned long relayLastSwitchMs[NUM_PORTS] = {0, 0, 0};
+unsigned long relaySwitchTimes[NUM_PORTS][RELAY_MAX_SWITCHES] = {{0}};
+int relaySwitchCursor[NUM_PORTS] = {0, 0, 0};
+unsigned long relaySuppressedCount[NUM_PORTS] = {0, 0, 0};
+
+// True if this port is allowed to switch right now. `nowMs` is passed in so the caller uses one
+// consistent timestamp and so the logic stays testable without a clock.
+bool relayMaySwitch(int port, unsigned long nowMs) {
+  if (port < 0 || port >= NUM_PORTS) return false;
+
+  // Rule 1: minimum dwell since the last accepted transition.
+  if (relayLastSwitchMs[port] != 0 &&
+      (nowMs - relayLastSwitchMs[port]) < RELAY_MIN_DWELL_MS) {
+    return false;
+  }
+
+  // Rule 2: rolling-window rate cap. Count the accepted transitions still inside the window.
+  int inWindow = 0;
+  for (int i = 0; i < RELAY_MAX_SWITCHES; i++) {
+    unsigned long t = relaySwitchTimes[port][i];
+    if (t != 0 && (nowMs - t) < RELAY_RATE_WINDOW_MS) inWindow++;
+  }
+  return inWindow < RELAY_MAX_SWITCHES;
+}
+
+// Record an accepted transition in the ring buffer and stamp the dwell clock.
+void relayRecordSwitch(int port, unsigned long nowMs) {
+  if (port < 0 || port >= NUM_PORTS) return;
+  relaySwitchTimes[port][relaySwitchCursor[port]] = nowMs;
+  relaySwitchCursor[port] = (relaySwitchCursor[port] + 1) % RELAY_MAX_SWITCHES;
+  relayLastSwitchMs[port] = nowMs;
+}
+
+/**
+ * The ONE choke point for energising/de-energising a port.
+ *
+ * Every relay write in this firmware goes through here so the derating rules cannot be bypassed by a
+ * new call site that forgets them.
+ *
+ * Returns which of three things happened, because the caller's duty differs in each case:
+ *   RELAY_SWITCHED  — the relay moved. The caller should persist and (if it owns the write) publish
+ *                     the new state.
+ *   RELAY_NOOP      — the port was already in the requested state; no actuation, no cost.
+ *   RELAY_SUPPRESSED— derating refused the transition. The relay is UNCHANGED, so any caller that
+ *                     told the cloud otherwise MUST repair the record — see
+ *                     runRelaySwitchAndSync() for the standard repair.
+ *
+ * `force` = true skips BOTH rules and is reserved for safety paths (overcurrent cutoff, boot
+ * restore). If you are adding an ordinary control path, leave it false — that is the whole point.
+ */
+enum RelaySwitchResult { RELAY_SWITCHED, RELAY_NOOP, RELAY_SUPPRESSED };
+
+RelaySwitchResult runRelaySwitch(int port, bool on, bool force = false) {
+  if (port < 0 || port >= NUM_PORTS) return RELAY_NOOP;
+
+  bool current = digitalRead(RELAY_PINS[port]) == HIGH;
+  if (current == on) return RELAY_NOOP; // no transition: do not spend a relay operation on a no-op
+
+  unsigned long nowMs = millis();
+  if (!force && !relayMaySwitch(port, nowMs)) {
+    relaySuppressedCount[port]++;
+    Serial.printf("Relay port %d: %s SUPPRESSED (derating) — %lu suppressed so far\n",
+                  port + 1, on ? "ON" : "OFF", (unsigned long)relaySuppressedCount[port]);
+    return RELAY_SUPPRESSED;
+  }
+
+  digitalWrite(RELAY_PINS[port], on ? HIGH : LOW);
+  relayRecordSwitch(port, nowMs);
+  Serial.printf("Relay port %d -> %s%s\n", port + 1, on ? "ON" : "OFF",
+                force ? " (forced)" : "");
+  return RELAY_SWITCHED;
+}
+
+/**
+ * Drive a port from an app command and keep RTDB honest about the outcome.
+ *
+ * WHY THE REPAIR IS NECESSARY. The app writes the *intended* state optimistically, so when derating
+ * suppresses the change the database now says "on" while the relay is physically off. Left alone,
+ * the app's switch would sit in a position the hardware is not in. This writes the ACTUAL state back
+ * for that one port, so the toggle snaps to reality.
+ *
+ * Only suppressed transitions write back — a successful switch already matches what the app wrote,
+ * and an echo from our own write must not bounce back into another write (the `current == on` no-op
+ * exit in runRelaySwitch is what stops that loop).
+ */
+void runRelaySwitchAndSync(int port, bool on) {
+  if (port < 0 || port >= NUM_PORTS) return;
+
+  RelaySwitchResult r = runRelaySwitch(port, on);
+  if (r == RELAY_SWITCHED) {
+    persistRelayState();
+    return;
+  }
+  if (r == RELAY_SUPPRESSED) {
+    bool actual = digitalRead(RELAY_PINS[port]) == HIGH;
+    String portPath = roomPath + "/ports/port_0" + String(port + 1) + "/relay_status";
+    Serial.printf("Relay port %d: command rejected, reporting actual state %s\n",
+                  port + 1, actual ? "ON" : "OFF");
+    Firebase.RTDB.setBoolAsync(&fbdo, portPath, actual);
+  }
+}
+
+
+// ---------------------------------------------------------------------------
+// Task watchdog — turns "frozen until you power-cycle it" into "reboots itself"
+// ---------------------------------------------------------------------------
+// WHY THIS EXISTS. Nothing in this firmware used to bound the main loop. If any call inside it
+// never returned — the classic case is the Firebase library blocking on a TLS handshake against an
+// unreachable or half-open host, where the socket sits in SYN_SENT — the loop simply stops.
+// Telemetry stops, occupancy stops, alerts stop, and the relays stay exactly as they were. The
+// device looks dead on the app while still holding whatever state it had. The only recovery was a
+// human pulling power.
+//
+// The task watchdog resets the device instead. That is SAFE here specifically because relay state
+// is persisted to NVS and restored on boot (see the section above): the device comes back into the
+// state it was in, rather than re-energising every socket into an empty room.
+//
+// TIMEOUT = 30 s. Chosen against the longest LEGITIMATE blocking path, measured rather than
+// guessed: NTP ~1 s, one ADC sweep across 3 ports ~300 ms (100 ms each), a Firebase telemetry push
+// up to ~5 s on a poor link, and the library's own TLS retry on a dead host at ~10-15 s. 30 s sits
+// comfortably above that worst case, so a slow-but-working network never trips it, while a genuine
+// hang is caught in half a minute.
+//
+// The alert POST does NOT count against this: sendAlert() runs on its own FreeRTOS task pinned to
+// core 1 (see alertTask), so a slow alert server cannot stall the loop. That task deliberately does
+// NOT subscribe to the watchdog — its 8 s HTTP timeout already bounds it, and adding a second
+// subscriber that can trip from a slow server would reboot a device that is working correctly.
+//
+// The `delay()` calls in setup() are deliberately outside the loop's budget. One of them is a 65 s
+// pairing rate-limit backoff, which is intentional waiting, not a hang; feeding the timer once
+// before it (see watchdogFeed around the pairing wait) keeps that path alive without disabling the
+// watchdog for the rest of boot.
+#define WDT_TIMEOUT_SECONDS 30
+
+void watchdogInit() {
+  // The Arduino ESP32 core may already have initialised the TWDT with a different timeout. Calling
+  // init again on an initialised timer returns ESP_ERR_INVALID_STATE and does NOT change the
+  // timeout, so reconfigure first and treat "not initialised" as the only error worth reporting.
+  esp_task_wdt_config_t cfg = {
+    .timeout_ms = WDT_TIMEOUT_SECONDS * 1000,
+    .idle_core_mask = 0,   // do not watch the idle tasks; we only care about loopTask
+    .trigger_panic = true  // panic -> reset, so the device recovers instead of spinning
+  };
+  esp_err_t err = esp_task_wdt_init(&cfg);
+  if (err == ESP_ERR_INVALID_STATE) {
+    esp_task_wdt_reconfigure(&cfg);
+  } else if (err != ESP_OK) {
+    Serial.printf("Watchdog init failed: %d\n", (int)err);
+    return;
+  }
+
+  err = esp_task_wdt_add(NULL); // NULL = the currently running task (loopTask)
+  if (err == ESP_OK) {
+    Serial.printf("Watchdog armed: %ds timeout on loopTask.\n", WDT_TIMEOUT_SECONDS);
+  } else {
+    Serial.printf("Watchdog could not watch loopTask: %d\n", (int)err);
+  }
+}
+
+// Feed the watchdog. Called at the top of every loop() and immediately BEFORE each call that is
+// allowed to block, so the timer is always measuring the blocking call itself rather than the
+// unrelated work that preceded it. If a blocking call never returns, the timer expires from that
+// point and the device resets — which is the whole point.
+inline void watchdogFeed() {
+  esp_task_wdt_reset();
+}
+
+// Wait, but keep the watchdog fed. Used for the deliberate long waits (the pairing rate-limit
+// backoff especially) which are intentional rather than a hang. Slicing the wait means the timeout
+// still protects us from a genuine hang elsewhere in boot, instead of being disabled to allow one
+// long sleep.
+void waitWithWatchdog(uint32_t totalMs) {
+  const uint32_t SLICE_MS = 1000;
+  uint32_t remaining = totalMs;
+  while (remaining > 0) {
+    uint32_t slice = remaining > SLICE_MS ? SLICE_MS : remaining;
+    delay(slice);
+    watchdogFeed();
+    remaining -= slice;
+  }
+}
+
+// ---------------------------------------------------------------------------
+void setup() {
+  Serial.begin(115200);
+
+  // Armed early so a hang anywhere in boot is caught too. Nothing in setup() blocks for longer
+  // than the timeout except the deliberate pairing backoff, which feeds the timer explicitly.
+  watchdogInit();
+
+  // Checked before anything touches the network, so a reset is fast and predictable.
+  factoryResetIfRequested();
+
+  pinMode(PIR_PIN, INPUT);
+#ifdef HAS_MMWAVE
+  // Only configured as an input when the radar is compiled in — see the mmWave section.
+  pinMode(MMWAVE_PIN, INPUT);
+#endif
+  for (int i = 0; i < NUM_PORTS; i++) {
+    pinMode(RELAY_PINS[i], OUTPUT);
+  }
+
+  // ADC configuration for the ACS712 channels. Set EXPLICITLY rather than relying on the core
+  // default, which has moved between ESP32 core versions (and which the docs never guaranteed).
+  // ADC_11db is the ~0-3.3 V range the sensor's 2.5 V idle bias needs; a smaller range would clip
+  // the bias itself and every reading would be garbage. `analogReadMilliVolts()` returns the value
+  // already scaled for the active attenuation, so this and the read function must agree.
+  for (int i = 0; i < NUM_PORTS; i++) {
+    analogSetPinAttenuation(CURRENT_SENSOR_PINS[i], ADC_11db);
+  }
+
+  // Restore the last known port state rather than unconditionally energising everything. A reboot
+  // must not silently reverse a shutdown decision the device already made. Forced: this is the
+  // initial state application, there is no prior state to dwell against, and `runRelaySwitch` skips
+  // the no-op ports anyway.
+  uint8_t bootMask = readRelayBootMask();
+  for (int i = 0; i < NUM_PORTS; i++) {
+    runRelaySwitch(i, (bootMask & (1 << i)) != 0, /*force=*/true);
+  }
+  Serial.printf("Relay state restored: 0x%02X (bit i = port i+1 on)\n", bootMask);
+
+  loadHistory();
+
+  // Restore a user-measured nominal voltage if one was ever saved. The database value wins when the
+  // stream delivers it (settings/nominal_voltage), but the stream is only authoritative after the
+  // first snapshot — so boot must not fall back to 230 V for a device whose real supply is 240 V.
+  {
+    String savedVolts = getNvsString("nominal_voltage");
+    if (savedVolts.length() > 0) {
+      float v = savedVolts.toFloat();
+      if (v >= 50.0f && v <= 300.0f) {
+        nominalVoltage = v;
+        Serial.printf("Nominal voltage restored from NVS: %.1f V\n", v);
+      }
+    }
+    if (nominalVoltage == VOLTAGE) {
+      Serial.println("Nominal voltage: default 230.0 V (no measured value configured).");
+    }
+
+    String savedOvercurrent = getNvsString("overcurrent_a");
+    if (savedOvercurrent.length() > 0) {
+      float a = savedOvercurrent.toFloat();
+      if (overcurrentLimitIsSane(a)) {
+        overcurrentLimitA = a;
+        Serial.printf("Overcurrent limit restored from NVS: %.2f A\n", a);
+      }
+    }
+  }
+
+  // WiFiManager handles WiFi connection and Captive Portal
+  //
+  // The original code called ESP.restart() on timeout. That is a trap: `autoConnect` times out
+  // after a few minutes in the portal WAITING FOR THE USER, and restarting re-enters the same
+  // portal from scratch — so a user who walks away for five minutes comes back to a device that has
+  // been silently rebooting and whose captive portal never stays up long enough to complete. If the
+  // AP is briefly missing at boot, the same thing happens with no user involved at all.
+  //
+  // A bounded retry loop is the correct shape: keep the portal available, and only restart after
+  // genuinely exhausting several attempts, because a full restart is the only way to re-scan for a
+  // network that came up late.
+  WiFiManager wm;
+  wm.setConfigPortalTimeout(180); // 3 minutes per attempt in the captive portal
+  Serial.println("Starting WiFiManager...");
+
+  bool connected = false;
+  const int WIFI_ATTEMPTS = 3;
+  for (int attempt = 1; attempt <= WIFI_ATTEMPTS && !connected; attempt++) {
+    Serial.printf("WiFi connect attempt %d/%d\n", attempt, WIFI_ATTEMPTS);
+    connected = wm.autoConnect("VoltSense_Setup");
+    if (!connected) {
+      Serial.printf("Attempt %d failed — retrying in 5s\n", attempt);
+      delay(5000);
+    }
+  }
+
+  if (!connected) {
+    // Deliberately NOT ESP.restart(). The device stays awake in a safe state so the portal can
+    // still be reached and the serial log can be read; a reboot loop would make both impossible.
+    // Ports are left in their restored state, which means a unit that was shut down stays shut
+    // down rather than failing ON in an empty room.
+    //
+    // This loop is INTENTIONALLY infinite, so it must feed the watchdog explicitly. Without the
+    // feed the 30 s timeout would reset the device every 30 s — turning "stays awake so you can
+    // reach the captive portal" into the reboot loop this branch exists to avoid.
+    Serial.println("ERROR: no WiFi after 3 attempts. Staying in a safe state (ports unchanged).");
+    Serial.println("Connect to the 'VoltSense_Setup' AP to configure, then press EN to reboot.");
+    for (;;) {
+      watchdogFeed();
+      delay(10000);
+      Serial.println("Waiting for configuration...");
+    }
+  }
+  Serial.println("Connected to WiFi!");
+
+  macAddress = WiFi.macAddress();
+  Serial.printf("Device MAC Address: %s\n", macAddress.c_str());
+
+  // Runs BEFORE Firebase auth and before pairing, so a fielded device that never comes online
+  // produces a legible reason on the serial console instead of failing silently at the first POST.
+  runConnectivitySelfTest();
+
+  timeClient.begin();
+  timeClient.update();
+
+  config.api_key = API_KEY;
+  config.database_url = DATABASE_URL;
+  config.token_status_callback = tokenStatusCallback;
+
+  // Explicitly clear email/password to prevent the library from attempting Email login
+  auth.user.email.clear();
+  auth.user.password.clear();
+
+  // ---- Device identity ----
+  //
+  // Two ways to prove "this is device <MAC>", both needing only the free Spark plan:
+  //
+  //   A) dev_email + dev_password — a plain Firebase Auth account you create in the Console.
+  //      The rules resolve MAC -> uid through a `device_uids` node that only the Console can write.
+  //      No service account, no Cloud Function, no billing. Simplest.
+  //
+  //   B) dev_id_token + dev_refresh_token — a custom token carrying a `device_mac` claim, minted
+  //      with `npm run mint-token`. Also no Cloud Function (signing happens on your machine), but
+  //      it does need a service-account key.
+  //
+  // Either way the library keeps the session fresh on its own, so provisioning is one-time.
+  String deviceEmail = getNvsString("dev_email");
+  String devicePassword = getNvsString("dev_password");
+  String deviceIdToken = getNvsString("dev_id_token");
+  String deviceRefreshToken = getNvsString("dev_refresh_token");
+
+  // No USB-provisioned identity? Try to pair ourselves over the air. This replaces the ~10 minutes
+  // of Console + USB work per unit with a one-time POST, and is what makes a fleet practical.
+  //
+  // Ordering matters: an identity written by ProvisionToken.ino always wins, so a bench unit you
+  // provisioned by hand is never overwritten by a pairing attempt.
+  if (deviceEmail.length() == 0 && deviceIdToken.length() == 0) {
+    Serial.println("No identity in NVS — attempting self-provisioning.");
+    if (pairDevice()) {
+      deviceEmail = getNvsString("dev_email");
+      devicePassword = getNvsString("dev_password");
+    }
+  }
+
+  if (deviceEmail.length() > 0 && devicePassword.length() > 0) {
+    config.signer.anonymous = false;
+    config.signer.email = deviceEmail;
+    config.signer.password = devicePassword;
+    Serial.println("Device identity loaded (email/password account).");
+  } else if (deviceIdToken.length() > 0 && deviceRefreshToken.length() > 0) {
+    config.signer.anonymous = false;
+    config.signer.tokens.id_token = deviceIdToken;
+    config.signer.tokens.refresh_token = deviceRefreshToken;
+    Serial.println("Device identity loaded (custom token with device_mac claim).");
+  } else if (ALLOW_ANONYMOUS_FALLBACK) {
+    config.signer.anonymous = true;
+    Serial.println("WARNING: no device identity in NVS — falling back to ANONYMOUS auth.");
+    Serial.println("         Anonymous callers are rejected by the scoped rules; this device will");
+    Serial.println("         authenticate but be unable to read or write its own node.");
+    Serial.print("Forcing fresh Anonymous Sign-up... ");
+    if (Firebase.signUp(&config, &auth, "", "")) {
+      Serial.println("OK");
+    } else {
+      Serial.printf("Failed: %s\n", config.signer.signupError.message.c_str());
+    }
+  } else {
+    Serial.println("ERROR: no device identity available (pairing failed and nothing is in NVS).");
+    Serial.println("       Option 1 - over the air:  compile in VOLTSENSE_PAIRING_KEY, then reset.");
+    Serial.println("       Option 2 - by hand (free plan, no service account):");
+    Serial.println("         1. Console > Authentication > Users > Add user, e.g.");
+    Serial.println("            device-aabbccddeeff@<your-auth-domain> with a password.");
+    Serial.println("         2. Console > Realtime Database > add");
+    Serial.println("            device_uids/" + macAddress + " = \"<that user's UID>\"");
+    Serial.println("         3. Flash esp32/ProvisionToken and enter the email + password.");
+    Serial.println("       Option 3 - with a service account:  npm run mint-token -- " + macAddress);
+    // Don't spin forever: report clearly and keep the relays in their safe default state.
+    for (int i = 0; i < 10; i++) {
+      delay(1000);
+      Serial.println("Waiting for device credentials... reset after provisioning.");
+    }
+    ESP.restart();
+  }
+
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+  fbdo.setBSSLBufferSize(4096, 1024);
+
+  Serial.print("Authenticating with Firebase");
+  unsigned long authStart = millis();
+  while (!Firebase.ready()) {
+    Serial.print(".");
+    delay(300);
+    if (millis() - authStart > 30000UL) {
+      Serial.println("\nAuthentication timed out after 30s.");
+      Serial.println("  Likely causes:");
+      Serial.println("   - the account was deleted / the password changed / the refresh token was revoked");
+      Serial.println("   - Console > Authentication > Users does not list this device");
+      Serial.println("  Re-provision with esp32/ProvisionToken and restart.");
+      Serial.println("  Restarting in 10s...");
+      delay(10000);
+      ESP.restart();
+    }
+  }
+  Serial.println("\nAuthenticated!");
+
+  roomPath = "/devices/" + macAddress;
+  Serial.printf("Database path set to: %s\n", roomPath.c_str());
+
+  // Publish the configured inactivity limit so the dashboard shows the real value.
+  Firebase.RTDB.setInt(&fbdo, roomPath + "/inactivity_limit", (int)(idleTimeoutMs / 60000UL));
+
+  // Listen to the room path for commands (override, settings)
+  if (!Firebase.RTDB.beginStream(&fbdo, roomPath.c_str())) {
+    Serial.printf("Stream begin error, %s\n", fbdo.errorReason().c_str());
+  }
+  Firebase.RTDB.setStreamCallback(&fbdo, streamCallback, streamTimeoutCallback);
+
+  lastMotionMillis = millis();
+  lastEnergyCalcMillis = millis();
+  lastHourSeen = getLocalHour();
+}
+
+String stateToString(SystemState s) {
+  switch (s) {
+    case STATE_OCCUPIED: return "OCCUPIED";
+    case STATE_IDLE_COUNTDOWN: return "IDLE_COUNTDOWN";
+    case STATE_RESPONSE_WINDOW: return "RESPONSE_WINDOW";
+    case STATE_SHUTDOWN: return "SHUTDOWN";
+    default: return "UNKNOWN";
+  }
+}
+
+void loop() {
+  // Feed FIRST, so the timer measures this iteration from its start. Every path out of this loop
+  // must reach the next iteration within WDT_TIMEOUT_SECONDS or the device resets — see the
+  // watchdog section for why that is safe (relay state is NVS-persisted and restored on boot).
+  watchdogFeed();
+
+  // NTP can block for ~1 s on a slow network. Fed immediately before, so if it hangs the timeout
+  // is charged to NTP rather than to work that already completed.
+  watchdogFeed();
+  timeClient.update();
+
+  // Occupancy = PIR OR the mmWave radar — the dual-sensor module. The radar term is compiled in with
+  // HAS_MMWAVE (see its section): reading MMWAVE_PIN while no radar is wired would leave the pin
+  // floating, and floating-input noise OR-ed into `motionDetected` would pin the room permanently
+  // "occupied" and stop the smart shutdown from ever firing. PIR alone is fail-safe, so it ships
+  // first; enable the radar when it is physically fitted.
+  bool motionDetected = digitalRead(PIR_PIN) == HIGH;
+#ifdef HAS_MMWAVE
+  motionDetected = motionDetected || (digitalRead(MMWAVE_PIN) == HIGH);
+#endif
+  bool nightMode = isNightModeActive();
+
+  // One ADC sweep per port for the WHOLE iteration. Both the shutdown scan below and the telemetry
+  // block at the end of this loop read from this cache, instead of each taking their own ~100 ms
+  // sample. Previously the loop could stall for up to 6x100 ms on sensing alone, which walked the
+  // millis()-driven state machine's transitions out of position — see the cache's own comment.
+  //
+  // Done here, before the state machine, because the shutdown decision inside it needs the values.
+  refreshCurrentCache();
+  watchdogFeed();
+
+  // Overcurrent check runs on the SAME cached reading, right after it is taken — so the trip sees
+  // fresh numbers and costs no extra ADC sweep. It runs BEFORE the state machine deliberately: a
+  // fault should cut power regardless of what the occupancy logic is about to decide, and it must
+  // not be gated behind a state that happens to be idle. See the overcurrent section for what this
+  // can and cannot detect.
+  checkOvercurrent();
+
+  // Update State Machine
+  if (motionDetected || nightMode) {
+    if (currentState == STATE_SHUTDOWN || currentState == STATE_RESPONSE_WINDOW) {
+      setAllRelays(true);
+      persistRelayState();
+
+      // Update Firebase to reflect relays are ON
+      FirebaseJson relayUpdateJson;
+      for (int i = 0; i < NUM_PORTS; i++) {
+        String portPrefix = "ports/port_0" + String(i + 1) + "/";
+        relayUpdateJson.set(portPrefix + "relay_status", true);
+      }
+      // This is the call most likely to hang — a TLS handshake against an unreachable host sits in
+      // SYN_SENT until the library's own retry gives up. Fed before it so the timeout is charged
+      // here; if it never returns, the watchdog resets the device instead of freezing it.
+      watchdogFeed();
+      Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &relayUpdateJson);
+      watchdogFeed();
+    }
+    currentState = STATE_OCCUPIED;
+    lastMotionMillis = millis();
+  } else {
+    unsigned long timeSinceLastMotion = millis() - lastMotionMillis;
+
+    if (currentState == STATE_OCCUPIED) {
+      currentState = STATE_IDLE_COUNTDOWN;
+    }
+    else if (currentState == STATE_IDLE_COUNTDOWN) {
+      if (timeSinceLastMotion >= idleTimeoutMs) {
+        currentState = STATE_RESPONSE_WINDOW;
+        responseWindowStartMillis = millis();
+        Serial.println("Entering Response Window. Sending alert.");
+
+        // Fire-and-forget: this must not block, or the response window below drifts.
+        sendAlert(
+          "\xE2\x9A\xA0\xEF\xB8\x8F VoltSense Alert",
+          "The room has been empty. Devices will shut down in 60 seconds.",
+          "volt-sense-shutdown");
+      }
+    }
+    else if (currentState == STATE_RESPONSE_WINDOW) {
+      unsigned long timeInWindow = millis() - responseWindowStartMillis;
+      if (timeInWindow >= RESPONSE_WINDOW_MS) {
+        currentState = STATE_SHUTDOWN;
+
+        Serial.println("Response window expired. Performing Smart Selective Shutdown.");
+        bool anyShutDown = false;
+        FirebaseJson relayUpdateJson;
+
+        for (int i = 0; i < NUM_PORTS; i++) {
+          // `currentIsFlowing` uses the higher, debounced threshold — see its comment. Cutting
+          // power to a load someone is using is the expensive mistake, so this path is deliberately
+          // more conservative than the number shown in the app. It reads the same per-cycle cache
+          // the telemetry path filled, so no ADC sweep is repeated here.
+          if (!currentIsFlowing(i)) {
+            // Unattended and unused - shutdown. Forced: a safety shutdown must not be blocked by the
+            // derating rules (a room cannot flap, so this normally trips neither rule anyway).
+            runRelaySwitch(i, false, /*force=*/true);
+            String portPrefix = "ports/port_0" + String(i + 1) + "/";
+            relayUpdateJson.set(portPrefix + "relay_status", false);
+            anyShutDown = true;
+          } else {
+            // Unattended but legitimate load (e.g., charging laptop)
+            Serial.printf("Port %d has legitimate load (%.2fA). Keeping ON.\n",
+                          i + 1, readACS712ForDisplay(i));
+          }
+        }
+
+        if (anyShutDown) {
+          // Commit the new port state to NVS BEFORE telling the cloud about it. If the device
+          // browns out between the two, the restored state must match the relays, not the database.
+          persistRelayState();
+          watchdogFeed();
+          Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &relayUpdateJson);
+          watchdogFeed();
+        }
+      }
+    }
+  }
+
+  // Push telemetry to Firebase every 2 seconds
+  if (Firebase.ready() && (millis() - sendDataPrevMillis > 2000 || sendDataPrevMillis == 0)) {
+    unsigned long currentMillis = millis();
+    float deltaHours = (currentMillis - (sendDataPrevMillis == 0 ? currentMillis : sendDataPrevMillis)) / 3600000.0;
+    sendDataPrevMillis = currentMillis;
+
+    // Detect an hour boundary so the hourly history buckets stay aligned.
+    int localHour = getLocalHour();
+    if (localHour != (int)lastHourSeen) {
+      lastHourSeen = localHour;
+      if (localHour == 0) rolloverDayIfNeeded();
+    }
+
+    float totalAmps = 0;
+    float totalWatts = 0;
+    const float volts = supplyVoltage(); // one read for the whole sweep, so every port agrees
+    FirebaseJson json;
+
+    for (int i = 0; i < NUM_PORTS; i++) {
+      float currentAmps = 0.0;
+      if (digitalRead(RELAY_PINS[i]) == HIGH) {
+        // Display/history path: the noise floor is applied here, and only here, so a de-energised
+        // port reads as exactly 0 A rather than as sensor hiss that creeps into the energy total.
+        currentAmps = readACS712ForDisplay(i);
+      }
+      float currentWatts = currentAmps * volts;
+
+      float deltaKwh = (currentWatts / 1000.0) * deltaHours;
+      portEnergyKWh[i] += deltaKwh;
+      todayHourlyKwh[localHour] += deltaKwh;
+
+      totalAmps += currentAmps;
+      totalWatts += currentWatts;
+
+      String portPrefix = "ports/port_0" + String(i + 1) + "/";
+      json.set(portPrefix + "current_amps", currentAmps);
+      json.set(portPrefix + "power_watts", currentWatts);
+      json.set(portPrefix + "energy_kwh", portEnergyKWh[i]);
+      json.set(portPrefix + "voltage", volts);
+
+      // Also continuously push relay_status to ensure Web App is synced with physical reality
+      json.set(portPrefix + "relay_status", digitalRead(RELAY_PINS[i]) == HIGH);
+    }
+
+    if (motionDetected) todayHourlyOccupied[localHour] = true;
+
+    json.set("is_occupied", motionDetected);
+    json.set("state", stateToString(currentState));
+    json.set("total_current_amps", totalAmps);
+    json.set("total_power_watts", totalWatts);
+    json.set("inactivity_limit", (int)(idleTimeoutMs / 60000UL));
+    // Reported so the app can show what the device is actually enforcing, rather than assuming the
+    // compiled-in default. Apparent power only — see the ACS712 note: this is VA, not W.
+    json.set("overcurrent_limit_a", overcurrentLimitA);
+
+    int remaining_seconds = 0;
+    if (currentState == STATE_IDLE_COUNTDOWN) {
+      remaining_seconds = (idleTimeoutMs - (millis() - lastMotionMillis)) / 1000;
+    } else if (currentState == STATE_RESPONSE_WINDOW) {
+      remaining_seconds = (RESPONSE_WINDOW_MS - (millis() - responseWindowStartMillis)) / 1000;
+    }
+    json.set("countdown_remaining_seconds", remaining_seconds);
+    json.set("night_mode_active", nightMode);
+
+    // The telemetry push is the other call that can sit on a TLS handshake. Fed before it so a
+    // hang here is charged to the push, and the device resets rather than going silent.
+    watchdogFeed();
+    if (!Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &json)) {
+      Serial.printf("Failed to update RTDB: %s\n", fbdo.errorReason().c_str());
+    } else {
+      if (currentState != previousState) {
+        Serial.printf("State changed: %s -> %s\n", stateToString(previousState).c_str(), stateToString(currentState).c_str());
+        previousState = currentState;
+      }
+    }
+  }
+
+  // ---- Periodic work (kept off the 2s hot path) ----
+  if (Firebase.ready()) {
+    if (millis() - lastEnergyPersistMillis > ENERGY_PERSIST_MS) {
+      lastEnergyPersistMillis = millis();
+      persistEnergyCounters();
+      persistHistory();
+    }
+
+    if (millis() - lastHistoryPublishMillis > HISTORY_PUBLISH_MS) {
+      lastHistoryPublishMillis = millis();
+      publishHistoryRanges();
+    }
+  }
+}
