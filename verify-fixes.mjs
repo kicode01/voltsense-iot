@@ -1934,3 +1934,4 @@ const alertStartEnd = (src, from) => {
 const failed = results.filter((r) => !r.pass);
 console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
 process.exit(failed.length === 0 ? 0 : 1);
+
