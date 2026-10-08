@@ -2,7 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
-import { Moon, Bell, LogOut, Wifi, Plus, Trash2, Loader2, KeyRound, AlertCircle } from 'lucide-react';
+import {
+  Moon,
+  Bell,
+  LogOut,
+  Wifi,
+  Plus,
+  Trash2,
+  Loader2,
+  KeyRound,
+  AlertCircle,
+  Sliders,
+  TriangleAlert,
+  Radar
+} from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { enablePushForUser, clearPushToken } from '../lib/pushNotifications';
 import { claimDevice, unpairDevice, formatPairingCodeInput } from '../lib/deviceClaim';
@@ -13,13 +26,20 @@ import { TimePicker } from '../components/TimePicker';
 const Settings = () => {
   const { devices, activeDeviceId, devicesLoading, userId } = useDeviceContext();
 
-  const { roomData, loading: roomLoading, updateNightMode } = useRoomData(activeDeviceId);
+  const {
+    roomData,
+    loading: roomLoading,
+    updateNightMode,
+    updateDeviceSetting,
+    updatePortPolicy
+  } = useRoomData(activeDeviceId);
   
   const [nightMode, setNightMode] = useState({
     enabled: true,
     start_time: '22:00',
     end_time: '06:00'
   });
+  const [mmwaveEnabled, setMmwaveEnabled] = useState(false);
   const [loadingPush, setLoadingPush] = useState(false);
   // The pairing code the device prints after it provisions itself. Eight characters from an
   // unambiguous alphabet (no 0/O/1/I/L), optionally grouped as XXXX-XXXX by the formatter.
@@ -69,6 +89,7 @@ const Settings = () => {
   const storedNightModeEnabled = roomData?.settings?.night_mode_enabled;
   const storedNightModeStart = roomData?.settings?.night_mode_start;
   const storedNightModeEnd = roomData?.settings?.night_mode_end;
+  const storedMmwaveEnabled = roomData?.settings?.mmwave_enabled;
 
   useEffect(() => {
     if (!hasSettings) return;
@@ -77,12 +98,14 @@ const Settings = () => {
       start_time: storedNightModeStart || '22:00',
       end_time: storedNightModeEnd || '06:00'
     });
+    setMmwaveEnabled(storedMmwaveEnabled ?? false);
   }, [
     activeDeviceId,
     hasSettings,
     storedNightModeEnabled,
     storedNightModeStart,
-    storedNightModeEnd
+    storedNightModeEnd,
+    storedMmwaveEnabled
   ]);
 
   useEffect(() => {
@@ -157,6 +180,120 @@ const Settings = () => {
     const newConfig = { ...nightMode, [key]: value };
     setNightMode(newConfig);
     updateNightMode(newConfig);
+  };
+
+  const handleMmwaveChange = (value) => {
+    setMmwaveEnabled(value);
+    updateDeviceSetting('mmwave_enabled', value);
+  };
+
+  // -------------------------------------------------------------------------
+  // Device limits — four settings the firmware honours that had NO UI.
+  //
+  // They could only be changed from the RTDB console, and a value set there
+  // persisted silently: no screen showed it, and none could undo it. All four are
+  // live device behaviour, not presentation.
+  // -------------------------------------------------------------------------
+  const [limits, setLimits] = useState({
+    inactivity: 15,
+    overcurrent: 4.5,
+    nominal: 230,
+    voltageCal: 4.6
+  });
+  const [savingLimit, setSavingLimit] = useState(null);
+  const [limitsError, setLimitsError] = useState(null);
+
+  // Two places to read each of these, and both matter:
+  //   `settings/<key>`  — what the APP wrote (absent until someone writes it)
+  //   top-level `inactivity_limit` / `overcurrent_limit_a` — what the DEVICE is ACTUALLY enforcing,
+  //     which it publishes every cycle. Prefer the written value; fall back to the enforced one, so
+  //     the UI never shows a number the device is not using.
+  const storedInactivity = roomData?.settings?.inactivity_limit_minutes ?? roomData?.inactivity_limit;
+  const storedOvercurrent = roomData?.settings?.overcurrent_limit_a ?? roomData?.overcurrent_limit_a;
+  const storedNominal = roomData?.settings?.nominal_voltage;
+  const storedVoltageCal = roomData?.settings?.voltage_cal_mv_per_v;
+  // Port policies are NOT mirrored into local state. The <select> is controlled straight from
+  // roomData, so the device's copy is the single source of truth and a failed write simply snaps
+  // back rather than showing a value the device never accepted.
+
+  useEffect(() => {
+    if (!hasSettings) return;
+    setLimits({
+      inactivity: storedInactivity ?? 15,
+      overcurrent: storedOvercurrent ?? 4.5,
+      nominal: storedNominal ?? 230,
+      voltageCal: storedVoltageCal ?? 4.6
+    });
+  }, [activeDeviceId, hasSettings, storedInactivity, storedOvercurrent, storedNominal, storedVoltageCal]);
+
+  /**
+   * Validate, then write. The bounds here deliberately mirror the firmware's, because a value the
+   * app accepts and the device rejects produces a silent no-op — the worst possible outcome.
+   */
+  const limitsMeta = {
+    inactivity: {
+      key: 'inactivity_limit_minutes',
+      label: 'Idle timeout',
+      unit: 'min',
+      min: 1,
+      max: 240,
+      hint: 'How long the room must be still before the shutdown warning.'
+    },
+    overcurrent: {
+      key: 'overcurrent_limit_a',
+      label: 'Overcurrent trip',
+      unit: 'A',
+      min: 0.5,
+      max: 5.0,
+      hint: 'Bounded by what the 5 A sensor can actually resolve — above 5 A it is blind.'
+    },
+    nominal: {
+      key: 'nominal_voltage',
+      label: 'Supply voltage',
+      unit: 'V',
+      min: 50,
+      max: 300,
+      hint: 'Used to compute power while no voltage sensor is fitted. Measure it, do not guess.'
+    },
+    voltageCal: {
+      key: 'voltage_cal_mv_per_v',
+      label: 'Voltage calibration',
+      unit: 'mV/V',
+      min: 1.0,
+      max: 20.0,
+      hint: 'Divides into every voltage reading, so it scales every wattage. Compare against a meter.'
+    }
+  };
+
+  const handleLimitSave = async (field, rawValue) => {
+    const meta = limitsMeta[field];
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed) || parsed < meta.min || parsed > meta.max) {
+      setLimitsError(`${meta.label} must be between ${meta.min} and ${meta.max} ${meta.unit}.`);
+      return false;
+    }
+    setSavingLimit(field);
+    setLimitsError(null);
+    const ok = await updateDeviceSetting(meta.key, parsed);
+    setSavingLimit(null);
+    if (!ok) {
+      setLimitsError(`Could not save ${meta.label}. Check your connection and try again.`);
+      return false;
+    }
+    setLimits((prev) => ({ ...prev, [field]: parsed }));
+    return true;
+  };
+
+  const handlePolicyChange = async (portId, policy) => {
+    setSavingLimit(portId);
+    setLimitsError(null);
+    const ok = await updatePortPolicy(portId, policy);
+    setSavingLimit(null);
+    if (!ok) {
+      setLimitsError('Could not change this port’s shutdown policy. Try again.');
+      return false;
+    }
+    return true;
   };
 
   // Replaces the old raw-MAC pairing form.
@@ -466,6 +603,118 @@ const Settings = () => {
               />
             </div>
           )}
+        </div>
+
+        {/* mmWave Radar Toggle */}
+        <div className="p-4 md:p-6 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                <Radar className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+              </div>
+              <div>
+                <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">mmWave Radar</h3>
+                <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">Enable secondary motion sensing for stillness detection</p>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => handleMmwaveChange(!mmwaveEnabled)}
+              className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${mmwaveEnabled ? 'bg-maroon-800' : 'bg-gray-200'}`}
+            >
+              <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ${mmwaveEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* Device limits — the four settings that had no UI, plus per-port policy */}
+        <div className="settings-device-limits p-4 md:p-6 border-b border-gray-100">
+          <div className="flex items-center gap-3 md:gap-4 mb-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+              <Sliders className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+            </div>
+            <div>
+              <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Device limits</h3>
+              <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">
+                Live device behaviour — previously only changeable from the database console
+              </p>
+            </div>
+          </div>
+
+          {limitsError && (
+            <div role="alert" className="mb-4 flex items-start gap-2 rounded-2xl bg-red-50 border border-red-200 px-3 py-2 text-[11px] font-medium text-red-800">
+              <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{limitsError}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {Object.entries(limitsMeta).map(([field, meta]) => (
+              <label key={field} className="block">
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                  {meta.label} ({meta.unit})
+                </span>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={meta.min}
+                    max={meta.max}
+                    step="any"
+                    defaultValue={limits[field]}
+                    key={`${field}-${limits[field]}`}
+                    onBlur={(e) => {
+                      if (Number(e.target.value) !== Number(limits[field])) {
+                        handleLimitSave(field, e.target.value);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.currentTarget.blur();
+                    }}
+                    className="w-full text-[16px] md:text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-300"
+                  />
+                  {savingLimit === field && <Loader2 className="w-4 h-4 animate-spin text-maroon-800 shrink-0" />}
+                </div>
+                <span className="block text-[10px] text-gray-400 mt-1 leading-snug">{meta.hint}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Per-port shutdown policy */}
+          <div className="mt-5 pt-5 border-t border-gray-100">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+              When the room empties
+            </p>
+            <p className="text-[10px] text-gray-400 mb-3 leading-snug">
+              The device cannot tell a lamp from a charger by current alone, so say what each port is
+              for. Default is to cut — that is what the device is for.
+            </p>
+
+            <div className="space-y-2">
+              {(roomData?.ports ? Object.keys(roomData.ports) : []).map((portId) => {
+                const label = roomData.ports[portId]?.name || portId;
+                const value = roomData.ports[portId]?.policy || 'occupancy';
+                return (
+                  <div key={portId} className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-gray-700 truncate flex-1 min-w-0">
+                      {label}
+                    </span>
+                    {savingLimit === portId && <Loader2 className="w-3.5 h-3.5 animate-spin text-maroon-800 shrink-0" />}
+                    <select
+                      value={value}
+                      onChange={(e) => handlePolicyChange(portId, e.target.value)}
+                      aria-label={`Shutdown policy for ${label}`}
+                      className="text-[11px] font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-maroon-300 shrink-0"
+                    >
+                      <option value="occupancy">Cut when empty</option>
+                      <option value="always_on">Never cut</option>
+                      <option value="keep_while_drawing">Keep while drawing</option>
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Notifications Section */}

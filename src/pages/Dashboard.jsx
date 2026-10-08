@@ -87,6 +87,11 @@ const Dashboard = () => {
     });
   }
   const anyOn = Object.values(ports).some(p => p.relay_status);
+  // REAL occupancy, published by the device from its sensors (motion, or night mode forcing
+  // "occupied"). The badge previously showed whether any relay happened to be energised, which is a
+  // different question — a room can be occupied with everything off, or idle with a charger running.
+  // Fall back to the old signal only when the device does not publish the field.
+  const occupied = data.is_occupied !== undefined ? Boolean(data.is_occupied) : anyOn;
   const allOn = Object.values(ports).every(p => p.relay_status);
   const activeCount = Object.values(ports).filter(p => p.relay_status).length;
   
@@ -317,11 +322,11 @@ const Dashboard = () => {
             <div className="flex items-center justify-between mb-4 relative z-10">
               <h2 className="text-sm font-bold uppercase tracking-widest text-maroon-100/80">System Load</h2>
               <div className={`px-3 py-1 text-xs font-bold uppercase tracking-widest rounded-full backdrop-blur-sm border ${
-                anyOn 
+                occupied
                   ? 'bg-white/20 border-white/30 text-white' 
                   : 'bg-black/20 border-black/30 text-maroon-200'
               }`}>
-                {anyOn ? 'Occupied' : 'Idle'}
+                {occupied ? 'Occupied' : 'Idle'}
               </div>
             </div>
             <div className="flex items-baseline gap-2 relative z-10">
@@ -396,6 +401,16 @@ const Dashboard = () => {
               <p className="text-sm md:text-lg font-bold text-gray-900 leading-tight">
                 {formatTime(nightMode.start_time)}<br className="md:hidden" /> - {formatTime(nightMode.end_time)}
               </p>
+              {/* Whether the schedule is in effect RIGHT NOW, not just what it is set to. The device
+                  publishes `night_mode_active` every cycle; showing it means the user can tell that
+                  the room is currently being held occupied rather than guessing from the clock. */}
+              {activeDeviceId && (
+                <p className={`text-[10px] font-bold uppercase tracking-widest mt-1.5 ${
+                  data.night_mode_active ? 'text-maroon-700' : 'text-gray-300'
+                }`}>
+                  {data.night_mode_active ? 'Active now' : 'Not active'}
+                </p>
+              )}
               {!activeDeviceId && (
                 <p className="hidden md:block text-[10px] text-gray-400 mt-1.5 font-medium">Schedule auto-shutoff while you sleep.</p>
               )}
@@ -518,6 +533,17 @@ const Dashboard = () => {
                     <span className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight">
                       {(Number(portData.current_amps) || 0).toFixed(2)} A
                     </span>
+                    {/* Measured mains voltage at the socket. Only shown when a voltage sensor is
+                        actually fitted (powerIsMeasured), because otherwise it is just the configured
+                        assumption. This was one of the firmware's published-but-ignored fields. */}
+                    {powerIsMeasured && Number(portData.voltage) > 0 && (
+                      <span
+                        className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight"
+                        title="Measured mains voltage at this socket."
+                      >
+                        {Number(portData.voltage).toFixed(0)} V
+                      </span>
+                    )}
                     {/* Power factor, shown only when it was actually measured. A hard-coded or
                         assumed PF would be worse than showing nothing — it is a property of the
                         load, not of the device. */}

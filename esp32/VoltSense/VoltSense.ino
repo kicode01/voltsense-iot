@@ -156,10 +156,8 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
 // The app also lets you switch the radar on/off at runtime and change its pin; that preference is
 // stored in RTDB — see the occupancy handling in loop().
 // ---------------------------------------------------------------------------
-// #define HAS_MMWAVE              // uncomment ONLY when the radar is physically present
-#ifdef HAS_MMWAVE
-  // The pin itself is defined at file scope above; nothing to redeclare here.
-#endif
+// mmwaveEnabled is now a runtime setting synced from Firebase.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // AC voltage sensing — what it buys, and why the gate ships CLOSED
@@ -364,8 +362,36 @@ String historyDayDate = ""; // which day the hourly buckets belong to
 // Database Settings
 bool overrideActive = false;
 bool nightModeEnabled = true;
+bool mmwaveEnabled = false;
 String nightModeStart = "22:00";
 String nightModeEnd = "06:00";
+
+// Per-port shutdown policy. See `enum PortPolicy` in VoltSenseTypes.h for why intent has to be
+// STATED rather than inferred from current draw. Default `occupancy`: cut when the room empties.
+PortPolicy portPolicy[NUM_PORTS] = { POLICY_OCCUPANCY, POLICY_OCCUPANCY, POLICY_OCCUPANCY };
+
+const char* policyToString(PortPolicy p) {
+  switch (p) {
+    case POLICY_ALWAYS_ON: return "always_on";
+    case POLICY_KEEP_WHILE_DRAWING: return "keep_while_drawing";
+    default: return "occupancy";
+  }
+}
+
+/** Parse a policy string. Anything unrecognised falls back to the safe default, not to a guess. */
+PortPolicy policyFromString(const String& s) {
+  if (s == "always_on") return POLICY_ALWAYS_ON;
+  if (s == "keep_while_drawing") return POLICY_KEEP_WHILE_DRAWING;
+  return POLICY_OCCUPANCY;
+}
+
+// Once the room has shut down, ports kept by policy are re-checked on this interval. Without it a
+// `keep_while_drawing` port would never notice that charging had finished, because the state
+// machine does not otherwise re-evaluate while in STATE_SHUTDOWN — it would stay on until the room
+// was next occupied and emptied. Long enough that the extra ADC reads are negligible on a static
+// room, short enough that a finished charge is released promptly.
+#define SHUTDOWN_RECHECK_MS 60000UL
+unsigned long lastShutdownRecheckMillis = 0;
 
 Preferences prefs;
 
@@ -1178,6 +1204,33 @@ float readACS712ForDisplay(int port) {
   return amps < CURRENT_NOISE_FLOOR_A ? 0.0f : amps;
 }
 
+/**
+ * Should this port survive a shutdown?
+ *
+ * The answer is the port's STATED POLICY, never a guess from its current draw. The old rule asked
+ * "is it drawing current?", which for this device's loads protected exactly the wrong things — see
+ * `enum PortPolicy`. A lamp draws current whether or not anyone is in the room, so a lamp left
+ * burning in an empty room was kept on; a phone on a small charger draws little, so it was cut.
+ *
+ * Shared by the shutdown itself and by the periodic re-check, so the two cannot drift apart.
+ */
+bool shouldKeepPortOnShutdown(int port) {
+  if (port < 0 || port >= NUM_PORTS) return false;
+  switch (portPolicy[port]) {
+    case POLICY_ALWAYS_ON:
+      return true;
+    case POLICY_KEEP_WHILE_DRAWING:
+      // `currentIsFlowing` uses the higher, debounced threshold — see its comment. It reads the
+      // per-cycle cache, so no ADC sweep is repeated here.
+      return currentIsFlowing(port);
+    case POLICY_OCCUPANCY:
+    default:
+      // The device's whole purpose. A port with this policy is cut when the room empties,
+      // regardless of what it is drawing.
+      return false;
+  }
+}
+
 #ifdef HAS_VOLTAGE_SENSE
 // ---------------------------------------------------------------------------
 // Voltage-only sampling, and the power accessors
@@ -1902,8 +1955,18 @@ void streamCallback(FirebaseStream data) {
     runRelaySwitchAndSync(1, data.boolData());
   } else if (path == "/ports/port_03/relay_status") {
     runRelaySwitchAndSync(2, data.boolData());
+  } else if (path.startsWith("/ports/port_0") && path.endsWith("/policy")) {
+    // Parsed generically rather than as three branches, so adding a port does not add branches.
+    // "/ports/port_0X/policy" — the port digit is at index 13.
+    const int port = path.charAt(13) - '1';
+    if (port >= 0 && port < NUM_PORTS) {
+      portPolicy[port] = policyFromString(data.stringData());
+      Serial.printf("Port %d policy -> %s\n", port + 1, policyToString(portPolicy[port]));
+    }
   } else if (path == "/settings/night_mode_enabled") {
     nightModeEnabled = data.boolData();
+  } else if (path == "/settings/mmwave_enabled") {
+    mmwaveEnabled = data.boolData();
   } else if (path == "/settings/night_mode_start") {
     nightModeStart = data.stringData();
   } else if (path == "/settings/night_mode_end") {
@@ -1964,6 +2027,9 @@ void streamCallback(FirebaseStream data) {
     json.get(result, "settings/night_mode_enabled");
     if (result.success) nightModeEnabled = result.boolValue;
 
+    json.get(result, "settings/mmwave_enabled");
+    if (result.success) mmwaveEnabled = result.boolValue;
+
     json.get(result, "settings/night_mode_start");
     if (result.success) nightModeStart = result.stringValue;
 
@@ -1993,6 +2059,18 @@ void streamCallback(FirebaseStream data) {
 
     json.get(result, "ports/port_03/relay_status");
     if (result.success) runRelaySwitch(2, result.boolValue, /*force=*/true);
+
+    // Per-port shutdown policy. Absent means `occupancy`, which is what the initialiser already
+    // holds — so a device whose database predates this setting behaves as before rather than
+    // silently gaining a new one.
+    json.get(result, "ports/port_01/policy");
+    if (result.success) portPolicy[0] = policyFromString(result.stringValue);
+
+    json.get(result, "ports/port_02/policy");
+    if (result.success) portPolicy[1] = policyFromString(result.stringValue);
+
+    json.get(result, "ports/port_03/policy");
+    if (result.success) portPolicy[2] = policyFromString(result.stringValue);
 
     persistRelayState();
   }
@@ -2346,10 +2424,7 @@ void setup() {
   factoryResetIfRequested();
 
   pinMode(PIR_PIN, INPUT);
-#ifdef HAS_MMWAVE
-  // Only configured as an input when the radar is compiled in — see the mmWave section.
-  pinMode(MMWAVE_PIN, INPUT);
-#endif
+pinMode(MMWAVE_PIN, INPUT);
   for (int i = 0; i < NUM_PORTS; i++) {
     pinMode(RELAY_PINS[i], OUTPUT);
   }
@@ -2629,9 +2704,7 @@ void loop() {
   // "occupied" and stop the smart shutdown from ever firing. PIR alone is fail-safe, so it ships
   // first; enable the radar when it is physically fitted.
   bool motionDetected = digitalRead(PIR_PIN) == HIGH;
-#ifdef HAS_MMWAVE
-  motionDetected = motionDetected || (digitalRead(MMWAVE_PIN) == HIGH);
-#endif
+if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN) == HIGH); }
   bool nightMode = isNightModeActive();
 
   // One ADC sweep per port for the WHOLE iteration. Both the shutdown scan below and the telemetry
@@ -2688,11 +2761,17 @@ void loop() {
         responseWindowStartMillis = millis();
         Serial.println("Entering Response Window. Sending alert.");
 
+        // The window is DERIVED from RESPONSE_WINDOW_MS, never written as a literal. The old text
+        // said "60 seconds" while the window was five minutes — a copy bug that survived precisely
+        // because nothing tied the two numbers together. Now the text cannot drift from the timing.
+        char alertBody[112];
+        snprintf(alertBody, sizeof(alertBody),
+                 "The room has been empty. Devices will shut down in %lu minutes unless you "
+                 "keep them on.",
+                 (unsigned long)(RESPONSE_WINDOW_MS / 60000UL));
+
         // Fire-and-forget: this must not block, or the response window below drifts.
-        sendAlert(
-          "\xE2\x9A\xA0\xEF\xB8\x8F VoltSense Alert",
-          "The room has been empty. Devices will shut down in 60 seconds.",
-          "volt-sense-shutdown");
+        sendAlert("\xE2\x9A\xA0\xEF\xB8\x8F VoltSense Alert", String(alertBody), "volt-sense-shutdown");
       }
     }
     else if (currentState == STATE_RESPONSE_WINDOW) {
@@ -2705,27 +2784,57 @@ void loop() {
         FirebaseJson relayUpdateJson;
 
         for (int i = 0; i < NUM_PORTS; i++) {
-          // `currentIsFlowing` uses the higher, debounced threshold — see its comment. Cutting
-          // power to a load someone is using is the expensive mistake, so this path is deliberately
-          // more conservative than the number shown in the app. It reads the same per-cycle cache
-          // the telemetry path filled, so no ADC sweep is repeated here.
-          if (!currentIsFlowing(i)) {
-            // Unattended and unused - shutdown. Forced: a safety shutdown must not be blocked by the
-            // derating rules (a room cannot flap, so this normally trips neither rule anyway).
+          // The decision is the port's STATED POLICY, not a guess from its current draw — see
+          // `shouldKeepPortOnShutdown` and `enum PortPolicy`. The old rule kept whatever was drawing
+          // current, which protected a lamp left burning in an empty room and cut a phone charger.
+          if (shouldKeepPortOnShutdown(i)) {
+            Serial.printf("Port %d kept ON (policy=%s%s).\n", i + 1, policyToString(portPolicy[i]),
+                          portPolicy[i] == POLICY_KEEP_WHILE_DRAWING ? " drawing" : "");
+          } else {
+            // Forced: a safety shutdown must not be blocked by the derating rules (a room cannot
+            // flap, so this normally trips neither rule anyway).
             runRelaySwitch(i, false, /*force=*/true);
             String portPrefix = "ports/port_0" + String(i + 1) + "/";
             relayUpdateJson.set(portPrefix + "relay_status", false);
             anyShutDown = true;
-          } else {
-            // Unattended but legitimate load (e.g., charging laptop)
-            Serial.printf("Port %d has legitimate load (%.2fA). Keeping ON.\n",
-                          i + 1, readACS712ForDisplay(i));
           }
         }
 
         if (anyShutDown) {
           // Commit the new port state to NVS BEFORE telling the cloud about it. If the device
           // browns out between the two, the restored state must match the relays, not the database.
+          persistRelayState();
+          watchdogFeed();
+          Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &relayUpdateJson);
+          watchdogFeed();
+        }
+      }
+    }
+    else if (currentState == STATE_SHUTDOWN) {
+      // Re-check the ports we deliberately kept. `keep_while_drawing` exists so a charger can
+      // finish an unattended charge — but nothing re-evaluated while in this state, so a port would
+      // have stayed on until the room was next occupied and emptied again. It never noticed the
+      // charge completing. Rate-limited: see SHUTDOWN_RECHECK_MS.
+      if (millis() - lastShutdownRecheckMillis >= SHUTDOWN_RECHECK_MS) {
+        lastShutdownRecheckMillis = millis();
+
+        FirebaseJson relayUpdateJson;
+        bool anyCut = false;
+
+        for (int i = 0; i < NUM_PORTS; i++) {
+          // Already off — nothing to do.
+          if (digitalRead(RELAY_PINS[i]) != HIGH) continue;
+          // Still justified by its policy (always on, or still drawing) — leave it.
+          if (shouldKeepPortOnShutdown(i)) continue;
+
+          runRelaySwitch(i, false, /*force=*/true);
+          relayUpdateJson.set("ports/port_0" + String(i + 1) + "/relay_status", false);
+          anyCut = true;
+          Serial.printf("Port %d: no longer justified by policy (%s) — cutting.\n",
+                        i + 1, policyToString(portPolicy[i]));
+        }
+
+        if (anyCut) {
           persistRelayState();
           watchdogFeed();
           Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &relayUpdateJson);
@@ -2804,6 +2913,10 @@ void loop() {
 
       // Also continuously push relay_status to ensure Web App is synced with physical reality
       json.set(portPrefix + "relay_status", digitalRead(RELAY_PINS[i]) == HIGH);
+      // Published so the app can SHOW the policy and let the user change it. A policy the interface
+      // cannot display is one the user cannot reason about — which is how the inverted shutdown
+      // rule went unnoticed for so long.
+      json.set(portPrefix + "policy", policyToString(portPolicy[i]));
     }
 
     // Which kind of number the power fields hold. The app switches its unit label on this, so a
@@ -2857,3 +2970,4 @@ void loop() {
     }
   }
 }
+

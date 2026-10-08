@@ -108,6 +108,44 @@ export const useRoomData = (roomId) => {
     }
   }
 
+  /**
+   * Write a single device setting.
+   *
+   * These keys are all honoured by the firmware but had no UI, so the only way to change them was
+   * the RTDB console — and a value set there persisted silently, with no screen to see or undo it.
+   *
+   * Uses `update`, never `set`: `set` on the whole `settings` node deletes every sibling key.
+   */
+  const updateDeviceSetting = async (key, value) => {
+    if (!roomId) return true;
+    try {
+      await update(ref(db, `devices/${roomId}/settings`), { [key]: value });
+      return true;
+    } catch (error) {
+      console.error(`Failed to update setting ${key}`, error);
+      return false;
+    }
+  };
+
+  /**
+   * Set what a port should do when the room empties: `occupancy` (cut — the default), `always_on`
+   * (never cut), or `keep_while_drawing` (keep while the load is drawing, then cut).
+   *
+   * Policy is STATED, not inferred. The device used to decide from current draw, which for its real
+   * loads protected a lamp left burning in an empty room and cut a phone mid-charge.
+   * See `docs/LOAD-POLICY.md`.
+   */
+  const updatePortPolicy = async (portId, policy) => {
+    if (!roomId) return true;
+    try {
+      await set(ref(db, `devices/${roomId}/ports/${portId}/policy`), policy);
+      return true;
+    } catch (error) {
+      console.error(`Failed to update policy for ${portId}`, error);
+      return false;
+    }
+  };
+
   const updatePortName = async (portId, newName) => {
     if (!roomId) return true;
     if (import.meta.env.DEV && roomId === '00:1A:2B:3C:4D:5E') {
@@ -144,5 +182,16 @@ export const useRoomData = (roomId) => {
     }
   };
 
-  return { roomData, loading, toggleMasterRelay, togglePortRelay, updateNightMode, setOverride, updatePortName, updatePortIcon };
+  return {
+    roomData,
+    loading,
+    toggleMasterRelay,
+    togglePortRelay,
+    updateNightMode,
+    updateDeviceSetting,
+    updatePortPolicy,
+    setOverride,
+    updatePortName,
+    updatePortIcon
+  };
 };

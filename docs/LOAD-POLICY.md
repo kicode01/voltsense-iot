@@ -5,6 +5,11 @@ chargers, fans, lamps.
 
 That is a narrower and *lighter* set than the logic was tuned for, and it exposes a real problem.
 
+**Status (2026-10-08):** the per-port policy (§3) is now implemented in firmware and surfaced in the app
+(Settings → each port's *"When the room empties"* selector). The alert text is fixed (derived from
+`RESPONSE_WINDOW_MS`). `keep_while_drawing` now re-checks after shutdown. See
+`docs/FEATURE-INVENTORY.md` §6. Items 3 and 4 below are still open.
+
 ---
 
 ## 1. How the current logic treats each intended load
@@ -83,10 +88,10 @@ not notice when charging finishes. A periodic re-check would make it honest.
 
 | # | Change | Effort | Status |
 |---|---|---|---|
-| 1 | **Fix the alert text** — it says *"shut down in 60 seconds"*; the window is **5 minutes** (`RESPONSE_WINDOW_MS = 300000`) | 1 line | Not applied — needs a reflash |
-| 2 | **Per-port policy** (§3 above) | Firmware + app | Proposed |
-| 3 | **Persistent room-level "keep on"** — `override` is deliberately one-shot: it resets the idle timer and clears its own flag, so it buys one more window, not a mode | Small | Proposed |
-| 4 | **Occupancy confidence in telemetry** — publish whether occupancy came from both sensors, radar only, or PIR only | Small–moderate | Proposed |
+| 1 | **Fix the alert text** — it said *"shut down in 60 seconds"*; the window is **5 minutes** (`RESPONSE_WINDOW_MS = 300000`) | 1 line | **Done** — text derived from `RESPONSE_WINDOW_MS`; Dashboard falls back to `?? 300` |
+| 2 | **Per-port policy** (§3 above) | Firmware + app | **Done** — `occupancy`/`always_on`/`keep_while_drawing`; stream handler, boot snapshot, telemetry, Settings UI |
+| 3 | **Persistent room-level "keep on"** — `override` is deliberately one-shot: it resets the idle timer and clears its own flag, so it buys one more window, not a mode | Small | **Open** — not in this pass |
+| 4 | **Occupancy confidence in telemetry** — publish whether occupancy came from both sensors, radar only, or PIR only | Small–moderate | **Open** — not in this pass |
 
 ## 5. What this means for the bring-up
 

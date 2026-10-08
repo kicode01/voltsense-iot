@@ -130,13 +130,25 @@ For reference — what crosses the boundary in each direction.
 
 - **Software features needing hardware: 7.** All are supported; two are gated off until the part is
   fitted (voltage sensing, mmWave).
-- **Hardware with no software support: none** — but two parts are **under-used**: the mmWave
-  (presence bit only) and the ZMPT101B (measured voltage not displayed).
-- **Gaps: 4 console-only settings, 2 inert writes, 6 ignored outputs, 5 behavioural defects,
-  4 hardware-unverifiable items, 1 outstanding security action.**
+- **Hardware with no software support: none** — but the **mmWave is still under-used** (presence bit only; its distance/energy data is discarded). The **ZMPT101B is now fully used**: real power *and* its measured voltage are surfaced in the app.
+- **Gaps, as originally listed: 4 console-only settings, 2 inert writes, 6 ignored outputs, 5 behavioural defects, 4 hardware-unverifiable items, 1 outstanding security action.**
 
-The two I would fix first, because both are cheap and both bite in a demo:
+**Closure status (2026-10-08):** the software-side gaps are now closed in code — see §6. What remains open is by-design (the 2 inert writes), hardware-unverifiable (4 items), or an owner action (the 1 security item: rotate the committed pairing key in Vercel).
 
-1. **The shutdown rule (§3.4 #1)** — a lamp left on staying on is the product failing at its own job.
-2. **Displaying `ports/<id>/voltage` (§3.3)** — otherwise calibration needs the console, and the
-   measured voltage is the one number the ZMPT101B exists to produce.
+## 6. Closure log (2026-10-08)
+
+These were open in §3 and are now fixed in firmware + app, each gated by a mutation-tested harness assertion.
+
+| Gap | Fix | Where |
+|---|---|---|
+| §3.1 — 4 console-only settings | Settings → "Device limits" writes them via `update()` (never `set`, so siblings survive) | `src/pages/Settings.jsx`, `useRoomData.updateDeviceSetting` |
+| §3.3 — `ports/<id>/voltage` ignored | Per-port measured voltage shown when a sensor is fitted (`powerIsMeasured`) | `src/pages/Dashboard.jsx` |
+| §3.3 — `overcurrent_limit_a` ignored | Shown as the editable "Overcurrent trip" field | `src/pages/Settings.jsx` |
+| §3.3 — `night_mode_active` ignored | Dashboard shows "Active now" / "Not active" | `src/pages/Dashboard.jsx` |
+| §3.3 — `is_occupied` ignored | Occupancy badge uses the device's real occupancy, not relay state | `src/pages/Dashboard.jsx` |
+| §3.4 #1 — inverted shutdown rule | Per-port **policy**: `occupancy` (cut, default) / `always_on` / `keep_while_drawing` | firmware `shouldKeepPortOnShutdown`, Settings policy `<select>` |
+| §3.4 #2 — no per-port policy | same as above | firmware stream handler + snapshot + telemetry |
+| §3.4 #4 — alert said "60 seconds" | Countdown text derived from `RESPONSE_WINDOW_MS` (5 min) | firmware alert body, Dashboard fallback `?? 300` |
+| §3.4 #5 — `keep_while_drawing` never re-checks | `SHUTDOWN_RECHECK_MS` releases the port once charging finishes | firmware `STATE_SHUTDOWN` re-check |
+
+**Not changed (by design):** §3.2 name/icon writes are cosmetic and intentionally device-ignored. **Still open:** §3.5 (needs the hardware to flash/verify) and §3.6 #1 (rotate the pairing key in Vercel — see `FIX-STATUS.md`).

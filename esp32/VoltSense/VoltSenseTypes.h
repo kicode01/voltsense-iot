@@ -54,4 +54,25 @@ struct ProbeResult {
  */
 enum RelaySwitchResult { RELAY_SWITCHED, RELAY_NOOP, RELAY_SUPPRESSED };
 
+/**
+ * What should happen to a port when the room empties.
+ *
+ * Stated by the user, per port, because it CANNOT be inferred. The shutdown used to ask "is this
+ * port drawing current?", which infers intent from current — and for this device's loads that is
+ * backwards. A lamp draws the same current whether or not anyone is in the room, so an
+ * incandescent lamp left burning in an empty room was kept ON (the exact waste the product exists
+ * to remove) while a phone on a small charger was cut mid-charge. A 40 W lamp and a 40 W charger
+ * are electrically identical; the difference is intent, and intent is not an electrical quantity.
+ *
+ *   POLICY_OCCUPANCY          (default) cut when the room empties — lamps, fans
+ *   POLICY_ALWAYS_ON          never cut — a router, a fridge, anything unattended
+ *   POLICY_KEEP_WHILE_DRAWING keep while current flows, then cut — chargers
+ *
+ * The default is OCCUPANCY because cutting power to an empty room is what the device is FOR;
+ * "always on" is an exception the user grants deliberately.
+ *
+ * Declared here, not in the .ino, because it is a function return type — see this file's header.
+ */
+enum PortPolicy { POLICY_OCCUPANCY, POLICY_ALWAYS_ON, POLICY_KEEP_WHILE_DRAWING };
+
 #endif // VOLTSENSE_TYPES_H

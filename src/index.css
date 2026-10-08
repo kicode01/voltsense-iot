@@ -21,16 +21,13 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
-    /* Stops iOS inflating text when the device rotates to landscape. */
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     overscroll-behavior-y: none;
-    /* Paints the status-bar strip the same colour as the app header,
-       so the notch area never shows a mismatched white bar. */
     background-color: #f0f2f5;
-    /* Tells the browser the UI is light, so form controls, scrollbars and the
-       status bar render light even when the device is in dark mode. */
     color-scheme: light;
+    -webkit-user-select: none;
+    user-select: none;
   }
 
   body {
@@ -53,6 +50,14 @@
   label,
   [role='button'] {
     touch-action: manipulation;
+  }
+
+  /* Must allow text selection in inputs so the user can type and paste */
+  input,
+  textarea,
+  select {
+    -webkit-user-select: auto;
+    user-select: auto;
   }
 
   /* Custom Native-like Scrollbar */
