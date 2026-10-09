@@ -635,6 +635,19 @@ ProbeResult probeEndpoint(const char* url, const char* host) {
 void runConnectivitySelfTest() {
   Serial.println("--- Endpoint reachability self-test ---");
 
+  // Resolve the API host explicitly. The ESP32's HTTPClient reports a DNS failure and a refused TCP
+  // connect with the SAME code (-1, "connection refused"), so without this line "this network has no
+  // internet" is indistinguishable from "the server is down". Naming it saves a lot of guessing.
+  IPAddress apiIp;
+  if (WiFi.hostByName("voltsense-iot.vercel.app", apiIp)) {
+    Serial.printf("  DNS  : voltsense-iot.vercel.app -> %s\n", apiIp.toString().c_str());
+  } else {
+    Serial.println("  DNS  : FAILED to resolve voltsense-iot.vercel.app");
+    Serial.println("         -> this network has no working DNS / internet. The endpoints are fine;");
+    Serial.println("            the ESP32 simply cannot reach them. Try another network (e.g. a");
+    Serial.println("            phone hotspot with data) or fix the router's DNS.");
+  }
+
   ProbeResult alert = probeEndpoint(ALERT_URL, "alert");
   ProbeResult pair = probeEndpoint(PAIR_URL, "pair");
 
