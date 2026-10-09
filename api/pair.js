@@ -115,8 +115,8 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'Server not configured' });
   }
 
-  const db = getDatabase(app);
-  const auth = getAuth(app);
+  const db = admin.database(app);
+  const auth = admin.auth(app);
 
   // The Auth domain is needed to build the device's email. Take it from the env rather than guessing,
   // because a wrong domain produces an account the app's rules can never resolve.

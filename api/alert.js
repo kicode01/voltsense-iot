@@ -174,7 +174,7 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'Server not configured' });
   }
 
-  const db = getDatabase(app);
+  const db = admin.database(app);
   const messaging = admin.messaging(app);
 
   // ---- authenticate the device -------------------------------------------

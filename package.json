@@ -28,7 +28,7 @@
     "dotenv": "^17.4.2",
     "driver.js": "^1.8.0",
     "firebase": "^12.17.1",
-    "firebase-admin": "^14.5.0",
+    "firebase-admin": "^11.11.0",
     "lucide-react": "^1.31.0",
     "postcss": "^8.5.26",
     "react": "^19.2.8",

@@ -56,12 +56,7 @@ if (!admin.apps) {
 if (typeof admin.app !== 'function') {
   admin.app = (name) => admin.getApp(name);
 }
-if (typeof admin.database !== 'function') {
-  admin.database = lazy(() => require('firebase-admin/database').getDatabase);
-}
-if (typeof admin.auth !== 'function') {
-  admin.auth = lazy(() => require('firebase-admin/auth').getAuth);
-}
+
 if (typeof admin.messaging !== 'function') {
   admin.messaging = lazy(() => require('firebase-admin/messaging').getMessaging);
 }
