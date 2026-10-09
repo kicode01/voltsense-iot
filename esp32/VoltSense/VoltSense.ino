@@ -2403,17 +2403,20 @@ void watchdogInit() {
   //   * `esp_task_wdt_init` on an already-initialised timer returns ESP_ERR_INVALID_STATE and does
   //     NOT change the timeout, so we RECONFIGURE first and only init when the timer does not exist.
   //     (This also avoids the noisy "TWDT already initialized" error log on every boot.)
-  //   * `esp_task_wdt_add(NULL)` returns ESP_ERR_INVALID_STATE ("task is already subscribed") when
-  //     the core has already enrolled loopTask. That is SUCCESS, not failure — the task IS being
-  //     watched. Reporting it as an error printed a scary line while the watchdog was working fine.
+  //   * `esp_task_wdt_add(NULL)` returns a non-OK code ("task is already subscribed") when the core
+  //     has already enrolled loopTask — ESP_ERR_INVALID_ARG (0x102 / 258) on ESP-IDF 5.x, and
+  //     ESP_ERR_INVALID_STATE elsewhere. That is SUCCESS, not failure: the task IS being watched.
+  //     Checking only one code printed a scary "could not watch" line on a working watchdog.
   esp_task_wdt_config_t cfg = {
     .timeout_ms = WDT_TIMEOUT_SECONDS * 1000,
     .idle_core_mask = 0,   // do not watch the idle tasks; we only care about loopTask
     .trigger_panic = true  // panic -> reset, so the device recovers instead of spinning
   };
   esp_err_t err = esp_task_wdt_reconfigure(&cfg);
-  if (err == ESP_ERR_INVALID_STATE) {
-    err = esp_task_wdt_init(&cfg); // not initialised yet — create it
+  if (err != ESP_OK) {
+    // Not initialised yet — create it. Testing a specific code here is fragile: this family has
+    // returned both ESP_ERR_INVALID_STATE and ESP_ERR_INVALID_ARG across ESP-IDF versions.
+    err = esp_task_wdt_init(&cfg);
   }
   if (err != ESP_OK) {
     Serial.printf("Watchdog init/reconfigure failed: %d\n", (int)err);
@@ -2421,7 +2424,9 @@ void watchdogInit() {
   }
 
   err = esp_task_wdt_add(NULL); // NULL = the currently running task (loopTask)
-  if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+  // "Already subscribed" is a success for us — the task IS watched. It arrives as
+  // ESP_ERR_INVALID_ARG (258) on ESP-IDF 5.x and ESP_ERR_INVALID_STATE (259) on others.
+  if (err == ESP_OK || err == ESP_ERR_INVALID_ARG || err == ESP_ERR_INVALID_STATE) {
     Serial.printf("Watchdog armed: %ds timeout on loopTask.\n", WDT_TIMEOUT_SECONDS);
   } else {
     Serial.printf("Watchdog could not watch loopTask: %d\n", (int)err);
@@ -2560,6 +2565,27 @@ pinMode(MMWAVE_PIN, INPUT);
   // network that came up late.
   // The captive portal blocks the loop for minutes and cannot feed the task watchdog, so widen the
   // window across provisioning. watchdogInit() restores the 30 s timeout once the network is up.
+  // Scan and print what the board can actually SEE, before WiFiManager tries the saved network.
+  // When a previously-working SSID stops connecting, the question is always "is it in range, and is
+  // it on 2.4 GHz?" — the ESP32 has no 5 GHz radio, so a 5 GHz-only AP never appears in this list.
+  // Naming it beats leaving "AutoConnect: FAILED" as the only clue.
+  {
+    WiFi.mode(WIFI_STA);
+    delay(100);
+    Serial.println("--- Wi-Fi scan (2.4 GHz only) ---");
+    int n = WiFi.scanNetworks();
+    if (n <= 0) {
+      Serial.println("  no networks found — router off, or out of range");
+    } else {
+      for (int i = 0; i < n; i++) {
+        Serial.printf("  %2d  %-32s  %4d dBm  %s\n", i + 1, WiFi.SSID(i).c_str(), WiFi.RSSI(i),
+                      WiFi.encryptionType(i) == WIFI_AUTH_OPEN ? "open" : "secured");
+      }
+    }
+    WiFi.scanDelete();
+    Serial.println("----------------------------------");
+  }
+
   watchdogSetTimeoutMs(WIFI_PROVISION_WDT_MS);
 
   WiFiManager wm;
