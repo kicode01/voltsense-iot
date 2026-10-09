@@ -662,6 +662,21 @@ void runConnectivitySelfTest() {
     Serial.println("            phone hotspot with data) or fix the router's DNS.");
   }
 
+  // Print the network the board actually got, and do ONE raw TCP connect to a well-known host. This
+  // separates "the whole network has no route to the internet" (no gateway / no NAT / captive portal)
+  // from "only our API host is blocked". A missing gateway (0.0.0.0) or a failing google:443 is
+  // conclusive, and neither can be fixed in firmware.
+  Serial.printf("  NET  : ip=%s  gw=%s  mask=%s  dns=%s\n",
+                WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str(),
+                WiFi.subnetMask().toString().c_str(), WiFi.dnsIP().toString().c_str());
+  {
+    WiFiClient tcp;
+    tcp.setTimeout(8000);
+    bool ok = tcp.connect("www.google.com", 443);
+    Serial.printf("  TCP  : www.google.com:443 -> %s\n", ok ? "connected" : "FAILED (no outbound route)");
+    tcp.stop();
+  }
+
   ProbeResult alert = probeEndpoint(ALERT_URL, "alert");
   ProbeResult pair = probeEndpoint(PAIR_URL, "pair");
 
