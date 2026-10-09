@@ -13,62 +13,22 @@
 const crypto = require('crypto');
 const admin = require('firebase-admin');
 
-// ---------------------------------------------------------------------------
-// firebase-admin v14 compatibility shim
-// ---------------------------------------------------------------------------
-// v14 dropped the entire namespaced API that this codebase was written against. Gone:
-//   admin.credential.cert()   ->  admin.cert()            (now top-level)
-//   admin.apps / admin.app()  ->  admin.getApps() / admin.getApp()
-//   admin.database()          ->  require('firebase-admin/database').getDatabase()
-//   admin.auth()              ->  require('firebase-admin/auth').getAuth()
-//   admin.messaging()         ->  require('firebase-admin/messaging').getMessaging()
-//
-// Left alone, every one of these reads as `undefined is not a function` at request time and the
-// failure is indistinguishable from a bad credential — which is exactly how this shipped broken.
-// Re-adding the namespaced surface here keeps all five handlers (and their 9 call sites) unchanged
-// and confines the version difference to one file. The modular functions are required lazily so a
-// missing subpath fails at the call that needs it, not at module load.
-const lazy = (request) => {
-  let mod = null;
-  return (...args) => {
-    if (!mod) mod = request();
-    return mod(...args);
-  };
-};
-
-if (typeof admin.cert === 'function') {
-  admin.credential = admin.credential || { cert: (serviceAccount) => admin.cert(serviceAccount) };
-}
-if (!admin.apps) {
-  // An array's `length` is non-configurable, so this cannot be a defineProperty getter — it is a
-  // Proxy whose `length` and indices are read straight off the live app list each time. Only the
-  // two things the codebase actually touches (`admin.apps.length`, `admin.app()`) need to work.
-  admin.apps = new Proxy([], {
-    get: (_t, prop) => {
-      const apps = admin.getApps();
-      if (prop === 'length') return apps.length;
-      const v = apps[prop];
-      return typeof v === 'function' ? v.bind(apps) : v;
-    },
-    has: (_t, prop) => prop in admin.getApps()
-  });
-}
-if (typeof admin.app !== 'function') {
-  admin.app = (name) => admin.getApp(name);
-}
-
-if (typeof admin.messaging !== 'function') {
-  admin.messaging = lazy(() => require('firebase-admin/messaging').getMessaging);
-}
-
 let initError = null;
 
+/**
+ * Initialise (once) and return the Firebase Admin app.
+ *
+ * Uses ONLY the modular API (`firebase-admin/app`, `/database`, `/auth`, `/messaging`), which is the
+ * supported surface across v9–v14.
+ *
+ * The previous version tried to re-create the namespaced API that v14 removed by ASSIGNING onto the
+ * `firebase-admin` export (`admin.apps = …`, `admin.credential = …`, `admin.app = …`). On v14 that
+ * export is not writable, so the assignment threw at MODULE LOAD — before any handler body ran — and
+ * every endpoint returned Vercel's FUNCTION_INVOCATION_FAILED (a platform crash, not a 500 we wrote).
+ * The lesson: never mutate a dependency's namespace; call its documented functions instead.
+ */
 const getApp = () => {
-  // firebase-admin v14 removed the `admin.apps` / `admin.app` namespaced properties that older
-  // tutorials use. Reading `admin.apps.length` here threw `Cannot read properties of undefined`
-  // on EVERY invocation — every endpoint 500'd before it could even read its env var. The
-  // supported namespaced accessors are `getApps()` / `getApp()`, which exist in v9 through v14.
-  if (admin.getApps().length) return admin.getApp();
+  if (admin.apps.length > 0) return admin.app();
   if (initError) throw initError;
 
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
@@ -85,8 +45,8 @@ const getApp = () => {
       serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
     }
 
-    return admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
+    return initializeApp({
+      credential: cert(serviceAccount),
       databaseURL
     });
   } catch (error) {
