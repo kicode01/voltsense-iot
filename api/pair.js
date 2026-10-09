@@ -56,7 +56,6 @@
  */
 
 const crypto = require('crypto');
-const admin = require('firebase-admin');
 const { getDatabase } = require('firebase-admin/database');
 const { getAuth } = require('firebase-admin/auth');
 const { getApp, safeEqual, readBody, normalizeMac, hashSecret } = require('./_lib/firebaseAdmin');
@@ -91,7 +90,7 @@ module.exports = async (req, res) => {
   const expectedKey = process.env.VOLTSENSE_PAIRING_KEY;
   if (!expectedKey) {
     console.error('VOLTSENSE_PAIRING_KEY is not configured');
-    return res.status(500).json({ error: 'Server not configured' });
+    return res.status(500).json({ error: 'Server not configured: ' + (error ? error.message : 'no key') });
   }
 
   const body = readBody(req);
@@ -112,11 +111,11 @@ module.exports = async (req, res) => {
     app = getApp();
   } catch (error) {
     console.error('Firebase Admin failed to initialise:', error.message);
-    return res.status(500).json({ error: 'Server not configured' });
+    return res.status(500).json({ error: 'Server not configured: ' + (error ? error.message : 'no key') });
   }
 
-  const db = admin.database(app);
-  const auth = admin.auth(app);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
 
   // The Auth domain is needed to build the device's email. Take it from the env rather than guessing,
   // because a wrong domain produces an account the app's rules can never resolve.
