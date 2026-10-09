@@ -57,6 +57,8 @@
 
 const crypto = require('crypto');
 const admin = require('firebase-admin');
+const { getDatabase } = require('firebase-admin/database');
+const { getAuth } = require('firebase-admin/auth');
 const { getApp, safeEqual, readBody, normalizeMac, hashSecret } = require('./_lib/firebaseAdmin');
 
 const PAIRING_CODE_TTL_MS = 30 * 60 * 1000; // 30 minutes
@@ -113,8 +115,8 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: 'Server not configured' });
   }
 
-  const db = admin.database(app);
-  const auth = admin.auth(app);
+  const db = getDatabase(app);
+  const auth = getAuth(app);
 
   // The Auth domain is needed to build the device's email. Take it from the env rather than guessing,
   // because a wrong domain produces an account the app's rules can never resolve.
