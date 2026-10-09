@@ -21,7 +21,8 @@
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:integration",
     "lint": "oxlint",
     "preview": "vite preview",
-    "deploy:vercel": "vercel --prod"
+    "deploy:vercel": "vercel --prod",
+    "flash:firmware": "node scripts/flash-firmware.mjs"
   },
   "dependencies": {
     "autoprefixer": "^10.5.4",
