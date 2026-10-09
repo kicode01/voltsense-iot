@@ -8,6 +8,7 @@
  * Run:  node verify-fixes.mjs
  */
 import { createRequire } from 'node:module';
+import { X509Certificate } from 'node:crypto';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -906,6 +907,54 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
     'ALERT_URL documents the delivery failure signatures',
     /401/.test(alertComment) && /SSL\/TLS handshake failed/.test(alertComment),
     'secret mismatch vs TLS vs network, named'
+  );
+}
+
+// 4c-bis. The pinned root had gone STALE. The firmware trusted ISRG Root X1 (Let's Encrypt) while
+//     Vercel serves a Google Trust Services chain (leaf <- WR1 <- GTS Root R1). A wrong pin is
+//     reported by HTTPClient with the SAME code and string as a refused TCP connect, so it silently
+//     disabled BOTH alerting and pairing while looking exactly like a dead network. These assertions
+//     parse the ACTUAL certificates in the bundle: matching the comment would pass on an empty one.
+{
+  const bundleMatch = fwSrc.match(/API_ROOT_CA_BUNDLE\s*=\s*R"EOF\(([\s\S]*?)\)EOF"/);
+  const bundlePem = bundleMatch ? bundleMatch[1] : '';
+  let subjects = [];
+  try {
+    subjects = (bundlePem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) || []).map(
+      (p) => new X509Certificate(p).subject
+    );
+  } catch {
+    // Leave subjects empty so the assertions below fail loudly rather than silently passing.
+  }
+  const hasGtsR1 = subjects.some((s) => /GTS Root R1/.test(s));
+  const hasGtsR4 = subjects.some((s) => /GTS Root R4/.test(s));
+  const hasIsrg = subjects.some((s) => /ISRG Root X1/.test(s));
+  record(
+    'Pinned CA bundle carries the roots Vercel actually chains to',
+    hasGtsR1 && hasGtsR4,
+    hasGtsR1 && hasGtsR4
+      ? `${subjects.length} roots pinned (GTS R1 + R4)`
+      : `*** bundle does not carry the GTS roots (${subjects.length} parsed) ***`
+  );
+  record(
+    "Let's Encrypt root retained so a CA move back does not brick the fleet",
+    hasIsrg,
+    hasIsrg ? 'ISRG Root X1 still present' : '*** only Google roots pinned ***'
+  );
+  // Still a pin: no insecure escape hatch. Comments are stripped first — the bundle's own comment
+  // explains why it does NOT call setInsecure(), and matching that prose would be a false negative.
+  const fwCode = stripComments(fwSrc);
+  record(
+    'Firmware still pins a CA (never setInsecure)',
+    !/setInsecure\s*\(/.test(fwCode),
+    'a MITM still cannot replay the shared secret'
+  );
+  // The Firebase library ships its own BearSSL client and calls setCACert(NULL) when no certificate
+  // is supplied — which verifies NOTHING. The bundle must be handed to it explicitly.
+  record(
+    'Firebase library is handed the CA bundle (it otherwise verifies nothing)',
+    /config\.cert\.data\s*=\s*API_ROOT_CA_BUNDLE\s*;/.test(fwSrc),
+    'the RTDB connection is authenticated too'
   );
 }
 

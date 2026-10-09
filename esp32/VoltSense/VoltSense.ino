@@ -430,7 +430,8 @@ String getNvsString(const char* key, const char* fallback = "") {
 //     does not match its `alert_secret_hash` (rotated on the device but not the server, or vice
 //     versa). Re-run ProvisionToken.ino with the correct value.
 //   * "Alert failed: SSL/TLS handshake failed" .. the pinned root no longer matches the chain.
-//     Re-verify and reflash ISRG_ROOT_X1 (see runConnectivitySelfTest).
+//     Re-verify and reflash API_ROOT_CA_BUNDLE (see runConnectivitySelfTest). NOTE: a wrong pin is
+//     usually reported as "connection refused", not as a TLS error — see the bundle's comment.
 //   * "Alert failed: connection refused" / timeout .. host unreachable — network, DNS, or a stale
 //     Vercel deployment. This is the one that is NOT a credential problem.
 // ---------------------------------------------------------------------------
@@ -502,14 +503,77 @@ const char* FIRMWARE_VERSION = "1.0.0";
 #endif
 
 // ---------------------------------------------------------------------------
-// TLS root CAs
+// TLS root CAs — a pinned bundle, not setInsecure()
 //
-// The endpoint is served by Vercel, which chains to Let's Encrypt. Pin that root rather than
-// calling setInsecure(), so a MITM cannot replay the shared secret.
-// If the CA ever changes the handshake fails loudly; re-verify with:
+// The endpoint is served by Vercel, which now chains to GOOGLE TRUST SERVICES:
+//
+//     *.vercel.app   <-  WR1 (intermediate)  <-  GTS Root R1
+//
+// This file previously pinned ISRG Root X1 (Let's Encrypt) alone. That was right while Vercel used
+// Let's Encrypt, but Vercel has since moved to Google Trust Services — so the single pin REJECTED
+// every handshake. Worse, the ESP32's HTTPClient reports a certificate failure with the SAME code
+// and the SAME string as a refused TCP connect ("connection refused"), so a wrong pin looks
+// exactly like a dead network. That is what made this so hard to find.
+//
+// Pin every root that can legitimately terminate Vercel's chain:
+//
+//   GTS Root R1 (RSA)    - current issuer of *.vercel.app (via the WR1 intermediate)
+//   GTS Root R4 (ECDSA)  - Google's other root (WR2 / WE1); some Vercel edges serve it
+//   ISRG Root X1         - retained so a move back to Let's Encrypt does not brick the fleet
+//
+// This is still a pin, not `setInsecure()`: no attacker can obtain a certificate for this host from
+// any of these CAs, so a MITM still cannot capture and replay the pairing/alert secret.
+//
+// mbedTLS parses EVERY certificate in the string (ssl_client.cpp -> mbedtls_x509_crt_parse), so a
+// single setCACert() call installs all three. Re-verify the live chain with:
 //   openssl s_client -connect <host>:443 -servername <host> -showcerts
+//   openssl verify -CAfile <root.pem> -untrusted <intermediate.pem> <leaf.pem>
 // ---------------------------------------------------------------------------
-const char* ISRG_ROOT_X1 = R"EOF(-----BEGIN CERTIFICATE-----
+const char* API_ROOT_CA_BUNDLE = R"EOF(-----BEGIN CERTIFICATE-----
+MIIFVzCCAz+gAwIBAgINAgPlk28xsBNJiGuiFzANBgkqhkiG9w0BAQwFADBHMQsw
+CQYDVQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2VzIExMQzEU
+MBIGA1UEAxMLR1RTIFJvb3QgUjEwHhcNMTYwNjIyMDAwMDAwWhcNMzYwNjIyMDAw
+MDAwWjBHMQswCQYDVQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZp
+Y2VzIExMQzEUMBIGA1UEAxMLR1RTIFJvb3QgUjEwggIiMA0GCSqGSIb3DQEBAQUA
+A4ICDwAwggIKAoICAQC2EQKLHuOhd5s73L+UPreVp0A8of2C+X0yBoJx9vaMf/vo
+27xqLpeXo4xL+Sv2sfnOhB2x+cWX3u+58qPpvBKJXqeqUqv4IyfLpLGcY9vXmX7w
+Cl7raKb0xlpHDU0QM+NOsROjyBhsS+z8CZDfnWQpJSMHobTSPS5g4M/SCYe7zUjw
+TcLCeoiKu7rPWRnWr4+wB7CeMfGCwcDfLqZtbBkOtdh+JhpFAz2weaSUKK0Pfybl
+qAj+lug8aJRT7oM6iCsVlgmy4HqMLnXWnOunVmSPlk9orj2XwoSPwLxAwAtcvfaH
+szVsrBhQf4TgTM2S0yDpM7xSma8ytSmzJSq0SPly4cpk9+aCEI3oncKKiPo4Zor8
+Y/kB+Xj9e1x3+naH+uzfsQ55lVe0vSbv1gHR6xYKu44LtcXFilWr06zqkUspzBmk
+MiVOKvFlRNACzqrOSbTqn3yDsEB750Orp2yjj32JgfpMpf/VjsPOS+C12LOORc92
+wO1AK/1TD7Cn1TsNsYqiA94xrcx36m97PtbfkSIS5r762DL8EGMUUXLeXdYWk70p
+aDPvOmbsB4om3xPXV2V4J95eSRQAogB/mqghtqmxlbCluQ0WEdrHbEg8QOB+DVrN
+VjzRlwW5y0vtOUucxD/SVRNuJLDWcfr0wbrM7Rv1/oFB2ACYPTrIrnqYNxgFlQID
+AQABo0IwQDAOBgNVHQ8BAf8EBAMCAYYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4E
+FgQU5K8rJnEaK0gnhS9SZizv8IkTcT4wDQYJKoZIhvcNAQEMBQADggIBAJ+qQibb
+C5u+/x6Wki4+omVKapi6Ist9wTrYggoGxval3sBOh2Z5ofmmWJyq+bXmYOfg6LEe
+QkEzCzc9zolwFcq1JKjPa7XSQCGYzyI0zzvFIoTgxQ6KfF2I5DUkzps+GlQebtuy
+h6f88/qBVRRiClmpIgUxPoLW7ttXNLwzldMXG+gnoot7TiYaelpkttGsN/H9oPM4
+7HLwEXWdyzRSjeZ2axfG34arJ45JK3VmgRAhpuo+9K4l/3wV3s6MJT/KYnAK9y8J
+ZgfIPxz88NtFMN9iiMG1D53Dn0reWVlHxYciNuaCp+0KueIHoI17eko8cdLiA6Ef
+MgfdG+RCzgwARWGAtQsgWSl4vflVy2PFPEz0tv/bal8xa5meLMFrUKTX5hgUvYU/
+Z6tGn6D/Qqc6f1zLXbBwHSs09dR2CQzreExZBfMzQsNhFRAbd03OIozUhfJFfbdT
+6u9AWpQKXCBfTkBdYiJ23//OYb2MI3jSNwLgjt7RETeJ9r/tSQdirpLsQBqvFAnZ
+0E6yove+7u7Y/9waLd64NnHi/Hm3lCXRSHNboTXns5lndcEZOitHTtNCjv0xyBZm
+2tIMPNuzjsmhDYAPexZ3FL//2wmUspO8IFgV6dtxQ/PeEMMA3KgqlbbC1j+Qa3bb
+bP6MvPJwNQzcmRk13NfIRmPVNnGuV/u3gm3c
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIICCTCCAY6gAwIBAgINAgPlwGjvYxqccpBQUjAKBggqhkjOPQQDAzBHMQswCQYD
+VQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2VzIExMQzEUMBIG
+A1UEAxMLR1RTIFJvb3QgUjQwHhcNMTYwNjIyMDAwMDAwWhcNMzYwNjIyMDAwMDAw
+WjBHMQswCQYDVQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2Vz
+IExMQzEUMBIGA1UEAxMLR1RTIFJvb3QgUjQwdjAQBgcqhkjOPQIBBgUrgQQAIgNi
+AATzdHOnaItgrkO4NcWBMHtLSZ37wWHO5t5GvWvVYRg1rkDdc/eJkTBa6zzuhXyi
+QHY7qca4R9gq55KRanPpsXI5nymfopjTX15YhmUPoYRlBtHci8nHc8iMai/lxKvR
+HYqjQjBAMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQW
+BBSATNbrdP9JNqPV2Py1PsVq8JQdjDAKBggqhkjOPQQDAwNpADBmAjEA6ED/g94D
+9J+uHXqnLrmvT/aDHQ4thQEd0dlq7A/Cr8deVl5c1RxYIigL9zC2L7F8AjEA8GE8
+p/SgguMh1YQdc4acLa/KNJvxn7kjNuK8YAOdgLOaVsjh4rsUecrNIdSUtUlD
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
 MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
 TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
 cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
@@ -618,7 +682,7 @@ ProbeResult probeEndpoint(const char* url, const char* host) {
   }
 
   WiFiClientSecure client;
-  client.setCACert(ISRG_ROOT_X1);
+  client.setCACert(API_ROOT_CA_BUNDLE);
 
   HTTPClient http;
   if (!http.begin(client, url)) {
@@ -662,19 +726,72 @@ void runConnectivitySelfTest() {
     Serial.println("            phone hotspot with data) or fix the router's DNS.");
   }
 
-  // Print the network the board actually got, and do ONE raw TCP connect to a well-known host. This
-  // separates "the whole network has no route to the internet" (no gateway / no NAT / captive portal)
-  // from "only our API host is blocked". A missing gateway (0.0.0.0) or a failing google:443 is
-  // conclusive, and neither can be fixed in firmware.
+  // Print the network the board actually got, then do TWO raw TCP connects: one to a well-known
+  // host, one to the API host itself. Together they are conclusive:
+  //   * google fails              -> the whole network has no route to the internet.
+  //   * google ok, API host fails -> the network blocks (or cannot route to) Vercel specifically.
+  //   * BOTH ok, HTTPS still fails-> the network is fine, so the failure is the CERTIFICATE.
+  // That last case is the one that matters here: a wrong pinned root is reported by HTTPClient with
+  // the same code and string as a refused connect, so without this line it is indistinguishable.
   Serial.printf("  NET  : ip=%s  gw=%s  mask=%s  dns=%s\n",
                 WiFi.localIP().toString().c_str(), WiFi.gatewayIP().toString().c_str(),
                 WiFi.subnetMask().toString().c_str(), WiFi.dnsIP().toString().c_str());
+  bool tcpGoogle = false;
+  bool tcpApiHost = false;
   {
     WiFiClient tcp;
     tcp.setTimeout(8000);
-    bool ok = tcp.connect("www.google.com", 443);
-    Serial.printf("  TCP  : www.google.com:443 -> %s\n", ok ? "connected" : "FAILED (no outbound route)");
+    tcpGoogle = tcp.connect("www.google.com", 443);
     tcp.stop();
+  }
+  {
+    WiFiClient tcp;
+    tcp.setTimeout(8000);
+    tcpApiHost = tcp.connect("voltsense-iot.vercel.app", 443);
+    tcp.stop();
+  }
+  Serial.printf("  TCP  : www.google.com:443        -> %s\n",
+                tcpGoogle ? "connected" : "FAILED (no outbound route)");
+  Serial.printf("  TCP  : voltsense-iot.vercel.app  -> %s\n",
+                tcpApiHost ? "connected (network CAN reach Vercel)"
+                           : "FAILED (network cannot reach the API host)");
+
+  // The Firebase Realtime Database is a DIFFERENT host from the API. A network can reach one and not
+  // the other (carrier DNS hijack, split routing, a block list) — and the Firebase library then fails
+  // deep inside its own TLS stack, where the only visible symptom is the cryptic "Incoming protocol
+  // or record version is unsupported" (BearSSL received NON-TLS bytes: a plaintext reply, which is
+  // what a captive portal or a blocked-host page sends). Probe the RTDB host explicitly so the log
+  // names the host that is actually broken instead of blaming the firmware.
+  {
+    IPAddress rtdbIp;
+    bool dnsOk = WiFi.hostByName(DATABASE_URL, rtdbIp);
+    WiFiClient tcp;
+    tcp.setTimeout(8000);
+    bool tcpOk = tcp.connect(DATABASE_URL, 443);
+    tcp.stop();
+    Serial.printf("  RTDB : %s\n", DATABASE_URL);
+    Serial.printf("         DNS -> %s\n", dnsOk ? rtdbIp.toString().c_str() : "FAILED to resolve");
+    Serial.printf("         TCP:443 -> %s\n", tcpOk ? "connected" : "FAILED");
+
+    WiFiClientSecure client;
+    client.setCACert(API_ROOT_CA_BUNDLE);
+    HTTPClient http;
+    String rtdbUrl = String("https://") + DATABASE_URL + "/.json";
+    if (http.begin(client, rtdbUrl)) {
+      http.setTimeout(8000);
+      int code = http.GET();
+      String detail;
+      if (code > 0) {
+        // 401 is the EXPECTED answer for an unauthenticated probe, and it proves the handshake worked.
+        detail = "HTTP " + String(code) + (code == 401 ? " (TLS OK)" : "");
+      } else {
+        detail = http.errorToString(code);
+      }
+      Serial.printf("         HTTPS /.json -> %s\n", detail.c_str());
+      http.end();
+    } else {
+      Serial.println("         HTTPS /.json -> could not build the request");
+    }
   }
 
   ProbeResult alert = probeEndpoint(ALERT_URL, "alert");
@@ -692,17 +809,27 @@ void runConnectivitySelfTest() {
   report("alert", alert);
   report("pair", pair);
 
-  if (alert.tlsFailed || pair.tlsFailed) {
-    // The whole point of this branch: name the cause instead of leaving a silent dead device.
-    Serial.println("  >> TLS handshake failed against a pinned endpoint.");
-    Serial.println("     The certificate chain no longer matches ISRG_ROOT_X1. Vercel moved from");
-    Serial.println("     Let's Encrypt to another CA, or the root was rotated. Re-verify with:");
-    Serial.println("       openssl s_client -connect <host>:443 -servername <host> -showcerts");
-    Serial.println("     then replace ISRG_ROOT_X1 in this file and reflash. Until then this device");
-    Serial.println("     CANNOT file alerts or pair — it is not a Wi-Fi problem.");
+  // The network reached the API host, but HTTPS still failed -> the certificate chain is not
+  // trusted. This is the branch that would have saved hours: HTTPClient calls it "connection
+  // refused", which reads like a network fault, so compare the raw TCP result against the HTTPS one.
+  if (!alert.reachable && !pair.reachable && tcpApiHost) {
+    Serial.println("  >> TCP to the API host SUCCEEDED but HTTPS failed.");
+    Serial.println("     That is a CERTIFICATE problem, not a Wi-Fi problem: the pinned root no");
+    Serial.println("     longer matches Vercel's chain (HTTPClient reports it as \"connection");
+    Serial.println("     refused\", which is why it looks like a network fault). Re-verify and update");
+    Serial.println("     API_ROOT_CA_BUNDLE in this file:");
+    Serial.println("       openssl s_client -connect voltsense-iot.vercel.app:443 \\");
+    Serial.println("         -servername voltsense-iot.vercel.app -showcerts");
+    Serial.println("       openssl verify -CAfile <root.pem> -untrusted <intermediate.pem> <leaf.pem>");
+  } else if (alert.tlsFailed || pair.tlsFailed) {
+    Serial.println("  >> TLS handshake failed against a pinned endpoint — the certificate chain no");
+    Serial.println("     longer matches API_ROOT_CA_BUNDLE. Re-verify with the openssl commands in the");
+    Serial.println("     comment above that constant, then reflash. This device CANNOT file alerts or");
+    Serial.println("     pair until it is fixed — it is not a Wi-Fi problem.");
   } else if (!alert.reachable && !pair.reachable) {
-    Serial.println("  >> Both endpoints unreachable without a TLS error. Check the network, DNS,");
-    Serial.println("     and that ALERT_URL / PAIR_URL point at the deployed host.");
+    Serial.println("  >> Both endpoints unreachable and the API host is not reachable by TCP either.");
+    Serial.println("     Check the network, DNS, and that ALERT_URL / PAIR_URL point at the deployed");
+    Serial.println("     host. This is a network problem, not a certificate problem.");
   }
   Serial.println("---------------------------------------");
 }
@@ -734,7 +861,7 @@ bool pairDevice() {
     Serial.printf("Pairing with VoltSense (%d/%d)...\n", attempt, MAX_ATTEMPTS);
 
     WiFiClientSecure client;
-    client.setCACert(ISRG_ROOT_X1);
+    client.setCACert(API_ROOT_CA_BUNDLE);
 
     HTTPClient http;
     if (!http.begin(client, PAIR_URL)) {
@@ -1884,7 +2011,7 @@ void alertTask(void* parameter) {
       payload += "}";
 
       WiFiClientSecure client;
-      client.setCACert(ISRG_ROOT_X1);
+      client.setCACert(API_ROOT_CA_BUNDLE);
 
       HTTPClient http;
       http.setTimeout(8000);
@@ -2653,6 +2780,11 @@ pinMode(MMWAVE_PIN, INPUT);
 
   config.api_key = API_KEY;
   config.database_url = DATABASE_URL;
+  // The Firebase library ships its own BearSSL client and, when no certificate is supplied, calls
+  // setCACert(NULL) — i.e. it verifies NOTHING. Supply the same pinned bundle the HTTP probes use,
+  // so the RTDB connection is authenticated too. (Verified against the library source:
+  // FB_Session.cpp -> tcpClient.setCACert(Core.config->cert.data).)
+  config.cert.data = API_ROOT_CA_BUNDLE;
   config.token_status_callback = tokenStatusCallback;
 
   // Explicitly clear email/password to prevent the library from attempting Email login
