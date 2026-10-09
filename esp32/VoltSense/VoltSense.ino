@@ -2364,28 +2364,54 @@ void runRelaySwitchAndSync(int port, bool on) {
 // watchdog for the rest of boot.
 #define WDT_TIMEOUT_SECONDS 30
 
+// WiFiManager's captive portal can hold the loop for minutes (up to three portal sessions of 180 s
+// each) and cannot feed the task watchdog from inside that blocking call. The 30 s window is
+// therefore widened to this across provisioning — see setup() — and restored once the network is up.
+// A genuine hang during provisioning still resets, just after the longer window.
+#define WIFI_PROVISION_WDT_MS 900000UL
+
 void watchdogInit() {
-  // The Arduino ESP32 core may already have initialised the TWDT with a different timeout. Calling
-  // init again on an initialised timer returns ESP_ERR_INVALID_STATE and does NOT change the
-  // timeout, so reconfigure first and treat "not initialised" as the only error worth reporting.
+  // The Arduino ESP32 core initialises the TWDT at boot and keeps the timer owned by the system.
+  // Two consequences the first cut of this got wrong:
+  //   * `esp_task_wdt_init` on an already-initialised timer returns ESP_ERR_INVALID_STATE and does
+  //     NOT change the timeout, so we RECONFIGURE first and only init when the timer does not exist.
+  //     (This also avoids the noisy "TWDT already initialized" error log on every boot.)
+  //   * `esp_task_wdt_add(NULL)` returns ESP_ERR_INVALID_STATE ("task is already subscribed") when
+  //     the core has already enrolled loopTask. That is SUCCESS, not failure — the task IS being
+  //     watched. Reporting it as an error printed a scary line while the watchdog was working fine.
   esp_task_wdt_config_t cfg = {
     .timeout_ms = WDT_TIMEOUT_SECONDS * 1000,
     .idle_core_mask = 0,   // do not watch the idle tasks; we only care about loopTask
     .trigger_panic = true  // panic -> reset, so the device recovers instead of spinning
   };
-  esp_err_t err = esp_task_wdt_init(&cfg);
+  esp_err_t err = esp_task_wdt_reconfigure(&cfg);
   if (err == ESP_ERR_INVALID_STATE) {
-    esp_task_wdt_reconfigure(&cfg);
-  } else if (err != ESP_OK) {
-    Serial.printf("Watchdog init failed: %d\n", (int)err);
+    err = esp_task_wdt_init(&cfg); // not initialised yet — create it
+  }
+  if (err != ESP_OK) {
+    Serial.printf("Watchdog init/reconfigure failed: %d\n", (int)err);
     return;
   }
 
   err = esp_task_wdt_add(NULL); // NULL = the currently running task (loopTask)
-  if (err == ESP_OK) {
+  if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
     Serial.printf("Watchdog armed: %ds timeout on loopTask.\n", WDT_TIMEOUT_SECONDS);
   } else {
     Serial.printf("Watchdog could not watch loopTask: %d\n", (int)err);
+  }
+}
+
+// Retune the running watchdog's timeout WITHOUT re-subscribing the task. Used to widen the window
+// across the blocking captive portal and to restore it afterwards.
+void watchdogSetTimeoutMs(uint32_t ms) {
+  esp_task_wdt_config_t cfg = {
+    .timeout_ms = ms,
+    .idle_core_mask = 0,
+    .trigger_panic = true
+  };
+  esp_err_t err = esp_task_wdt_reconfigure(&cfg);
+  if (err != ESP_OK) {
+    Serial.printf("Watchdog retune to %lu ms failed: %d\n", (unsigned long)ms, (int)err);
   }
 }
 
@@ -2505,6 +2531,10 @@ pinMode(MMWAVE_PIN, INPUT);
   // A bounded retry loop is the correct shape: keep the portal available, and only restart after
   // genuinely exhausting several attempts, because a full restart is the only way to re-scan for a
   // network that came up late.
+  // The captive portal blocks the loop for minutes and cannot feed the task watchdog, so widen the
+  // window across provisioning. watchdogInit() restores the 30 s timeout once the network is up.
+  watchdogSetTimeoutMs(WIFI_PROVISION_WDT_MS);
+
   WiFiManager wm;
   wm.setConfigPortalTimeout(180); // 3 minutes per attempt in the captive portal
   Serial.println("Starting WiFiManager...");
@@ -2538,6 +2568,10 @@ pinMode(MMWAVE_PIN, INPUT);
     }
   }
   Serial.println("Connected to WiFi!");
+
+  // Network is up: restore the tight 30 s watchdog for the rest of the run (the provisioning window
+  // above was only widened to survive the blocking portal).
+  watchdogInit();
 
   macAddress = WiFi.macAddress();
   Serial.printf("Device MAC Address: %s\n", macAddress.c_str());
