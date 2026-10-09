@@ -45,8 +45,8 @@ const getApp = () => {
       serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
     }
 
-    return initializeApp({
-      credential: cert(serviceAccount),
+    return admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
       databaseURL
     });
   } catch (error) {
