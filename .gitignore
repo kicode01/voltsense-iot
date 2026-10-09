@@ -25,6 +25,11 @@ serviceAccountKey.json
 *serviceAccount*.json
 .vercel
 
+# Firmware build secret: the factory pairing key, used by Arduino-IDE builds via `#include`.
+# Same rule as .env — a credential, never committed.
+secrets.h
+esp32/VoltSense/secrets.h
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

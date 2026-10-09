@@ -284,6 +284,11 @@ arduino-cli compile \
 > `No factory pairing key compiled in; USB provisioning required.` and will not pair over the air.  
 > That is a clear failure, not a silent one — but you will have to reflash.
 
+**Easiest route for the Arduino IDE (2.x):** create `esp32/VoltSense/secrets.h` (gitignored) with one
+line — `#define VOLTSENSE_PAIRING_KEY "<the key>"`. The sketch picks it up via `__has_include`, so no
+build flag is needed. For the command line, `npm run flash:firmware [-- COM5]` reads the key from
+`.env` and injects it automatically.
+
 ---
 
 ## 4. Flash and first boot

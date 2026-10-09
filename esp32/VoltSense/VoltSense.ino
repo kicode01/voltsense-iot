@@ -483,6 +483,20 @@ const char* FIRMWARE_VERSION = "1.0.0";
 //
 // Rotating the key in Vercel is mandatory regardless: removing it from this file does NOT remove
 // it from git history (it is in the initial commit), so the leaked value stays valid until rotated.
+//
+// IDE BUILDS (Arduino IDE 2.x) have no convenient way to pass a -D flag, so the key can live in a
+// gitignored `secrets.h` next to this sketch:
+//
+//     // esp32/VoltSense/secrets.h  — NEVER commit this file (it is in .gitignore)
+//     #define VOLTSENSE_PAIRING_KEY "<the 64-character key>"
+//
+// CLI BUILDS can pass -DVOLTSENSE_PAIRING_KEY=... instead — `npm run flash:firmware` reads the value
+// from .env for you. The #ifndef below is the fallback for a build that supplies neither.
+#if defined(__has_include)
+#if __has_include("secrets.h")
+#include "secrets.h"
+#endif
+#endif
 #ifndef VOLTSENSE_PAIRING_KEY
 #define VOLTSENSE_PAIRING_KEY ""
 #endif
