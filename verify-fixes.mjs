@@ -950,12 +950,17 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
     !/setInsecure\s*\(/.test(fwCode),
     'a MITM still cannot replay the shared secret'
   );
-  // The Firebase library ships its own BearSSL client and calls setCACert(NULL) when no certificate
-  // is supplied — which verifies NOTHING. The bundle must be handed to it explicitly.
+  // Every TLS connection must be pinned. With the library's transport gone the risk has MOVED: it
+  // is no longer "is the library handed a CA" but "a new WiFiClientSecure added later without a
+  // setCACert would silently verify nothing". Count both sides so a new unpinned client fails here.
+  const secureClients = (fwCode.match(/WiFiClientSecure\s+\w+\s*;/g) || []).length;
+  const pinnedClients = (fwCode.match(/setCACert\(\s*API_ROOT_CA_BUNDLE\s*\)/g) || []).length;
   record(
-    'Firebase library is handed the CA bundle (it otherwise verifies nothing)',
-    /config\.cert\.data\s*=\s*API_ROOT_CA_BUNDLE\s*;/.test(fwSrc),
-    'the RTDB connection is authenticated too'
+    'Every TLS client in the firmware pins the CA bundle',
+    secureClients > 0 && pinnedClients >= secureClients,
+    secureClients > 0 && pinnedClients >= secureClients
+      ? `${pinnedClients} setCACert(API_ROOT_CA_BUNDLE) for ${secureClients} secure clients`
+      : `*** ${secureClients} secure client(s) but only ${pinnedClients} pinned ***`
   );
 }
 
@@ -1785,16 +1790,23 @@ const alertStartEnd = (src, from) => {
     inoRedefines ? '*** duplicate definition — does not compile ***' : 'declared once, in the header'
   );
 
-  // 3. Sign-in credentials belong on `auth`, not `config.signer`. The latter has no email/password
-  //    members at all in the library this project builds against.
+  // 3. Auth now runs over REST. Three things are worth guarding, and the first two are the ones
+  //    that actually bit: `config.signer.email` has no such member (it never compiled), and calling
+  //    into the library's own transport is exactly what cannot handshake on this core.
   const usesWrongAuthApi = /config\.signer\.(email|password)\b/.test(inoCode);
-  const usesRightAuthApi = /auth\.user\.email\b/.test(inoCode) && /auth\.user\.password\b/.test(inoCode);
+  const usesLibraryTransport = /Firebase\.(begin|ready)\s*\(/.test(inoCode);
+  const signsInOverRest =
+    /signInWithPassword\?key=/.test(inoCode) && /extractJsonString\(response, "idToken"\)/.test(inoCode);
   record(
-    'Device auth uses the real API (auth.user.*, not config.signer.*)',
-    !usesWrongAuthApi && usesRightAuthApi,
+    'Auth runs over REST, not the library transport that cannot handshake',
+    !usesWrongAuthApi && !usesLibraryTransport && signsInOverRest,
     usesWrongAuthApi
       ? '*** config.signer.email/password do not exist in this library ***'
-      : 'auth.user.email / auth.user.password'
+      : usesLibraryTransport
+        ? '*** Firebase.begin/ready is back — its TLS stack cannot handshake on this core ***'
+        : signsInOverRest
+          ? 'Identity Toolkit sign-in + idToken extraction'
+          : '*** no REST sign-in found ***'
   );
 
   // 4. A default argument may be given once — repeating it on the definition is an error.

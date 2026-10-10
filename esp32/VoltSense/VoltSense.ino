@@ -196,9 +196,10 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
   // The pin itself is defined at file scope above; nothing to redeclare here.
 #endif
 
-FirebaseData fbdo;
-FirebaseAuth auth;
-FirebaseConfig config;
+// NOTE: there is no FirebaseData / FirebaseAuth / FirebaseConfig here any more. The Realtime
+// Database is reached over REST (see that section), so those library objects would be written and
+// never read. FirebaseJson is still used, purely to BUILD payloads -- it is a JSON helper with no
+// transport in it.
 
 // NTP Time Sync
 WiFiUDP ntpUDP;
@@ -2015,7 +2016,7 @@ void publishDailyRecords() {
   }
 
   if (!rtdbPutJson(roomPath + "/history/days", out)) {
-    Serial.printf("history/days write failed: %s\n", fbdo.errorReason().c_str());
+    Serial.println("history/days write failed");
   }
 }
 
@@ -2050,7 +2051,7 @@ void publishHistoryRanges() {
   todayJson.set("totals/hours", todayOccupiedMin / 60.0);
 
   if (!rtdbPutJson(roomPath + "/history/today", todayJson)) {
-    Serial.printf("history/today write failed: %s\n", fbdo.errorReason().c_str());
+    Serial.println("history/today write failed");
   }
 
   // ---------------- daily ranges ----------------
@@ -2127,7 +2128,7 @@ void publishDailyRange(const String& key, int startDaysAgo, int endDaysAgo) {
   out.set("totals/hours", totalOccupiedMin / 60.0);
 
   if (!rtdbPutJson(roomPath + "/history/" + key, out)) {
-    Serial.printf("history/%s write failed: %s\n", key.c_str(), fbdo.errorReason().c_str());
+    Serial.printf("history/%s write failed\n", key.c_str());
   }
 }
 
@@ -2295,8 +2296,11 @@ void sendAlert(const String& title, const String& body, const String& tag = "vol
 }
 
 // ---------------------------------------------------------------------------
-// Firebase stream
+// Remote changes — what the app asked for (replaces the RTDB stream)
 // ---------------------------------------------------------------------------
+// The Realtime Database stream is gone: its transport is the part of the client library that cannot
+// handshake on ESP32 core 3.x. pollRemoteChanges() fetches the room node over REST and dispatches
+// each changed field through the handler below, which is the same body the stream used.
 // `struct RemoteChange` is declared in VoltSenseTypes.h — it appears in a function signature, so it
 // must be visible above the prototypes the Arduino build generates. See that file for the details.
 
@@ -2511,10 +2515,6 @@ void pollRemoteChanges() {
       applyRemoteChange(policy);
     }
   }
-}
-
-void streamTimeoutCallback(bool timeout) {
-  if (timeout) Serial.println("Stream timed out, resuming...");
 }
 
 int timeToMinutes(String t) {
@@ -3046,18 +3046,9 @@ pinMode(MMWAVE_PIN, INPUT);
   timeClient.begin();
   timeClient.update();
 
-  config.api_key = API_KEY;
-  config.database_url = DATABASE_URL;
-  // The Firebase library ships its own BearSSL client and, when no certificate is supplied, calls
-  // setCACert(NULL) — i.e. it verifies NOTHING. Supply the same pinned bundle the HTTP probes use,
-  // so the RTDB connection is authenticated too. (Verified against the library source:
-  // FB_Session.cpp -> tcpClient.setCACert(Core.config->cert.data).)
-  config.cert.data = API_ROOT_CA_BUNDLE;
-  config.token_status_callback = tokenStatusCallback;
-
-  // Explicitly clear email/password to prevent the library from attempting Email login
-  auth.user.email.clear();
-  auth.user.password.clear();
+  // No client-library configuration here any more. The REST path takes its endpoint from
+  // API_KEY / DATABASE_URL and its trust anchor from API_ROOT_CA_BUNDLE directly, so a
+  // FirebaseConfig / FirebaseAuth would only ever be written and never read.
 
   // ---- Device identity ----
   //
@@ -3071,7 +3062,8 @@ pinMode(MMWAVE_PIN, INPUT);
   //      with `npm run mint-token`. Also no Cloud Function (signing happens on your machine), but
   //      it does need a service-account key.
   //
-  // Either way the library keeps the session fresh on its own, so provisioning is one-time.
+  // Either way rtdbSignIn() reads whichever of these is present straight out of NVS and signs in
+  // over REST; nothing is handed to the client library.
   String deviceEmail = getNvsString("dev_email");
   String devicePassword = getNvsString("dev_password");
   String deviceIdToken = getNvsString("dev_id_token");
@@ -3090,24 +3082,14 @@ pinMode(MMWAVE_PIN, INPUT);
     }
   }
 
-  // WHERE SIGN-IN CREDENTIALS LIVE. The Firebase Arduino Client Library keeps sign-in details on
-  // the AUTH object and only token/signing machinery on `config.signer`. Writing
-  // `config.signer.email` compiles against nothing — `firebase_token_signer_resources_t` has no
-  // such member — so this block previously failed to build. The rest of this file already used
-  // `auth.user.*` (see the clear() calls above), which is what made the inconsistency easy to miss.
+  // Which identity is present decides how rtdbSignIn() authenticates — see the REST section.
   if (deviceEmail.length() > 0 && devicePassword.length() > 0) {
-    config.signer.anonymous = false;
-    auth.user.email = deviceEmail;
-    auth.user.password = devicePassword;
     Serial.println("Device identity loaded (email/password account).");
   } else if (deviceIdToken.length() > 0 && deviceRefreshToken.length() > 0) {
-    config.signer.anonymous = false;
-    // Nothing to hand to a library any more: the REST sign-in reads dev_refresh_token from NVS
-    // itself (rtdbTokenViaRefreshToken). The refresh token -- not the hour-long ID token -- is the
-    // right thing to keep, so a fielded unit does not expire after an hour.
+    // The refresh token — not the hour-long ID token — is what rtdbTokenViaRefreshToken() uses,
+    // so a fielded unit does not expire after an hour.
     Serial.println("Device identity loaded (custom token with device_mac claim).");
   } else if (ALLOW_ANONYMOUS_FALLBACK) {
-    config.signer.anonymous = true;
     Serial.println("WARNING: no device identity in NVS — anonymous access is not supported over");
     Serial.println("         the REST path (the rules reject anonymous callers anyway).");
     Serial.println("         Pair the device, or provision it with esp32/ProvisionToken.");
@@ -3442,7 +3424,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
     // hang here is charged to the push, and the device resets rather than going silent.
     watchdogFeed();
     if (!rtdbPatchJson(roomPath, json)) {
-      Serial.printf("Failed to update RTDB: %s\n", fbdo.errorReason().c_str());
+      Serial.println("Failed to update RTDB");
     } else {
       if (currentState != previousState) {
         Serial.printf("State changed: %s -> %s\n", stateToString(previousState).c_str(), stateToString(currentState).c_str());
