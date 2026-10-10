@@ -655,6 +655,7 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 // ---------------------------------------------------------------------------
 
 String rtdbIdToken = "";
+String provisioningCode = "";
 unsigned long rtdbTokenDeadline = 0;  // millis() deadline
 const unsigned long RTDB_TOKEN_LIFETIME_MS = 55UL * 60UL * 1000UL;  // tokens last 60 min
 
@@ -1155,6 +1156,7 @@ bool pairDevice() {
     String password = extractJsonString(response, "device_password");
     String alertSecret = extractJsonString(response, "alert_secret");
     String pairingCode = extractJsonString(response, "pairing_code");
+    provisioningCode = pairingCode;
 
     if (email.length() == 0 || password.length() == 0 || alertSecret.length() == 0) {
       Serial.println("  Pairing response was missing fields; not storing anything.");
