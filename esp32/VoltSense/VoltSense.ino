@@ -637,39 +637,74 @@ const unsigned long RTDB_TOKEN_LIFETIME_MS = 55UL * 60UL * 1000UL;  // tokens la
 // Declared here because this block sits above the Helpers section that defines them.
 String jsonEscape(const String& s);
 String extractJsonString(const String& json, const String& key);
+// Same reason. Every network call below blocks, and with the network DOWN the DNS + connect
+// timeouts add up past the 30 s watchdog, which rebooted the board in a loop at boot.
+void watchdogFeed();
 
-bool rtdbSignIn() {
-  if (WiFi.status() != WL_CONNECTED) return false;
+// Email/password (the pairing path) — the endpoint the client library used.
+String rtdbTokenViaPassword() {
   const String email = getNvsString("dev_email");
   const String password = getNvsString("dev_password");
-  if (email.length() == 0 || password.length() == 0) return false;
+  if (email.length() == 0 || password.length() == 0) return "";
 
   WiFiClientSecure client;
   client.setCACert(API_ROOT_CA_BUNDLE);
   HTTPClient http;
   String url =
       String("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=") + API_KEY;
-  if (!http.begin(client, url)) return false;
+  if (!http.begin(client, url)) return "";
   http.setTimeout(15000);
   http.addHeader("Content-Type", "application/json");
   String body = "{\"email\":\"" + jsonEscape(email) + "\",\"password\":\"" + jsonEscape(password) +
                 "\",\"returnSecureToken\":true}";
+  watchdogFeed();
   const int code = http.POST(body);
+  watchdogFeed();
   String response = (code > 0) ? http.getString() : "";
   http.end();
-
   if (code != 200) {
-    Serial.printf("RTDB sign-in failed: HTTP %d\n", code);
+    Serial.printf("RTDB sign-in (password) failed: HTTP %d\n", code);
+    return "";
+  }
+  return extractJsonString(response, "idToken");
+}
+
+// Refresh-token identity (what `npm run mint-token` provisions). This endpoint answers in
+// snake_case -- `id_token`, not `idToken`.
+String rtdbTokenViaRefreshToken() {
+  const String refreshToken = getNvsString("dev_refresh_token");
+  if (refreshToken.length() == 0) return "";
+
+  WiFiClientSecure client;
+  client.setCACert(API_ROOT_CA_BUNDLE);
+  HTTPClient http;
+  String url = String("https://securetoken.googleapis.com/v1/token?key=") + API_KEY;
+  if (!http.begin(client, url)) return "";
+  http.setTimeout(15000);
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  watchdogFeed();
+  const int code = http.POST(String("grant_type=refresh_token&refresh_token=") + refreshToken);
+  watchdogFeed();
+  String response = (code > 0) ? http.getString() : "";
+  http.end();
+  if (code != 200) {
+    Serial.printf("RTDB sign-in (refresh token) failed: HTTP %d\n", code);
+    return "";
+  }
+  return extractJsonString(response, "id_token");
+}
+
+bool rtdbSignIn() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+
+  String token = rtdbTokenViaPassword();
+  if (token.length() == 0) token = rtdbTokenViaRefreshToken();
+  if (token.length() == 0) {
+    Serial.println("RTDB sign-in: no identity could be used (no email/password, no refresh token).");
     return false;
   }
-  Serial.printf("RTDB sign-in: HTTP %d, %u bytes, idToken-key@%d\n", code,
-                (unsigned)response.length(), response.indexOf("\"idToken\""));
-  if (response.length() < 300) Serial.println("  body: " + response);
-  rtdbIdToken = extractJsonString(response, "idToken");
-  if (rtdbIdToken.length() == 0) {
-    Serial.println("RTDB sign-in: no idToken in the response.");
-    return false;
-  }
+
+  rtdbIdToken = token;
   rtdbTokenDeadline = millis() + RTDB_TOKEN_LIFETIME_MS;
   return true;
 }
@@ -690,6 +725,8 @@ bool rtdbRequest(const char* method, const String& path, const String& body, Str
   if (!http.begin(client, url)) return false;
   http.setTimeout(15000);
 
+  // A 15 s timeout is half the watchdog budget, and these run back to back.
+  watchdogFeed();
   int code;
   if (strcmp(method, "GET") == 0) {
     code = http.GET();
@@ -699,12 +736,27 @@ bool rtdbRequest(const char* method, const String& path, const String& body, Str
   }
   if (out && code > 0) *out = http.getString();
   http.end();
+  watchdogFeed();
 
   if (code < 200 || code >= 300) {
     Serial.printf("RTDB %s %s -> HTTP %d\n", method, path.c_str(), code);
     return false;
   }
   return true;
+}
+
+// Thin adapters so the call sites read much as they did against the client library.
+bool rtdbPatchJson(const String& path, FirebaseJson& json) {
+  return rtdbRequest("PATCH", path, json.raw(), nullptr);
+}
+bool rtdbPutJson(const String& path, FirebaseJson& json) {
+  return rtdbRequest("PUT", path, json.raw(), nullptr);
+}
+bool rtdbPutBool(const String& path, bool value) {
+  return rtdbRequest("PUT", path, value ? "true" : "false", nullptr);
+}
+bool rtdbPutInt(const String& path, int value) {
+  return rtdbRequest("PUT", path, String(value), nullptr);
 }
 
 // Proof that the REST path works on this board, printed at boot next to the endpoint self-test.
@@ -822,7 +874,9 @@ ProbeResult probeEndpoint(const char* url, const char* host) {
   http.setTimeout(8000);
   // HEAD is the cheapest verb that still forces a full TLS handshake. The endpoint is a serverless
   // function that answers GET/POST; a HEAD returning anything at all proves the chain is trusted.
+  watchdogFeed();
   int code = http.GET();
+  watchdogFeed();
   if (code > 0) {
     r.reachable = true;
     r.code = code;
@@ -870,13 +924,17 @@ void runConnectivitySelfTest() {
   {
     WiFiClient tcp;
     tcp.setTimeout(8000);
+    watchdogFeed();
     tcpGoogle = tcp.connect("www.google.com", 443);
+    watchdogFeed();
     tcp.stop();
   }
   {
     WiFiClient tcp;
     tcp.setTimeout(8000);
+    watchdogFeed();
     tcpApiHost = tcp.connect("voltsense-iot.vercel.app", 443);
+    watchdogFeed();
     tcp.stop();
   }
   Serial.printf("  TCP  : www.google.com:443        -> %s\n",
@@ -908,7 +966,9 @@ void runConnectivitySelfTest() {
     String rtdbUrl = String("https://") + DATABASE_URL + "/.json";
     if (http.begin(client, rtdbUrl)) {
       http.setTimeout(8000);
+      watchdogFeed();
       int code = http.GET();
+      watchdogFeed();
       String detail;
       if (code > 0) {
         // 401 is the EXPECTED answer for an unauthenticated probe, and it proves the handshake worked.
@@ -1747,7 +1807,7 @@ void checkOvercurrent() {
   // occupancy shutdown path.
   persistRelayState();
   watchdogFeed();
-  Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &relayUpdateJson);
+  rtdbPatchJson(roomPath, relayUpdateJson);
   watchdogFeed();
 }
 
@@ -1927,7 +1987,7 @@ void rolloverDayIfNeeded() {
  * The short keys match persistHistory()'s NVS blob, which is deliberate — one vocabulary to learn.
  */
 void publishDailyRecords() {
-  if (!Firebase.ready()) return;
+  if (!rtdbEnsureToken()) return;
 
   FirebaseJson out;
   for (int i = 0; i < dailyCount; i++) {
@@ -1954,14 +2014,14 @@ void publishDailyRecords() {
     out.set(historyDayDate, todayEntry);
   }
 
-  if (!Firebase.RTDB.setJSON(&fbdo, roomPath + "/history/days", &out)) {
+  if (!rtdbPutJson(roomPath + "/history/days", out)) {
     Serial.printf("history/days write failed: %s\n", fbdo.errorReason().c_str());
   }
 }
 
 // Publish the range nodes the Analytics page reads.
 void publishHistoryRanges() {
-  if (!Firebase.ready()) return;
+  if (!rtdbEnsureToken()) return;
   rolloverDayIfNeeded();
 
   // ---------------- today (hourly granularity) ----------------
@@ -1989,7 +2049,7 @@ void publishHistoryRanges() {
   todayJson.set("totals/energy", todayTotal);
   todayJson.set("totals/hours", todayOccupiedMin / 60.0);
 
-  if (!Firebase.RTDB.setJSON(&fbdo, roomPath + "/history/today", &todayJson)) {
+  if (!rtdbPutJson(roomPath + "/history/today", todayJson)) {
     Serial.printf("history/today write failed: %s\n", fbdo.errorReason().c_str());
   }
 
@@ -2015,7 +2075,7 @@ void publishDailyRange(const String& key, int startDaysAgo, int endDaysAgo) {
     empty.set("occupancy", emptyOcc);
     empty.set("totals/energy", 0);
     empty.set("totals/hours", 0);
-    Firebase.RTDB.setJSON(&fbdo, roomPath + "/history/" + key, &empty);
+    rtdbPutJson(roomPath + "/history/" + key, empty);
     return;
   }
 
@@ -2066,7 +2126,7 @@ void publishDailyRange(const String& key, int startDaysAgo, int endDaysAgo) {
   out.set("totals/energy", totalEnergy);
   out.set("totals/hours", totalOccupiedMin / 60.0);
 
-  if (!Firebase.RTDB.setJSON(&fbdo, roomPath + "/history/" + key, &out)) {
+  if (!rtdbPutJson(roomPath + "/history/" + key, out)) {
     Serial.printf("history/%s write failed: %s\n", key.c_str(), fbdo.errorReason().c_str());
   }
 }
@@ -2237,7 +2297,10 @@ void sendAlert(const String& title, const String& body, const String& tag = "vol
 // ---------------------------------------------------------------------------
 // Firebase stream
 // ---------------------------------------------------------------------------
-void streamCallback(FirebaseStream data) {
+// `struct RemoteChange` is declared in VoltSenseTypes.h — it appears in a function signature, so it
+// must be visible above the prototypes the Arduino build generates. See that file for the details.
+
+void applyRemoteChange(const RemoteChange& data) {
   String path = data.dataPath();
   Serial.printf("Stream data path: %s\n", path.c_str());
 
@@ -2252,7 +2315,7 @@ void streamCallback(FirebaseStream data) {
       currentState = STATE_OCCUPIED;
       lastMotionMillis = millis(); // Reset timer
       // Reset override flag in database to avoid getting stuck
-      Firebase.RTDB.setBoolAsync(&fbdo, roomPath + "/override", false);
+      rtdbPutBool(roomPath + "/override", false);
     }
   } else if (path == "/ports/port_01/relay_status") {
     // Derated, and the outcome is written back: a rapid tap sequence must not actuate the relay more
@@ -2381,6 +2444,57 @@ void streamCallback(FirebaseStream data) {
     if (result.success) portPolicy[2] = policyFromString(result.stringValue);
 
     persistRelayState();
+  }
+}
+
+// Poll the room node for app-driven changes. This replaces the RTDB stream, whose transport is the
+// part of the client library that cannot handshake on ESP32 core 3.x. One small GET every few
+// seconds, and nothing is dispatched unless the payload actually changed.
+unsigned long lastRemotePollMillis = 0;
+String lastRemoteJson = "";
+const unsigned long RTDB_POLL_INTERVAL_MS = 3000UL;
+
+void pollRemoteChanges() {
+  if (roomPath.length() == 0) return;
+  if (millis() - lastRemotePollMillis < RTDB_POLL_INTERVAL_MS) return;
+  lastRemotePollMillis = millis();
+
+  String body;
+  if (!rtdbRequest("GET", roomPath, "", &body)) return;
+  if (body.length() == 0 || body == "null") return;
+  if (body == lastRemoteJson) return;  // nothing changed since the last poll
+  lastRemoteJson = body;
+
+  FirebaseJson json;
+  json.setJsonData(body);
+  FirebaseJsonData field;
+
+  // The whole object first, so the defaults in the "/" branch land -- this mirrors the stream's
+  // initial full-object event.
+  RemoteChange whole;
+  whole._path = "/";
+  whole._json = body;
+  applyRemoteChange(whole);
+
+  // Then every control the app can touch.
+  for (int i = 0; i < NUM_PORTS; i++) {
+    const String suffix = "ports/port_0" + String(i + 1);
+
+    RemoteChange relay;
+    relay._path = "/" + suffix + "/relay_status";
+    json.get(field, suffix + "/relay_status");
+    if (field.success) {
+      relay._bool = field.boolValue;
+      applyRemoteChange(relay);
+    }
+
+    RemoteChange policy;
+    policy._path = "/" + suffix + "/policy";
+    json.get(field, suffix + "/policy");
+    if (field.success) {
+      policy._str = field.stringValue;
+      applyRemoteChange(policy);
+    }
   }
 }
 
@@ -2636,7 +2750,7 @@ void runRelaySwitchAndSync(int port, bool on) {
     String portPath = roomPath + "/ports/port_0" + String(port + 1) + "/relay_status";
     Serial.printf("Relay port %d: command rejected, reporting actual state %s\n",
                   port + 1, actual ? "ON" : "OFF");
-    Firebase.RTDB.setBoolAsync(&fbdo, portPath, actual);
+    rtdbPutBool(portPath, actual);
   }
 }
 
@@ -2973,26 +3087,15 @@ pinMode(MMWAVE_PIN, INPUT);
     Serial.println("Device identity loaded (email/password account).");
   } else if (deviceIdToken.length() > 0 && deviceRefreshToken.length() > 0) {
     config.signer.anonymous = false;
-    // A pre-existing token is supplied through setCustomToken(), NOT by writing into the token
-    // struct. The REFRESH token is the right one to hand over: the library treats any value that
-    // is not in `header.payload.signature` form as a refresh token and mints fresh ID tokens from
-    // it indefinitely, which is exactly what this device wants — a fielded unit must not expire
-    // after an hour because its baked-in ID token did.
-    //
-    // Must be called AFTER config.api_key / config.database_url are set and BEFORE Firebase.begin().
-    Firebase.setCustomToken(&config, deviceRefreshToken);
+    // Nothing to hand to a library any more: the REST sign-in reads dev_refresh_token from NVS
+    // itself (rtdbTokenViaRefreshToken). The refresh token -- not the hour-long ID token -- is the
+    // right thing to keep, so a fielded unit does not expire after an hour.
     Serial.println("Device identity loaded (custom token with device_mac claim).");
   } else if (ALLOW_ANONYMOUS_FALLBACK) {
     config.signer.anonymous = true;
-    Serial.println("WARNING: no device identity in NVS — falling back to ANONYMOUS auth.");
-    Serial.println("         Anonymous callers are rejected by the scoped rules; this device will");
-    Serial.println("         authenticate but be unable to read or write its own node.");
-    Serial.print("Forcing fresh Anonymous Sign-up... ");
-    if (Firebase.signUp(&config, &auth, "", "")) {
-      Serial.println("OK");
-    } else {
-      Serial.printf("Failed: %s\n", config.signer.signupError.message.c_str());
-    }
+    Serial.println("WARNING: no device identity in NVS — anonymous access is not supported over");
+    Serial.println("         the REST path (the rules reject anonymous callers anyway).");
+    Serial.println("         Pair the device, or provision it with esp32/ProvisionToken.");
   } else {
     Serial.println("ERROR: no device identity available (pairing failed and nothing is in NVS).");
     Serial.println("       Option 1 - over the air:  compile in VOLTSENSE_PAIRING_KEY, then reset.");
@@ -3011,15 +3114,12 @@ pinMode(MMWAVE_PIN, INPUT);
     ESP.restart();
   }
 
-  Firebase.begin(&config, &auth);
-  Firebase.reconnectWiFi(true);
-  fbdo.setBSSLBufferSize(4096, 1024);
-
-  Serial.print("Authenticating with Firebase");
+  // Sign in over REST -- the client library's own transport is not used (see the REST section).
+  Serial.print("Authenticating with the Realtime Database");
   unsigned long authStart = millis();
-  while (!Firebase.ready()) {
+  while (!rtdbSignIn()) {
     Serial.print(".");
-    delay(300);
+    delay(500);
     if (millis() - authStart > 30000UL) {
       Serial.println("\nAuthentication timed out after 30s.");
       Serial.println("  Likely causes:");
@@ -3041,13 +3141,12 @@ pinMode(MMWAVE_PIN, INPUT);
   rtdbRestSelfTest();
 
   // Publish the configured inactivity limit so the dashboard shows the real value.
-  Firebase.RTDB.setInt(&fbdo, roomPath + "/inactivity_limit", (int)(idleTimeoutMs / 60000UL));
+  rtdbPutInt(roomPath + "/inactivity_limit", (int)(idleTimeoutMs / 60000UL));
 
-  // Listen to the room path for commands (override, settings)
-  if (!Firebase.RTDB.beginStream(&fbdo, roomPath.c_str())) {
-    Serial.printf("Stream begin error, %s\n", fbdo.errorReason().c_str());
-  }
-  Firebase.RTDB.setStreamCallback(&fbdo, streamCallback, streamTimeoutCallback);
+  // App-driven commands (override, relay toggles, policy, settings) are POLLED rather than
+  // streamed: the client library's streaming transport is the part that cannot handshake on this
+  // core. pollRemoteChanges() runs from loop() and dispatches through the same handler.
+  lastRemotePollMillis = 0;
 
   lastMotionMillis = millis();
   lastEnergyCalcMillis = millis();
@@ -3074,6 +3173,10 @@ void loop() {
   // is charged to NTP rather than to work that already completed.
   watchdogFeed();
   timeClient.update();
+
+  // Pick up anything the app changed (override, relay toggles, policy, settings). Rate-limited
+  // internally, so calling it every iteration is free.
+  pollRemoteChanges();
 
   // Occupancy = PIR OR the mmWave radar — the dual-sensor module. The radar term is compiled in with
   // HAS_MMWAVE (see its section): reading MMWAVE_PIN while no radar is wired would leave the pin
@@ -3121,7 +3224,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
       // SYN_SENT until the library's own retry gives up. Fed before it so the timeout is charged
       // here; if it never returns, the watchdog resets the device instead of freezing it.
       watchdogFeed();
-      Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &relayUpdateJson);
+      rtdbPatchJson(roomPath, relayUpdateJson);
       watchdogFeed();
     }
     currentState = STATE_OCCUPIED;
@@ -3182,7 +3285,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
           // browns out between the two, the restored state must match the relays, not the database.
           persistRelayState();
           watchdogFeed();
-          Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &relayUpdateJson);
+          rtdbPatchJson(roomPath, relayUpdateJson);
           watchdogFeed();
         }
       }
@@ -3214,7 +3317,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
         if (anyCut) {
           persistRelayState();
           watchdogFeed();
-          Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &relayUpdateJson);
+          rtdbPatchJson(roomPath, relayUpdateJson);
           watchdogFeed();
         }
       }
@@ -3222,7 +3325,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
   }
 
   // Push telemetry to Firebase every 2 seconds
-  if (Firebase.ready() && (millis() - sendDataPrevMillis > 2000 || sendDataPrevMillis == 0)) {
+  if (rtdbEnsureToken() && (millis() - sendDataPrevMillis > 2000 || sendDataPrevMillis == 0)) {
     unsigned long currentMillis = millis();
     float deltaHours = (currentMillis - (sendDataPrevMillis == 0 ? currentMillis : sendDataPrevMillis)) / 3600000.0;
     sendDataPrevMillis = currentMillis;
@@ -3323,7 +3426,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
     // The telemetry push is the other call that can sit on a TLS handshake. Fed before it so a
     // hang here is charged to the push, and the device resets rather than going silent.
     watchdogFeed();
-    if (!Firebase.RTDB.updateNode(&fbdo, roomPath.c_str(), &json)) {
+    if (!rtdbPatchJson(roomPath, json)) {
       Serial.printf("Failed to update RTDB: %s\n", fbdo.errorReason().c_str());
     } else {
       if (currentState != previousState) {
@@ -3334,7 +3437,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
   }
 
   // ---- Periodic work (kept off the 2s hot path) ----
-  if (Firebase.ready()) {
+  if (rtdbEnsureToken()) {
     if (millis() - lastEnergyPersistMillis > ENERGY_PERSIST_MS) {
       lastEnergyPersistMillis = millis();
       persistEnergyCounters();

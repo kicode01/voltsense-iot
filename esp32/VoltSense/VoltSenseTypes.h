@@ -75,4 +75,30 @@ enum RelaySwitchResult { RELAY_SWITCHED, RELAY_NOOP, RELAY_SUPPRESSED };
  */
 enum PortPolicy { POLICY_OCCUPANCY, POLICY_ALWAYS_ON, POLICY_KEEP_WHILE_DRAWING };
 
+/**
+ * One field changed on the room node, handed to the dispatcher.
+ *
+ * Stands in for the client library's `FirebaseStream`: the Realtime Database is now reached over
+ * REST (see the REST section of the sketch), so there is no stream object any more. Exposing the
+ * same accessor names (`dataPath()`, `boolData()`, `stringData()`, `intData()`, `floatData()`,
+ * `jsonString()`) lets the existing dispatch body be reused verbatim, which is the whole point —
+ * that body holds the policy, calibration and clamping rules and is not worth re-deriving.
+ *
+ * Declared here because it appears in a function signature — see this file's header.
+ */
+struct RemoteChange {
+  String _path;
+  String _json;
+  String _str;
+  bool _bool = false;
+  long _int = 0;
+  float _float = 0.0f;
+  String dataPath() const { return _path; }
+  bool boolData() const { return _bool; }
+  String stringData() const { return _str; }
+  long intData() const { return _int; }
+  float floatData() const { return _float; }
+  String jsonString() const { return _json; }
+};
+
 #endif // VOLTSENSE_TYPES_H

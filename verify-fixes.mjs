@@ -895,10 +895,11 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
       /ssl|tls/i.test(fwSrc.slice(fwSrc.indexOf('bool looksLikeTlsFailure'))),
     'certificate rotation is not mistaken for Wi-Fi trouble'
   );
-  // The self-test must run before pairing/auth, or it cannot explain a pairing failure.
+  // The self-test must run before auth, or it cannot explain a failure to reach the API at all.
+  // Auth is now the REST sign-in, so the marker is rtdbSignIn() rather than Firebase.begin().
   record(
-    'Connectivity self-test runs before Firebase auth',
-    sBody.indexOf('runConnectivitySelfTest()') < sBody.indexOf('Firebase.begin('),
+    'Connectivity self-test runs before authentication',
+    sBody.indexOf('runConnectivitySelfTest()') < sBody.indexOf('rtdbSignIn()'),
     'explains a failure before the first POST'
   );
   // The failure signatures must be documented where a maintainer will look.
@@ -1259,16 +1260,24 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
   // is exactly as capable of hanging the loop, and an earlier version of this check sliced from
   // `void loop()` — so the call added to `checkOvercurrent()` was invisible to it. Coverage that
   // silently excludes new code is worse than none, because it reads as verified.
+  // The Realtime Database is now reached over REST, so every blocking network call funnels through
+  // rtdbRequest(). Asserting the feed THERE covers every call site at once -- and covers the ones
+  // added later, which per-call-site matching silently would not.
   const fwCodeForOrder = stripComments(fwSrc);
-  const fbCalls = fwCodeForOrder.match(/[\s\S]{200}Firebase\.RTDB\.updateNode/g) || [];
-  const fedBeforeEach = fbCalls.length > 0 &&
-    fbCalls.every((s) => /watchdogFeed\s*\(\s*\)\s*;/.test(s));
+  const rtdbFnStart = fwCodeForOrder.indexOf('bool rtdbRequest(');
+  const rtdbFn = rtdbFnStart >= 0 ? fwCodeForOrder.slice(rtdbFnStart) : '';
+  const verbAt = rtdbFn.search(/http\.(GET|PATCH|PUT)\s*\(/);
+  const feedsBefore =
+    verbAt > 0 ? (rtdbFn.slice(0, verbAt).match(/watchdogFeed\s*\(\s*\)/g) || []).length : 0;
+  const feedsAfter =
+    verbAt > 0 ? (rtdbFn.slice(verbAt).match(/watchdogFeed\s*\(\s*\)/g) || []).length : 0;
+  const fedAround = feedsBefore >= 1 && feedsAfter >= 1;
   record(
-    'Watchdog is fed BEFORE every blocking Firebase call, not after',
-    fedBeforeEach,
-    fedBeforeEach
-      ? `${fbCalls.length}/${fbCalls.length} call sites pre-fed (whole file)`
-      : '*** a hung call would starve the timer and never reset ***'
+    'Watchdog is fed on BOTH sides of every blocking RTDB call',
+    fedAround,
+    fedAround
+      ? 'rtdbRequest() pre-feeds and post-feeds the timer'
+      : `*** feeds before=${feedsBefore}, after=${feedsAfter} — a hung call would starve the timer ***`
   );
 
   // A deliberate long wait must not reboot the device. The rule is not "no delay() may exist" —
@@ -1435,7 +1444,7 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
   // device sees it, so a silently dropped command leaves the toggle showing a state the relay is not
   // in. The device must write the ACTUAL state back.
   const repairsOnSuppress = /RELAY_SUPPRESSED/.test(derateCode) &&
-    /runRelaySwitchAndSync[\s\S]{0,900}?RELAY_SUPPRESSED[\s\S]{0,600}?setBoolAsync/.test(derateCode);
+    /runRelaySwitchAndSync[\s\S]{0,900}?RELAY_SUPPRESSED[\s\S]{0,600}?rtdbPutBool/.test(derateCode);
   record(
     'A derating rejection is reported back to the database, not silently dropped',
     repairsOnSuppress,
