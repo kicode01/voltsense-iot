@@ -1055,10 +1055,44 @@ void runConnectivitySelfTest() {
 // caller decide what to do. Spinning forever here would leave the relays in whatever state they
 // booted in with no telemetry, which is worse than a clear failure message.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Where the factory key comes from
+// ---------------------------------------------------------------------------
+//
+// Two sources, tried in this order:
+//
+//   1. NVS — typed once into the Wi-Fi setup portal. This is the one you want in the field: the
+//      image is generic and the installer supplies the key at first boot.
+//   2. The compiled-in VOLTSENSE_PAIRING_KEY (gitignored secrets.h, or a -D flag).
+//
+// The portal path exists because baking the key in is what kept going wrong. A build without it
+// boots, joins Wi-Fi, and *then* reports "No factory pairing key compiled in" — a device that looks
+// perfectly healthy and can never pair. Asking at setup makes that impossible to ship, and it means
+// the key is typed rather than committed (it has already leaked into git history once).
+//
+// NOTE ON EXPOSURE: the setup AP is open, as it always has been, and is only up while provisioning.
+// Anyone in range during that window can read the key — treat it like typing a Wi-Fi password into
+// a captive portal. The key only buys the right to ASK for credentials; once paired a unit's real
+// secrets are unique and the factory key is worthless against it. If that is not acceptable for a
+// given deployment, pass a password to wm.autoConnect()/startConfigPortal() instead.
+#define NVS_KEY_PAIRING_KEY "pairing_key"
+
+String provisioningKey() {
+  const String stored = getNvsString(NVS_KEY_PAIRING_KEY);
+  if (stored.length() > 0) return stored;
+  return String(VOLTSENSE_PAIRING_KEY);
+}
+
+bool provisioningKeyAvailable() {
+  return getNvsString(NVS_KEY_PAIRING_KEY).length() > 0 ||
+         String(VOLTSENSE_PAIRING_KEY).length() > 0;
+}
+
 bool pairDevice() {
-  const String factoryKey = String(VOLTSENSE_PAIRING_KEY);
+  const String factoryKey = provisioningKey();
   if (factoryKey.length() == 0) {
-    Serial.println("No factory pairing key compiled in; USB provisioning required.");
+    Serial.println("No factory pairing key available (none stored, none compiled in).");
+    Serial.println("  It can be entered in the Wi-Fi setup portal — see the provisioning section.");
     return false;
   }
   if (macAddress.length() == 0) {
@@ -3026,6 +3060,39 @@ pinMode(MMWAVE_PIN, INPUT);
 
   WiFiManager wm;
   wm.setConfigPortalTimeout(180); // 3 minutes per attempt in the captive portal
+  const char* custom_css =
+    "<style>"
+    "body { background-color: #F0F2F5; font-family: 'Outfit', sans-serif, -apple-system, system-ui; color: #111827; }"
+    "h1 { color: #111827; font-weight: 700; }"
+    "button { background-color: #612f2f; color: #ffffff; border-radius: 1rem; border: none; padding: 0.75rem 1.25rem; font-weight: bold; width: 100%; max-width: 300px; cursor: pointer; transition: background-color 0.2s; }"
+    "button:hover { background-color: #522929; }"
+    "input { border-radius: 0.75rem; border: 1px solid #d1d5db; padding: 0.75rem; width: 100%; box-sizing: border-box; background: #ffffff; color: #111827; margin-bottom: 1rem; outline: none; }"
+    "input:focus { border: 2px solid #612f2f; padding: calc(0.75rem - 1px); outline: none; }"
+    "a { color: #612f2f; text-decoration: none; font-weight: 700; }"
+    ".wrap { max-width: 400px; margin: 2rem auto; padding: 2rem; background: #ffffff; border-radius: 1.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); text-align: center; }"
+    ".c { padding: 0; }"
+    ".msg { margin-bottom: 1.5rem; }"
+    "</style>"
+    "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>";
+  wm.setCustomHeadElement(custom_css);
+
+  // Extra field on the portal: the factory pairing key. Without one the unit can never prove itself
+  // to the server, so ask here rather than requiring it to be compiled into the image. The default
+  // is whatever is already stored, so re-opening the portal does not wipe an existing key.
+  const String storedKey = getNvsString(NVS_KEY_PAIRING_KEY);
+  WiFiManagerParameter pairingKeyField(
+      "pairing_key", "Factory pairing key (64 hex chars — blank to keep the current one)",
+      storedKey.c_str(), 64);
+  wm.addParameter(&pairingKeyField);
+
+  // A unit with no key AND no identity can never do anything useful, and "joined Wi-Fi but can never
+  // pair" is an easy state to ship. Insist on the portal in that case, even when Wi-Fi is already
+  // saved — the same form collects both, so the installer is not asked twice.
+  if (!provisioningKeyAvailable() && getNvsString("dev_email").length() == 0) {
+    Serial.println("No pairing key available anywhere — opening the setup portal to ask for one.");
+    wm.startConfigPortal("VoltSense_Setup");
+  }
+
   Serial.println("Starting WiFiManager...");
 
   bool connected = false;
@@ -3037,6 +3104,13 @@ pinMode(MMWAVE_PIN, INPUT);
       Serial.printf("Attempt %d failed — retrying in 5s\n", attempt);
       delay(5000);
     }
+  }
+
+  // Persist whatever the installer typed, so it survives reboots and need not be re-entered.
+  const String enteredKey = String(pairingKeyField.getValue());
+  if (enteredKey.length() > 0 && enteredKey != storedKey) {
+    setNvsString(NVS_KEY_PAIRING_KEY, enteredKey);
+    Serial.println("Pairing key saved from the setup portal.");
   }
 
   if (!connected) {
@@ -3473,4 +3547,5 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
     }
   }
 }
+
 
