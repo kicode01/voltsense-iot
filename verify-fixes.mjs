@@ -1882,6 +1882,23 @@ const alertStartEnd = (src, from) => {
         : '*** A CREDENTIAL IS HARD-CODED — rotate it and remove it ***'
   );
 
+  // 5c. THE KEY MUST BE SUPPLIABLE AT SETUP, not only compiled in. Baking it in is what shipped
+  //     keyless builds: the device joins Wi-Fi, looks healthy, and then reports it has no key — a
+  //     unit that can never pair, with the failure only visible on the serial console. The portal
+  //     must offer the field and persist whatever is typed.
+  const portalOffersKey =
+    /WiFiManagerParameter\s+pairingKeyField[\s\S]{0,300}?addParameter\s*\(\s*&pairingKeyField\s*\)/.test(inoCode);
+  const persistsKey = /setNvsString\s*\(\s*NVS_KEY_PAIRING_KEY/.test(inoCode);
+  const resolvesFromBoth = /String\s+provisioningKey\s*\(/.test(inoCode);
+  const insistsWhenMissing = /startConfigPortal\s*\(\s*"VoltSense_Setup"\s*\)/.test(inoCode);
+  record(
+    'The factory key can be entered at setup, not only compiled in',
+    portalOffersKey && persistsKey && resolvesFromBoth && insistsWhenMissing,
+    portalOffersKey && persistsKey && resolvesFromBoth && insistsWhenMissing
+      ? 'portal field + NVS persistence, and the portal is forced when no key exists'
+      : `*** portal=${portalOffersKey} persists=${persistsKey} resolver=${resolvesFromBoth} forced=${insistsWhenMissing} ***`
+  );
+
   // 5c. The LOAD POLICY defect must stay documented. The shutdown rule keeps a port on when it draws
   //     current, which for the device's actual loads (chargers, fans, lamps) protects the wasteful
   //     case — a lamp left burning in an empty room — and cuts the useful one (a phone mid-charge).
