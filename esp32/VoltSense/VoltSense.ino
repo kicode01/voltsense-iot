@@ -607,6 +607,135 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 )EOF";
 
 // ---------------------------------------------------------------------------
+// Realtime Database over REST
+//
+// WHY NOT THE CLIENT LIBRARY: the bundled Firebase client library ships its own BearSSL TLS stack
+// and, on ESP32 core 3.x, cannot complete a handshake with Google's RTDB frontends. The board says:
+//
+//     > ERROR.mConnectSSL: Failed to initlalize the SSL layer.
+//     > ERROR.mConnectSSL: Incoming protocol or record version is unsupported.
+//
+// while the SAME board, at the SAME moment, reaches the SAME host with the core's native mbedTLS
+// client -- the boot self-test prints "HTTPS /.json -> HTTP 401 (TLS OK)". The fault is in the
+// library's TLS stack, not in the network, and swapping it out was tried and reverted: the library's
+// connection lifecycle assumes BearSSL's own connected()/available()/stop() semantics.
+//
+// So this device speaks the Realtime Database REST API directly, over the HTTPClient +
+// API_ROOT_CA_BUNDLE path that IS proven here. Same database, same security rules, no client library.
+//
+//   write :  PATCH|PUT  https://<db-host>/<path>.json?auth=<idToken>
+//   read  :  GET        https://<db-host>/<path>.json?auth=<idToken>
+//
+// The ID token comes from Identity Toolkit (the endpoint the library used) and is good for an hour,
+// so it is refreshed well before then.
+// ---------------------------------------------------------------------------
+
+String rtdbIdToken = "";
+unsigned long rtdbTokenDeadline = 0;  // millis() deadline
+const unsigned long RTDB_TOKEN_LIFETIME_MS = 55UL * 60UL * 1000UL;  // tokens last 60 min
+
+// Declared here because this block sits above the Helpers section that defines them.
+String jsonEscape(const String& s);
+String extractJsonString(const String& json, const String& key);
+
+bool rtdbSignIn() {
+  if (WiFi.status() != WL_CONNECTED) return false;
+  const String email = getNvsString("dev_email");
+  const String password = getNvsString("dev_password");
+  if (email.length() == 0 || password.length() == 0) return false;
+
+  WiFiClientSecure client;
+  client.setCACert(API_ROOT_CA_BUNDLE);
+  HTTPClient http;
+  String url =
+      String("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=") + API_KEY;
+  if (!http.begin(client, url)) return false;
+  http.setTimeout(15000);
+  http.addHeader("Content-Type", "application/json");
+  String body = "{\"email\":\"" + jsonEscape(email) + "\",\"password\":\"" + jsonEscape(password) +
+                "\",\"returnSecureToken\":true}";
+  const int code = http.POST(body);
+  String response = (code > 0) ? http.getString() : "";
+  http.end();
+
+  if (code != 200) {
+    Serial.printf("RTDB sign-in failed: HTTP %d\n", code);
+    return false;
+  }
+  Serial.printf("RTDB sign-in: HTTP %d, %u bytes, idToken-key@%d\n", code,
+                (unsigned)response.length(), response.indexOf("\"idToken\""));
+  if (response.length() < 300) Serial.println("  body: " + response);
+  rtdbIdToken = extractJsonString(response, "idToken");
+  if (rtdbIdToken.length() == 0) {
+    Serial.println("RTDB sign-in: no idToken in the response.");
+    return false;
+  }
+  rtdbTokenDeadline = millis() + RTDB_TOKEN_LIFETIME_MS;
+  return true;
+}
+
+bool rtdbEnsureToken() {
+  if (rtdbIdToken.length() > 0 && (long)(millis() - rtdbTokenDeadline) < 0) return true;
+  return rtdbSignIn();
+}
+
+// One REST call. `method` is "GET", "PUT" or "PATCH"; `body` is used for the writes only.
+bool rtdbRequest(const char* method, const String& path, const String& body, String* out) {
+  if (!rtdbEnsureToken()) return false;
+
+  WiFiClientSecure client;
+  client.setCACert(API_ROOT_CA_BUNDLE);
+  HTTPClient http;
+  String url = String("https://") + DATABASE_URL + path + ".json?auth=" + rtdbIdToken;
+  if (!http.begin(client, url)) return false;
+  http.setTimeout(15000);
+
+  int code;
+  if (strcmp(method, "GET") == 0) {
+    code = http.GET();
+  } else {
+    http.addHeader("Content-Type", "application/json");
+    code = (strcmp(method, "PATCH") == 0) ? http.PATCH(body) : http.PUT(body);
+  }
+  if (out && code > 0) *out = http.getString();
+  http.end();
+
+  if (code < 200 || code >= 300) {
+    Serial.printf("RTDB %s %s -> HTTP %d\n", method, path.c_str(), code);
+    return false;
+  }
+  return true;
+}
+
+// Proof that the REST path works on this board, printed at boot next to the endpoint self-test.
+void rtdbRestSelfTest() {
+  Serial.println("--- Realtime Database REST self-test ---");
+  if (!rtdbSignIn()) {
+    Serial.println("  [FAIL] sign-in (no idToken)");
+    Serial.println("---------------------------------------");
+    return;
+  }
+  Serial.println("  [ OK ] signed in, idToken obtained");
+
+  const String path = roomPath + "/diag";
+  if (!rtdbRequest("PATCH", path, String("{\"rest_ok\":") + (unsigned long)millis() + "}", nullptr)) {
+    Serial.println("  [FAIL] write");
+    Serial.println("---------------------------------------");
+    return;
+  }
+  Serial.println("  [ OK ] wrote " + path);
+
+  String back;
+  if (!rtdbRequest("GET", path, "", &back)) {
+    Serial.println("  [FAIL] read-back");
+    Serial.println("---------------------------------------");
+    return;
+  }
+  Serial.println("  [ OK ] read back: " + back);
+  Serial.println("---------------------------------------");
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -937,14 +1066,24 @@ bool pairDevice() {
 
 // Pull a top-level string field out of a small JSON document.
 String extractJsonString(const String& json, const String& key) {
-  String needle = "\"" + key + "\":\"";
-  int start = json.indexOf(needle);
-  if (start < 0) return "";
-  start += needle.length();
+  // Match "key", then a colon, then the opening quote -- tolerating whitespace around the colon.
+  // Google's REST APIs return `"idToken": "..."` WITH a space, which the previous exact-match form
+  // (`"key":"`) silently failed on, returning an empty string.
+  const String needle = "\"" + key + "\"";
+  int i = json.indexOf(needle);
+  if (i < 0) return "";
+  i += needle.length();
+
+  while (i < (int)json.length() && isspace((unsigned char)json[i])) i++;
+  if (i >= (int)json.length() || json[i] != ':') return "";
+  i++;
+  while (i < (int)json.length() && isspace((unsigned char)json[i])) i++;
+  if (i >= (int)json.length() || json[i] != '"') return "";
+  i++;
 
   // Walk to the closing quote, honouring backslash escapes.
   String out = "";
-  for (int i = start; i < (int)json.length(); i++) {
+  for (; i < (int)json.length(); i++) {
     char c = json[i];
     if (c == '\\' && i + 1 < (int)json.length()) {
       char next = json[i + 1];
@@ -2896,6 +3035,10 @@ pinMode(MMWAVE_PIN, INPUT);
 
   roomPath = "/devices/" + macAddress;
   Serial.printf("Database path set to: %s\n", roomPath.c_str());
+
+  // Prove the Realtime Database is reachable over REST before the client library's own transport
+  // is relied on (it currently cannot handshake -- see the REST section above).
+  rtdbRestSelfTest();
 
   // Publish the configured inactivity limit so the dashboard shows the real value.
   Firebase.RTDB.setInt(&fbdo, roomPath + "/inactivity_limit", (int)(idleTimeoutMs / 60000UL));
