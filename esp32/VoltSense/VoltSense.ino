@@ -2302,7 +2302,7 @@ void sendAlert(const String& title, const String& body, const String& tag = "vol
 
 void applyRemoteChange(const RemoteChange& data) {
   String path = data.dataPath();
-  Serial.printf("Stream data path: %s\n", path.c_str());
+  Serial.printf("Remote change: %s\n", path.c_str());
 
   if (path == "/override") {
     overrideActive = data.boolData();
@@ -2462,6 +2462,21 @@ void pollRemoteChanges() {
   String body;
   if (!rtdbRequest("GET", roomPath, "", &body)) return;
   if (body.length() == 0 || body == "null") return;
+
+  // Report what the database actually holds once telemetry is there. This is the honest end-to-end
+  // check: it proves the values this device writes really land in the RTDB, rather than only that a
+  // request returned 2xx. Gives up after a few polls so a silent failure still says so.
+  static int pollCount = 0;
+  static bool reportedFirstPoll = false;
+  pollCount++;
+  const bool hasTelemetry = body.indexOf("total_power_watts") >= 0;
+  if (!reportedFirstPoll && (hasTelemetry || pollCount > 20)) {
+    reportedFirstPoll = true;
+    Serial.printf("RTDB read-back: %u bytes, telemetry=%s, diag=%s (poll #%d)\n",
+                  (unsigned)body.length(), hasTelemetry ? "yes" : "NO",
+                  body.indexOf("rest_ok") >= 0 ? "yes" : "no", pollCount);
+  }
+
   if (body == lastRemoteJson) return;  // nothing changed since the last poll
   lastRemoteJson = body;
 
