@@ -52,7 +52,9 @@ arduino-cli compile --fqbn "esp32:esp32:esp32:PartitionScheme=huge_app" esp32/Vo
 ## Hardware BOM — the authoritative build (user-supplied)
 
 - **ESP32** dev board. **HC-SR501 PIR** = the ONLY occupancy sensor → `PIR_PIN` (GPIO 22).
-- **3-ch relay** → `RELAY_PINS` {23,21,19}, HIGH = energised. **5 V regulated supply**, enclosure, phone.
+- **3-ch relay** → `RELAY_PINS` {23,21,19}, **active-LOW** (`RELAY_ON_LEVEL = LOW`). Never touch a
+  relay pin directly: go through `relayIsOn()` / `relayWritePin()`. **5 V regulated supply**,
+  enclosure, phone.
 - **3× ACS712** → `CURRENT_SENSOR_PINS` {34,35,32}. **ADC1 only** — ADC2 dies while Wi-Fi is up (reads  
   a permanent 0 A). Default part is the **5 A -05B, 185 mV/A**; the 20 A (100) / 30 A (66) parts silently  
   rescale every reading if substituted. **ACS712 is a Hall CURRENT sensor — it cannot measure voltage.**

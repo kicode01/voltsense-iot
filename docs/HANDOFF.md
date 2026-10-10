@@ -212,16 +212,23 @@ The HC-SR501 will not work reliably at 3.3 V. It has two potentiometers:
 
 Also set the jumper to **"H" (repeat trigger)**, not "L".
 
-### ⚠️ Relay polarity — verify this BEFORE mains
+### ✅ Relay polarity — CONFIRMED ACTIVE-LOW
 
-The firmware assumes **HIGH = relay energised** (its source says so explicitly). **Most cheap relay  
-modules are active-LOW**, which would invert every port: the app says ON and the socket goes dead.
+The fitted relay modules are **active-LOW**: pulling a pin **LOW energises the coil**. The firmware
+now records this in exactly one place (`RELAY_ON_LEVEL` / `RELAY_OFF_LEVEL` near `RELAY_PINS`) and
+every read and write goes through `relayIsOn()` / `relayWritePin()`.
 
-On the bench, no mains connected:
+This mattered more than it looks. The firmware previously assumed HIGH = energised in **ten separate
+places**, including both protection paths — and those *remove* power by opening the relay. An
+inverted level would therefore have **energised a port on an overcurrent fault instead of cutting
+it**, and made `relay_status` lie to the app in both directions. It is no longer a "verify on the
+bench" item; it is answered, and the harness fails if the levels are changed or bypassed.
 
-1. Power everything up.
-2. Toggle a port from the app (or watch the relay LEDs at boot).
-3. If it is inverted, report it — it needs either a driver stage or a one-line firmware change.
+One boot detail worth knowing: `pinMode()` leaves the output latch **low**, which on an active-LOW
+board means *energised*. The pins are therefore driven to the OFF level *before* being made outputs,
+so a reboot never briefly closes every port.
+
+If you ever fit **active-HIGH** modules instead, flip the two constants — nothing else.
 
 ---
 
@@ -343,7 +350,7 @@ Tick them off. Each one rules out a layer before you add the next.
 
 - [ ] Motion in front of the PIR is detected
 - [ ] It goes idle again after you stand still (allow the inactivity window)
-- [ ] Relay polarity verified (see §2) — **before mains**
+- [x] Relay polarity confirmed **active-LOW** (see §2) — recorded in `RELAY_ON_LEVEL`/`RELAY_OFF_LEVEL`
 - [ ] Each relay clicks when toggled, and the **right** relay clicks
 
 ### Stage 3 — current sensing, still no mains
@@ -417,7 +424,8 @@ Send the code owner:
 
 1. **The MAC address** from the serial log.
 2. **The pairing code**, or confirmation the device was claimed.
-3. **Whether the relay polarity was normal or inverted.**
+3. **The relay polarity — settled: active-LOW**, and it must be re-checked if the modules are ever
+   swapped for a different board.
 4. **The current reading vs a clamp meter**, so the sensor variant can be confirmed.
 5. **Any serial log that did not match the expected output** — paste it verbatim, it is the fastest  
    way to diagnose.

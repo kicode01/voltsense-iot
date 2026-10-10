@@ -86,6 +86,31 @@
 // Define Hardware Pins
 const int NUM_PORTS = 3;
 const int RELAY_PINS[NUM_PORTS] = {23, 21, 19};
+
+// ---------------------------------------------------------------------------
+// Relay polarity — CONFIRMED ACTIVE-LOW on the fitted modules
+// ---------------------------------------------------------------------------
+// Pulling the pin LOW energises the coil. The level is recorded HERE and nowhere else; everything
+// that touches a relay pin goes through relayWritePin() / relayIsOn() below.
+//
+// This is safety-critical, not a cosmetic setting. Both protection paths REMOVE power by OPENING the
+// relay — the 4.5 A overcurrent cutoff and the occupancy shutdown — so an inverted level does not
+// merely display the wrong state: it ENERGISES a port on a fault instead of cutting it, and it makes
+// relay_status lie to the app in BOTH directions. The firmware previously assumed HIGH = energised
+// in ten separate places, which is exactly why the answer is now kept in one.
+static const uint8_t RELAY_ON_LEVEL = LOW;
+static const uint8_t RELAY_OFF_LEVEL = HIGH;
+
+// The ONLY place a relay pin is written.
+static inline void relayWritePin(int port, bool on) {
+  digitalWrite(RELAY_PINS[port], on ? RELAY_ON_LEVEL : RELAY_OFF_LEVEL);
+}
+
+// The ONLY place a relay pin is read. Normalised to "the port is energised", so callers never
+// reason about pin levels.
+static inline bool relayIsOn(int port) {
+  return digitalRead(RELAY_PINS[port]) == RELAY_ON_LEVEL;
+}
 // ADC1 ONLY. GPIO 32-35 are ADC1; GPIO 0/2/4/12-15/25-27 are ADC2, and ADC2 is unusable while Wi-Fi
 // is up (analogRead returns 0). Wi-Fi is always up in this device, so an ADC2 current pin would
 // read a permanent 0 A and every port would look unloaded. Do not move these to ADC2 pins.
@@ -207,12 +232,8 @@ const long UTC_OFFSET_SECONDS = 28800; // UTC+8
 NTPClient timeClient(ntpUDP, "pool.ntp.org", UTC_OFFSET_SECONDS, 60000);
 
 // State Machine Definitions
-enum SystemState {
-  STATE_OCCUPIED,
-  STATE_IDLE_COUNTDOWN,
-  STATE_RESPONSE_WINDOW,
-  STATE_SHUTDOWN
-};
+// `enum SystemState` is declared in VoltSenseTypes.h — `stateToString(SystemState)` takes one, so it
+// appears in a signature and must be visible above the prototypes the Arduino build generates.
 
 SystemState currentState = STATE_OCCUPIED;
 SystemState previousState = STATE_OCCUPIED;
@@ -1462,7 +1483,7 @@ CurrentReading currentCache[NUM_PORTS] = {
  * bulk refresh and the cold-cache fallback so the two can never drift apart.
  */
 void samplePortIntoCache(int i) {
-  const bool relayOn = digitalRead(RELAY_PINS[i]) == HIGH;
+  const bool relayOn = relayIsOn(i);
   CurrentReading& c = currentCache[i];
 
 #ifdef HAS_VOLTAGE_SENSE
@@ -1523,7 +1544,7 @@ void refreshCurrentCache() {
  */
 float currentAmpsFor(int port, unsigned long staleAfterMs = 5000) {
   if (port < 0 || port >= NUM_PORTS) return 0.0f;
-  bool relayOn = digitalRead(RELAY_PINS[port]) == HIGH;
+  bool relayOn = relayIsOn(port);
 
   CurrentReading& c = currentCache[port];
   bool usable = c.valid && c.relayWasOn == relayOn;
@@ -1648,7 +1669,7 @@ float readVoltageOnly() {
 void refreshVoltageOnlyIfStale() {
   bool anyPortOn = false;
   for (int i = 0; i < NUM_PORTS; i++) {
-    if (digitalRead(RELAY_PINS[i]) == HIGH) {
+    if (relayIsOn(i)) {
       anyPortOn = true;
       break;
     }
@@ -1742,7 +1763,7 @@ bool overcurrentShouldTrip(int port) {
 
   // A de-energised port cannot overload. Clearing the streak here also means re-enabling a port
   // starts from a clean count rather than inheriting the fault that tripped it.
-  if (digitalRead(RELAY_PINS[port]) != HIGH) {
+  if (!relayIsOn(port)) {
     overcurrentStreak[port] = 0;
     overcurrentTripped[port] = false;
     return false;
@@ -2603,8 +2624,8 @@ void factoryResetIfRequested() {
 // So the state is persisted and restored. The default stays ON for the first-ever boot (nothing in
 // NVS yet), and each transition writes the new state, so a reboot resumes where it left off.
 //
-// Note this is the LOGICAL state, not the pin level: whether HIGH means energised depends on the
-// relay board. The original code used HIGH = ON, and that convention is preserved here.
+// Note this is the LOGICAL state, not the pin level. The pin level lives in RELAY_ON_LEVEL /
+// RELAY_OFF_LEVEL at the top of the file — the fitted modules are ACTIVE-LOW, so HIGH means OFF.
 #define NVS_KEY_RELAY_STATE "relay_state"
 
 uint8_t readRelayBootMask() {
@@ -2622,7 +2643,7 @@ uint8_t readRelayBootMask() {
 void persistRelayState() {
   uint8_t mask = 0;
   for (int i = 0; i < NUM_PORTS; i++) {
-    if (digitalRead(RELAY_PINS[i]) == HIGH) mask |= (1 << i);
+    if (relayIsOn(i)) mask |= (1 << i);
   }
   Preferences p;
   p.begin("voltsense", false);
@@ -2722,7 +2743,7 @@ void relayRecordSwitch(int port, unsigned long nowMs) {
 RelaySwitchResult runRelaySwitch(int port, bool on, bool force) {
   if (port < 0 || port >= NUM_PORTS) return RELAY_NOOP;
 
-  bool current = digitalRead(RELAY_PINS[port]) == HIGH;
+  bool current = relayIsOn(port);
   if (current == on) return RELAY_NOOP; // no transition: do not spend a relay operation on a no-op
 
   unsigned long nowMs = millis();
@@ -2733,7 +2754,7 @@ RelaySwitchResult runRelaySwitch(int port, bool on, bool force) {
     return RELAY_SUPPRESSED;
   }
 
-  digitalWrite(RELAY_PINS[port], on ? HIGH : LOW);
+  relayWritePin(port, on);
   relayRecordSwitch(port, nowMs);
   Serial.printf("Relay port %d -> %s%s\n", port + 1, on ? "ON" : "OFF",
                 force ? " (forced)" : "");
@@ -2761,7 +2782,7 @@ void runRelaySwitchAndSync(int port, bool on) {
     return;
   }
   if (r == RELAY_SUPPRESSED) {
-    bool actual = digitalRead(RELAY_PINS[port]) == HIGH;
+    bool actual = relayIsOn(port);
     String portPath = roomPath + "/ports/port_0" + String(port + 1) + "/relay_status";
     Serial.printf("Relay port %d: command rejected, reporting actual state %s\n",
                   port + 1, actual ? "ON" : "OFF");
@@ -2894,6 +2915,11 @@ void setup() {
   pinMode(PIR_PIN, INPUT);
 pinMode(MMWAVE_PIN, INPUT);
   for (int i = 0; i < NUM_PORTS; i++) {
+    // Drive the OFF level BEFORE switching the pin to OUTPUT. pinMode() leaves the output latch low,
+    // and on an active-LOW board LOW means ENERGISE — so every port would close for the few
+    // milliseconds before the persisted state is restored, including on a reboot that followed a
+    // shutdown.
+    digitalWrite(RELAY_PINS[i], RELAY_OFF_LEVEL);
     pinMode(RELAY_PINS[i], OUTPUT);
   }
 
@@ -3300,7 +3326,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
 
         for (int i = 0; i < NUM_PORTS; i++) {
           // Already off — nothing to do.
-          if (digitalRead(RELAY_PINS[i]) != HIGH) continue;
+          if (!relayIsOn(i)) continue;
           // Still justified by its policy (always on, or still drawing) — leave it.
           if (shouldKeepPortOnShutdown(i)) continue;
 
@@ -3346,7 +3372,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
       float currentPf = 0.0;
       float portVolts = volts;
 
-      if (digitalRead(RELAY_PINS[i]) == HIGH) {
+      if (relayIsOn(i)) {
         // Display/history path: the noise floor is applied here, and only here, so a de-energised
         // port reads as exactly 0 A rather than as sensor hiss that creeps into the energy total.
         currentAmps = readACS712ForDisplay(i);
@@ -3389,7 +3415,7 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
       json.set(portPrefix + "voltage", portVolts);
 
       // Also continuously push relay_status to ensure Web App is synced with physical reality
-      json.set(portPrefix + "relay_status", digitalRead(RELAY_PINS[i]) == HIGH);
+      json.set(portPrefix + "relay_status", relayIsOn(i));
       // Published so the app can SHOW the policy and let the user change it. A policy the interface
       // cannot display is one the user cannot reason about — which is how the inverted shutdown
       // rule went unnoticed for so long.

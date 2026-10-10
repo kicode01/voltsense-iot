@@ -101,4 +101,19 @@ struct RemoteChange {
   String jsonString() const { return _json; }
 };
 
+/**
+ * The occupancy state machine's states.
+ *
+ * Declared here because `stateToString(SystemState)` takes one — so it appears in a signature and
+ * must precede the prototypes the Arduino build generates. It lived in the .ino until an unrelated
+ * edit shifted the insertion point and broke the build, which is the failure mode this file exists
+ * to prevent.
+ */
+enum SystemState {
+  STATE_OCCUPIED,
+  STATE_IDLE_COUNTDOWN,
+  STATE_RESPONSE_WINDOW,
+  STATE_SHUTDOWN
+};
+
 #endif // VOLTSENSE_TYPES_H

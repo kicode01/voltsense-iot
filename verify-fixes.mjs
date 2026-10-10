@@ -1402,18 +1402,21 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
 {
   const derateCode = stripComments(fwSrc);
 
-  // ONE choke point: exactly one raw digitalWrite to a relay pin may exist in the whole file, and it
-  // must be inside the runRelaySwitch DEFINITION. Any second one is a bypass — the precise failure
-  // this guards. Anchor on the definition (its opening brace), not the forward declaration: a
-  // `RelaySwitchResult runRelaySwitch...` search matches the prototype first and finds no body.
+  // ONE choke point: no relay pin may be written except through relayWritePin(). That helper holds
+  // the polarity-aware write; the only other raw write permitted is the boot pre-drive, which must
+  // set the OFF level BEFORE pinMode() so an active-LOW board does not briefly energise every port.
+  // (Anchored on the DEFINITION, not the forward declaration: a `RelaySwitchResult runRelaySwitch...`
+  // search matches the prototype first and finds no body.)
   const rawRelayWrites = (derateCode.match(/digitalWrite\s*\(\s*RELAY_PINS\s*\[/g) || []).length;
   const switchDefStart = derateCode.search(/RelaySwitchResult\s+runRelaySwitch\s*\([^)]*\)\s*\{/);
   const switchBody = switchDefStart >= 0 ? derateCode.slice(switchDefStart, switchDefStart + 900) : '';
-  const writeIsChoked = /digitalWrite\s*\(\s*RELAY_PINS\s*\[/.test(switchBody);
+  const switchUsesHelper = /relayWritePin\s*\(\s*port\s*,/.test(switchBody);
+  const helperOwnsTheWrite =
+    /static inline void relayWritePin[\s\S]{0,220}?digitalWrite\s*\(\s*RELAY_PINS\s*\[/.test(derateCode);
   record(
-    'Every relay write funnels through one choke point',
-    rawRelayWrites === 1 && writeIsChoked,
-    `raw writes to a relay pin: ${rawRelayWrites} (must be exactly 1, inside runRelaySwitch)`
+    'Every relay write funnels through relayWritePin()',
+    rawRelayWrites === 2 && switchUsesHelper && helperOwnsTheWrite,
+    `raw relay-pin writes: ${rawRelayWrites} (relayWritePin + the boot pre-drive); runRelaySwitch calls the helper: ${switchUsesHelper}`
   );
 
   // The guard is PER PORT. A single shared timestamp would let a busy port lock out an idle one.
@@ -1456,6 +1459,35 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
     'the app toggles optimistically; without a repair the UI lies about the hardware'
   );
 
+  // RELAY POLARITY. Confirmed ACTIVE-LOW on the fitted modules, and safety-critical rather than
+  // cosmetic: both protection paths remove power by OPENING the relay, so an inverted level
+  // ENERGISEES a port on a fault instead of cutting it. The firmware used to assume HIGH = energised
+  // in TEN separate places, so the guard is not "is it active-low" but "does anything bypass the
+  // one place that says so".
+  const declaresActiveLow =
+    /RELAY_ON_LEVEL\s*=\s*LOW\s*;/.test(derateCode) && /RELAY_OFF_LEVEL\s*=\s*HIGH\s*;/.test(derateCode);
+  const bareHighLow = /digital(Read|Write)\s*\(\s*RELAY_PINS[^\n]*\b(HIGH|LOW)\b/.test(derateCode);
+  const preDrivesOff =
+    /digitalWrite\s*\(\s*RELAY_PINS\[i\]\s*,\s*RELAY_OFF_LEVEL\s*\)\s*;\s*pinMode\s*\(\s*RELAY_PINS\[i\]\s*,\s*OUTPUT\s*\)/.test(
+      derateCode
+    );
+  record(
+    'Relay polarity is stated once (active-LOW) and no site bypasses it',
+    declaresActiveLow && !bareHighLow,
+    declaresActiveLow && !bareHighLow
+      ? 'RELAY_ON_LEVEL=LOW, and no relay pin access writes a bare HIGH/LOW'
+      : !declaresActiveLow
+        ? '*** the active-LOW levels are gone — every port inverts ***'
+        : '*** a relay pin access uses a bare HIGH/LOW, bypassing the constants ***'
+  );
+  record(
+    'Relay pins are driven OFF before being made outputs at boot',
+    preDrivesOff,
+    preDrivesOff
+      ? 'no brief energise on an active-LOW board before the state is restored'
+      : '*** pinMode() leaves the latch low, which ENERGISEES every port on an active-LOW board ***'
+  );
+
   // The stream handlers are the path a toggle actually takes — they must use the syncing wrapper,
   // not the bare switch.
   const handlersSync = (derateCode.match(/runRelaySwitchAndSync\s*\(\s*[012]\s*,/g) || []).length;
@@ -1466,8 +1498,13 @@ if (fs.existsSync(path.join(ROOT, 'api', 'unpair.js'))) {
   );
 
   // A no-op must not spend an operation. If runRelaySwitch wrote unconditionally, merely re-asserting
-  // the current state (which the snapshot and stream both do) would count as a switch.
-  const noopExit = /bool\s+current\s*=\s*digitalRead\s*\(\s*RELAY_PINS\s*\[\s*port\s*\]\s*\)[\s\S]{0,200}?if\s*\(\s*current\s*==\s*on\s*\)\s*return\s+RELAY_NOOP/.test(derateCode);
+  // the current state (which the snapshot and poll both do) would count as a switch.
+  // Accepts either spelling of the current-state read — the point is the guard, not how the pin is
+  // sampled — but only the polarity-aware forms.
+  const noopExit =
+    /bool\s+current\s*=\s*(?:relayIsOn\s*\(\s*port\s*\)|digitalRead\s*\(\s*RELAY_PINS\s*\[\s*port\s*\]\s*\)\s*==\s*RELAY_ON_LEVEL)[\s\S]{0,200}?if\s*\(\s*current\s*==\s*on\s*\)\s*return\s+RELAY_NOOP/.test(
+      derateCode
+    );
   record(
     'A no-op relay command does not spend an operation',
     noopExit,
@@ -1896,9 +1933,10 @@ const alertStartEnd = (src, from) => {
   const handoff = fs.existsSync(handoffPath) ? fs.readFileSync(handoffPath, 'utf8') : '';
   // ACS712 in series with ONE conductor (both live+neutral cancels the field -> reads 0 A).
   const acs712Series = /IN SERIES/i.test(handoff) && /both/i.test(handoff);
-  // Relay polarity: firmware assumes HIGH = energised; most modules are active-LOW.
-  const relayPolarity = /HIGH = relay energised|HIGH = energised/i.test(handoff) &&
-    /active-low/i.test(handoff);
+  // Relay polarity: confirmed ACTIVE-LOW on the fitted modules, and named with the constants that
+  // actually carry it. (It used to be a "verify this" note mentioning HIGH = energised; that question
+  // is answered now, so the guard checks the answer is recorded where someone will find it.)
+  const relayPolarity = /active-low/i.test(handoff) && /RELAY_ON_LEVEL/.test(handoff);
   // Mains safety, stated before any wiring instruction.
   const mainsSafety = /never wire or rewire with the mains connected/i.test(handoff);
   record(
