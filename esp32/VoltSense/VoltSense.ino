@@ -43,6 +43,8 @@
  */
 
 #include <WiFi.h>
+#include <WebServer.h>
+#include <DNSServer.h>
 #include <Firebase_ESP_Client.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
@@ -2936,6 +2938,64 @@ void waitWithWatchdog(uint32_t totalMs) {
 }
 
 // ---------------------------------------------------------------------------
+void displayPairingPortal() {
+  Serial.println("Starting captive portal to display pairing code...");
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAP("VoltSense_Setup");
+  
+  WebServer server(80);
+  DNSServer dns;
+  dns.start(53, "*", IPAddress(192, 168, 4, 1));
+  
+  bool portalActive = true;
+  
+  server.on("/", [&server, &portalActive]() {
+    String html = String("<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'>") +
+      "<style>" +
+      "body { background-color: #F0F2F5; font-family: 'Outfit', sans-serif, -apple-system, system-ui; color: #111827; text-align: center; }" +
+      ".card { max-width: 400px; margin: 2rem auto; padding: 2rem; background: #ffffff; border-radius: 1.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }" +
+      ".code { font-size: 2.5rem; letter-spacing: 0.25rem; font-weight: bold; color: #612f2f; margin: 1.5rem 0; }" +
+      "button { background-color: #612f2f; color: #ffffff; border-radius: 1rem; border: none; padding: 0.75rem 1.25rem; font-weight: bold; width: 100%; cursor: pointer; }" +
+      "button:hover { background-color: #522929; }" +
+      "</style>" +
+      "<link href='https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap' rel='stylesheet'>" +
+      "</head><body><div class='card'>" +
+      "<h2>VoltSense Paired!</h2>" +
+      "<p>Enter this code in the VoltSense app to link this device:</p>" +
+      "<div class='code'>" + provisioningCode + "</div>" +
+      "<p style='color: #6b7280; font-size: 0.875rem;'>Expires in 30 minutes.</p>" +
+      "<form action='/done' method='POST'><button type='submit'>Finish Setup</button></form>" +
+      "</div></body></html>";
+    server.send(200, "text/html", html);
+  });
+  
+  server.on("/done", [&server, &portalActive]() {
+    server.send(200, "text/html", "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'><style>body{background-color: #F0F2F5; font-family: sans-serif; text-align: center; margin-top: 2rem;}</style></head><body><h2>Setup Complete!</h2><p>You can now close this window and use the VoltSense app.</p></body></html>");
+    portalActive = false;
+  });
+
+  server.onNotFound([&server]() {
+    server.sendHeader("Location", "http://192.168.4.1/", true);
+    server.send(302, "text/plain", "");
+  });
+
+  server.begin();
+  Serial.println("Portal running. Connect to VoltSense_Setup to view the code.");
+  
+  uint32_t startMs = millis();
+  while (portalActive && (millis() - startMs < 300000)) { // 5 minutes max
+    dns.processNextRequest();
+    server.handleClient();
+    watchdogFeed();
+    delay(10);
+  }
+  
+  server.stop();
+  dns.stop();
+  WiFi.mode(WIFI_STA);
+  Serial.println("Pairing code portal closed.");
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -3177,9 +3237,12 @@ pinMode(MMWAVE_PIN, INPUT);
   if (deviceEmail.length() == 0 && deviceIdToken.length() == 0) {
     Serial.println("No identity in NVS — attempting self-provisioning.");
     if (pairDevice()) {
-      deviceEmail = getNvsString("dev_email");
-      devicePassword = getNvsString("dev_password");
-    }
+        deviceEmail = getNvsString("dev_email");
+        devicePassword = getNvsString("dev_password");
+        if (provisioningCode.length() > 0) {
+          displayPairingPortal();
+        }
+      }
   }
 
   // Which identity is present decides how rtdbSignIn() authenticates — see the REST section.
