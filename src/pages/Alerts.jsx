@@ -11,64 +11,52 @@ import {
   Power,
   Loader2,
   Timer,
-  Zap,
-  Clock,
-  ArrowRight
+  Zap
 } from 'lucide-react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useAlerts } from '../hooks/useAlerts';
 
-const getAlertVisuals = (alert) => {
+const getAlertDetails = (alert) => {
   const tag = (alert?.tag || '').toLowerCase();
   const title = (alert?.title || '').toLowerCase();
   const body = (alert?.body || '').toLowerCase();
 
-  // Strip leading raw emojis (like ⚠️) so the typography remains crisp
-  const cleanTitle = (alert?.title || 'VoltSense Alert')
+  // Strip leading emojis
+  const cleanRawTitle = (alert?.title || '')
     .replace(/^[\s\p{Extended_Pictographic}\uFE0F]+/u, '')
-    .trim() || 'VoltSense Alert';
+    .trim();
 
-  if (tag.includes('overcurrent') || title.includes('overcurrent') || body.includes('overcurrent')) {
-    return {
-      cleanTitle,
-      category: 'Power Trip',
-      Icon: Zap,
-      badgeClass: 'bg-red-50 text-red-600 border-red-200/80',
-      watermarkClass: 'text-red-500/[0.04]',
-      isShutdown: false
-    };
+  // Determine concise title based on content without repeating "VoltSense Alert"
+  let resolvedTitle = cleanRawTitle;
+  if (!cleanRawTitle || cleanRawTitle.toLowerCase() === 'voltsense alert') {
+    if (tag.includes('shutdown') || body.includes('shut down') || body.includes('empty')) {
+      resolvedTitle = 'Auto-Shutdown Warning';
+    } else if (tag.includes('overcurrent') || body.includes('current')) {
+      resolvedTitle = 'Overcurrent Trip';
+    } else {
+      resolvedTitle = 'System Notice';
+    }
   }
 
-  if (tag.includes('shutdown') || tag.includes('inactivity') || body.includes('shut down') || body.includes('empty') || title.includes('empty')) {
-    return {
-      cleanTitle,
-      category: 'Auto Shutdown',
-      Icon: Timer,
-      badgeClass: 'bg-amber-50 text-amber-600 border-amber-200/80',
-      watermarkClass: 'text-amber-500/[0.04]',
-      isShutdown: true
-    };
+  if (tag.includes('overcurrent') || title.includes('overcurrent') || body.includes('overcurrent')) {
+    return { title: resolvedTitle, Icon: Zap };
+  }
+
+  if (tag.includes('shutdown') || tag.includes('inactivity') || body.includes('shut down') || body.includes('empty')) {
+    return { title: resolvedTitle, Icon: Timer };
   }
 
   if (tag.includes('power') || title.includes('power')) {
-    return {
-      cleanTitle,
-      category: 'System Power',
-      Icon: Power,
-      badgeClass: 'bg-maroon-50 text-maroon-800 border-maroon-200/80',
-      watermarkClass: 'text-maroon-900/[0.03]',
-      isShutdown: false
-    };
+    return { title: resolvedTitle, Icon: Power };
   }
 
-  return {
-    cleanTitle,
-    category: 'Notification',
-    Icon: Bell,
-    badgeClass: 'bg-gray-50 text-gray-700 border-gray-200/80',
-    watermarkClass: 'text-gray-900/[0.03]',
-    isShutdown: false
-  };
+  return { title: resolvedTitle, Icon: Bell };
+};
+
+const formatTimeOnly = (ms) => {
+  if (!ms) return '';
+  const date = new Date(ms);
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 };
 
 // Outcome describes what the SERVER managed to do, not what the alert means. A history that said
@@ -193,48 +181,29 @@ const Alerts = () => {
           <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">
             Preview · what an alert looks like
           </p>
-          <article className="relative rounded-3xl border bg-white/85 backdrop-blur-xl border-amber-200/80 shadow-[0_4px_20px_rgb(0,0,0,0.03)] p-4 md:p-5 overflow-hidden group">
-            <Timer
-              strokeWidth={1.5}
-              className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-amber-500/[0.04] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none"
-            />
-            <div className="flex items-start gap-3.5 md:gap-4 relative z-10">
-              <div className="w-10 h-10 md:w-11 md:h-11 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200/80 flex items-center justify-center shrink-0 shadow-sm transition-transform duration-300 group-hover:scale-105">
-                <Timer className="w-5 h-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
-                      Auto Shutdown
-                    </span>
-                    <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">Room became empty</h3>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest bg-maroon-100 text-maroon-800 border border-maroon-200">
-                      New
-                    </span>
-                  </div>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-bold shrink-0">
+          <article className="rounded-2xl border bg-white border-maroon-100 shadow-sm p-4 md:p-5 flex items-start gap-3.5 md:gap-4">
+            <div className="w-10 h-10 md:w-11 md:h-11 rounded-2xl bg-maroon-50 text-maroon-800 border border-maroon-100 flex items-center justify-center shrink-0 shadow-sm">
+              <Timer className="w-5 h-5 text-maroon-800" strokeWidth={1.75} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3 mb-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">
+                    Room Became Empty
+                  </h3>
+                  <span className="w-2 h-2 rounded-full bg-maroon-600 shrink-0" />
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-[11px] font-medium text-gray-400">Just now</span>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-bold">
                     <CircleCheck className="w-3 h-3" />
                     Delivered
                   </span>
                 </div>
-                <p className="text-xs md:text-sm text-gray-600 mt-1 leading-relaxed">
-                  The lounge has been unoccupied for 15 minutes. Power will shut off in 5 minutes
-                  unless you tap Keep Power On.
-                </p>
-                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100/80 text-[10px] md:text-xs font-medium text-gray-400">
-                  <Clock className="w-3.5 h-3.5 text-gray-400" />
-                  <span>Just now · example</span>
-                  <span className="text-gray-300">•</span>
-                  <Link
-                    to="/"
-                    className="font-bold text-maroon-800 hover:text-maroon-900 inline-flex items-center gap-0.5 hover:underline"
-                  >
-                    Open Dashboard
-                    <ArrowRight className="w-3 h-3" />
-                  </Link>
-                </div>
               </div>
+              <p className="text-xs md:text-sm text-gray-600 leading-relaxed break-words">
+                The lounge has been unoccupied for 15 minutes. Power will shut off in 5 minutes unless you tap Keep Power On.
+              </p>
             </div>
           </article>
           <div className="rounded-3xl bg-white/60 border border-gray-200/70 p-6 mt-3 text-center">
@@ -297,80 +266,61 @@ const Alerts = () => {
                 {group.items.map((alert) => {
                   const meta = OUTCOME[alert.outcome] || OUTCOME.unknown;
                   const { Icon: OutcomeIcon } = meta;
-                  const visual = getAlertVisuals(alert);
-                  const { Icon: AlertIcon } = visual;
+                  const details = getAlertDetails(alert);
+                  const { Icon: AlertIcon } = details;
                   const isUnread =
                     lastSeenId === null || (lastSeenId !== undefined && alert.at > lastSeenId);
 
                   return (
                     <article
                       key={alert.id}
-                      className={`relative rounded-3xl border p-4 md:p-5 transition-all duration-300 ease-apple-spring overflow-hidden group ${
+                      className={`rounded-2xl border p-4 md:p-5 transition-all duration-300 ease-apple-spring flex items-start gap-3.5 md:gap-4 ${
                         isUnread
-                          ? 'bg-white border-maroon-300/80 shadow-[0_8px_30px_rgb(128,0,0,0.06)]'
-                          : 'bg-white/85 backdrop-blur-xl border-white/60 hover:border-gray-200 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md'
+                          ? 'bg-white border-maroon-200/80 shadow-[0_4px_20px_rgb(128,0,0,0.04)]'
+                          : 'bg-white/70 backdrop-blur-md border-white/60 hover:border-gray-200 shadow-sm'
                       }`}
                     >
-                      {/* Subtle watermark in the side, matching dashboard cards */}
-                      <AlertIcon
-                        strokeWidth={1.5}
-                        className={`absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 ${visual.watermarkClass} transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none`}
-                      />
+                      {/* Clean themed icon on the left */}
+                      <div
+                        className={`w-10 h-10 md:w-11 md:h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
+                          isUnread
+                            ? 'bg-maroon-50 text-maroon-800 border-maroon-100 shadow-sm'
+                            : 'bg-gray-50 text-gray-400 border-gray-100'
+                        }`}
+                      >
+                        <AlertIcon
+                          className={`w-5 h-5 ${isUnread ? 'text-maroon-800' : 'text-gray-500'}`}
+                          strokeWidth={1.75}
+                        />
+                      </div>
 
-                      <div className="flex items-start gap-3.5 md:gap-4 relative z-10">
-                        {/* Type badge on the left */}
-                        <div
-                          className={`w-10 h-10 md:w-11 md:h-11 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-transform duration-300 group-hover:scale-105 ${visual.badgeClass}`}
-                        >
-                          <AlertIcon className="w-5 h-5" />
-                        </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3 mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">
+                              {details.title}
+                            </h3>
+                            {isUnread && (
+                              <span className="w-2 h-2 rounded-full bg-maroon-600 shrink-0" />
+                            )}
+                          </div>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-                            <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 bg-gray-100/80 px-2 py-0.5 rounded-md border border-gray-200/60">
-                                {visual.category}
-                              </span>
-                              <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">
-                                {visual.cleanTitle}
-                              </h3>
-                              {isUnread && (
-                                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest bg-maroon-100 text-maroon-800 border border-maroon-200">
-                                  New
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Status outcome pill on the right */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-[11px] font-medium text-gray-400">
+                              {formatTimeOnly(alert.at)}
+                            </span>
                             <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-bold tracking-tight shrink-0 ${meta.className}`}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${meta.className}`}
                             >
                               <OutcomeIcon className="w-3 h-3" />
                               {meta.label}
                             </span>
                           </div>
-
-                          <p className="text-xs md:text-sm text-gray-600 mt-1 leading-relaxed break-words">
-                            {alert.body}
-                          </p>
-
-                          <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100/80 text-[10px] md:text-xs font-medium text-gray-400">
-                            <Clock className="w-3.5 h-3.5 text-gray-400" />
-                            <span>{formatStamp(alert.at)}</span>
-                            {visual.isShutdown && (
-                              <>
-                                <span className="text-gray-300">•</span>
-                                <Link
-                                  to="/"
-                                  className="font-bold text-maroon-800 hover:text-maroon-900 inline-flex items-center gap-0.5 hover:underline"
-                                >
-                                  Open Dashboard
-                                  <ArrowRight className="w-3 h-3" />
-                                </Link>
-                              </>
-                            )}
-                          </div>
                         </div>
+
+                        <p className="text-xs md:text-sm text-gray-600 leading-relaxed break-words">
+                          {alert.body}
+                        </p>
                       </div>
                     </article>
                   );
