@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
-import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2, FlaskConical } from 'lucide-react';
+import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2, FlaskConical, Timer } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MarqueeText from '../components/MarqueeText';
 import SensorValidationModal from '../components/SensorValidationModal';
@@ -440,7 +440,7 @@ const Dashboard = () => {
         )}
 
         <div className={`joyride-inactivity-limit relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col group overflow-hidden ${!nightMode.enabled ? 'col-span-2' : ''}`}>
-          <AlertTriangle strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none" />
+          <Timer strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none" />
           <div className="relative z-10">
             <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Inactivity Limit</h3>
             <div className="flex items-baseline gap-1 md:gap-1.5 leading-none mt-0.5">
