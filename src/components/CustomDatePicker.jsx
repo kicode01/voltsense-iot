@@ -27,7 +27,11 @@ const CustomDatePicker = ({ label, value, onChange, minDate = null, maxDate = nu
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -71,7 +75,7 @@ const CustomDatePicker = ({ label, value, onChange, minDate = null, maxDate = nu
   };
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className={`relative ${isOpen ? 'z-30' : 'z-10'}`} ref={containerRef}>
       <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">{label}</label>
       <button
         onClick={() => setIsOpen(!isOpen)}

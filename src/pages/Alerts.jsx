@@ -186,7 +186,7 @@ const Alerts = () => {
               <Timer className="w-5 h-5 text-maroon-800" strokeWidth={1.75} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-3 mb-1">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
                 <div className="flex items-center gap-2 min-w-0">
                   <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">
                     Room Became Empty
@@ -295,7 +295,7 @@ const Alerts = () => {
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-3 mb-1">
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
                           <div className="flex items-center gap-2 min-w-0">
                             <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">
                               {details.title}

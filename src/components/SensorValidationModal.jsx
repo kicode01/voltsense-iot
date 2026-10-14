@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { X, FlaskConical, Copy, Trash2, ShieldCheck, Check, Sparkles } from 'lucide-react';
 
 const PRESETS = [
@@ -147,10 +148,13 @@ export default function SensorValidationModal({ isOpen, onClose, ports = {}, pow
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center safe-modal overflow-y-auto bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
       <div 
-        className="bg-white border border-gray-200/80 rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+        className="bg-white border border-gray-200/80 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sleek Minimal Header */}
@@ -187,7 +191,7 @@ export default function SensorValidationModal({ isOpen, onClose, ports = {}, pow
               <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Channel Under Test</span>
               <span className="text-[11px] text-gray-400">Select an outlet to evaluate</span>
             </div>
-            <div className="grid grid-cols-3 gap-2 p-1 bg-gray-50 rounded-xl border border-gray-200/70">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1 bg-gray-50 rounded-xl border border-gray-200/70">
               {portKeys.map((pid) => {
                 const port = ports[pid] || {};
                 const isSelected = selectedPortId === pid;
@@ -278,7 +282,7 @@ export default function SensorValidationModal({ isOpen, onClose, ports = {}, pow
                       placeholder="e.g. 100W Incandescent Bulb"
                       value={loadName}
                       onChange={(e) => setLoadName(e.target.value)}
-                      className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-maroon-800 focus:ring-1 focus:ring-maroon-800 font-medium"
+                      className="w-full text-[16px] md:text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-maroon-800 focus:ring-1 focus:ring-maroon-800 font-medium"
                     />
                   </div>
 
@@ -291,7 +295,7 @@ export default function SensorValidationModal({ isOpen, onClose, ports = {}, pow
                         placeholder="e.g. 0.44"
                         value={refCurrent}
                         onChange={(e) => setRefCurrent(e.target.value)}
-                        className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-maroon-800 focus:ring-1 focus:ring-maroon-800 font-bold"
+                        className="w-full text-[16px] md:text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-maroon-800 focus:ring-1 focus:ring-maroon-800 font-bold"
                       />
                     </div>
                     <div>
@@ -302,7 +306,7 @@ export default function SensorValidationModal({ isOpen, onClose, ports = {}, pow
                         placeholder="230.0"
                         value={refVoltage}
                         onChange={(e) => setRefVoltage(e.target.value)}
-                        className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-maroon-800 focus:ring-1 focus:ring-maroon-800 font-medium"
+                        className="w-full text-[16px] md:text-xs px-2.5 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:border-maroon-800 focus:ring-1 focus:ring-maroon-800 font-medium"
                       />
                     </div>
                   </div>
@@ -449,6 +453,7 @@ export default function SensorValidationModal({ isOpen, onClose, ports = {}, pow
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

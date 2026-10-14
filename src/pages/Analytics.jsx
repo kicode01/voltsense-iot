@@ -15,7 +15,7 @@ const rangeLabel = (timeRange) => {
   if (timeRange === 'Last 7 Days') return '7 Days';
   if (timeRange === 'This Month') return 'Month';
   if (timeRange === 'Yesterday') return 'Y-Day';
-  const custom = timeRange.match(/^(\d{1,2}\/\d{1,2})\/\d{2}\s*-\s*(\d{1,2}\/\d{1,2})\/\d{2}$/);
+  const custom = timeRange.match(/^(\d{1,2}\/\d{1,2})(?:\/\d{2,4})?\s*-\s*(\d{1,2}\/\d{1,2})(?:\/\d{2,4})?$/);
   if (custom) return `${custom[1]} - ${custom[2]}`;
   return timeRange;
 };
@@ -53,7 +53,11 @@ const Analytics = () => {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   useEffect(() => {

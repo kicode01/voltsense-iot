@@ -305,11 +305,11 @@ const Dashboard = () => {
              strokeWidth={1.5}
              className="absolute -right-3 -bottom-3 w-28 h-28 md:w-36 md:h-36 text-white/25 transform rotate-12 pointer-events-none animate-pulse"
            />
-           <h2 className="text-2xl font-bold uppercase tracking-widest text-center relative z-10">Auto Shutdown In</h2>
+           <h2 className="text-xl sm:text-2xl font-bold uppercase tracking-widest text-center relative z-10">Auto Shutdown In</h2>
            {/* Fall back to the FIRMWARE's real response window (5 minutes), not 60 seconds — the
                alert text says "60 seconds" but RESPONSE_WINDOW_MS is 300000. Showing 60 here would
                understate the time the user actually has, and could make them rush a decision. */}
-           <div className="text-7xl font-black drop-shadow-md my-4 relative z-10">{data.countdown_remaining_seconds ?? 300}s</div>
+           <div className="text-6xl sm:text-7xl font-black drop-shadow-md my-4 relative z-10">{data.countdown_remaining_seconds ?? 300}s</div>
            <button
              onClick={async () => {
                setOverridePending(true);
@@ -455,7 +455,7 @@ const Dashboard = () => {
       </div>
 
       <div className="joyride-ports-list animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 fill-mode-both">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2 flex-wrap sm:flex-nowrap">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Port / Device Management</h2>
           <div className="flex items-center gap-2">
             <button
