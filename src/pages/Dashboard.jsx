@@ -48,6 +48,8 @@ const Dashboard = () => {
 
 
   const [demoData, setDemoData] = useState({
+    state: /** @type {string | undefined} */ ('OCCUPIED'),
+    countdown_remaining_seconds: /** @type {number | undefined} */ (undefined),
     settings: { night_mode_enabled: true, night_mode_start: '22:00', night_mode_end: '06:00' },
     ports: {
       port_01: { name: 'Demo Light', relay_status: true, power_watts: 15.5, current_amps: 0.12 },

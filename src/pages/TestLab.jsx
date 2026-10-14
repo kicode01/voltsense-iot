@@ -219,7 +219,7 @@ const TestLab = () => {
 
   // Mean statistics across trials
   const trialStats = useMemo(() => {
-    if (trials.length === 0) return { meanError: 0, meanAccuracy: 0, count: 0 };
+    if (trials.length === 0) return { meanError: '0.00', meanAccuracy: '0.00', count: 0 };
     const totalError = trials.reduce((sum, t) => sum + parseFloat(t.currentError), 0);
     const totalAccuracy = trials.reduce((sum, t) => sum + parseFloat(t.accuracy), 0);
     return {
@@ -868,7 +868,7 @@ const TestLab = () => {
             </div>
 
             <div className="mt-4 p-3 bg-blue-50/50 rounded-2xl border border-blue-100/70 text-[11px] text-blue-900 leading-relaxed">
-              <strong>Hardware Insight:</strong> The ACS712 produces an analog midpoint at $V_{CC}/2$ (~2.5V). When no current is flowing, small thermal drifts and ADC quantization can create $\pm 15$ to $\pm 35\text{ mA}$ of ripple. The VoltSense firmware enforces a strict <strong>0.060A noise floor</strong> in <code>readACS712ForDisplay()</code> to ensure resting outlets report pure $0\text{ A}$ without phantom kWh creep.
+              <strong>Hardware Insight:</strong> The ACS712 produces an analog midpoint at Vcc / 2 (~2.5V). When no current is flowing, small thermal drifts and ADC quantization can create ±15 to ±35 mA of ripple. The VoltSense firmware enforces a strict <strong>0.060A noise floor</strong> in <code>readACS712ForDisplay()</code> to ensure resting outlets report pure 0 A without phantom kWh creep.
             </div>
           </div>
 
@@ -903,7 +903,7 @@ const TestLab = () => {
                   </p>
                 </div>
                 <div className="mt-3 pt-2 border-t border-gray-200/60 text-[10px] text-gray-400">
-                  Tuning: Trimpot $T_x &lt; 5\text{s}$, Jumper Mode H (Repeat)
+                  Tuning: Trimpot Tx &lt; 5s, Jumper Mode H (Repeat)
                 </div>
               </div>
 
@@ -1418,7 +1418,7 @@ const TestLab = () => {
                         {trialStats.meanAccuracy}%
                       </td>
                       <td colSpan={2} className="py-3 px-3 text-right text-[10px] text-gray-400">
-                        Validation Grade: {parseFloat(trialStats.meanError) < 5 ? 'A (Thesis Ready)' : 'B (Acceptable)'}
+                        Validation Grade: {Number(trialStats.meanError) < 5 ? 'A (Thesis Ready)' : 'B (Acceptable)'}
                       </td>
                     </tr>
                   </tfoot>
