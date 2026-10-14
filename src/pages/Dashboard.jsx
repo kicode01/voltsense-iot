@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
-import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2 } from 'lucide-react';
+import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2, FlaskConical } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MarqueeText from '../components/MarqueeText';
+import SensorValidationModal from '../components/SensorValidationModal';
 
 const iconMap = {
   lamp: Lamp,
@@ -26,6 +27,7 @@ const Dashboard = () => {
   const [editingPort, setEditingPort] = useState(null);
   const [editName, setEditName] = useState('');
   const [isRenameMode, setIsRenameMode] = useState(false);
+  const [showValidationModal, setShowValidationModal] = useState(false);
   const [turningOn, setTurningOn] = useState(false);
   const [turningOff, setTurningOff] = useState(false);
   // Which ports have a toggle in flight, so the switch can show a spinner instead of looking
@@ -436,17 +438,26 @@ const Dashboard = () => {
       <div className="joyride-ports-list animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 fill-mode-both">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Port / Device Management</h2>
-          <button 
-            onClick={() => {
-              if (isRenameMode && editingPort) {
-                handleNameSave(editingPort);
-              }
-              setIsRenameMode(!isRenameMode);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors ${isRenameMode ? 'bg-maroon-800 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
-          >
-            {isRenameMode ? 'Done' : <><Pencil strokeWidth={1.5} className="w-3 h-3" /> Edit</>}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowValidationModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
+              title="Test and validate sensor accuracy against a multimeter"
+            >
+              <FlaskConical className="w-3 h-3 text-emerald-700" /> Accuracy Test Lab
+            </button>
+            <button 
+              onClick={() => {
+                if (isRenameMode && editingPort) {
+                  handleNameSave(editingPort);
+                }
+                setIsRenameMode(!isRenameMode);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors ${isRenameMode ? 'bg-maroon-800 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+            >
+              {isRenameMode ? 'Done' : <><Pencil strokeWidth={1.5} className="w-3 h-3" /> Edit</>}
+            </button>
+          </div>
         </div>
         {!activeDeviceId && (
           <p className="text-[10px] text-gray-400 mb-4 font-medium">Toggle, rename, and view power draw for each smart port.</p>
@@ -579,6 +590,14 @@ const Dashboard = () => {
           )})}
         </div>
       </div>
+
+      {/* Sensor Accuracy & Validation Lab Modal (For Testing Only) */}
+      <SensorValidationModal
+        isOpen={showValidationModal}
+        onClose={() => setShowValidationModal(false)}
+        ports={ports}
+        powerIsMeasured={powerIsMeasured}
+      />
     </div>
   );
 };

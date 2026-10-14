@@ -38,8 +38,8 @@
  */
 
 const admin = require('firebase-admin');
-const { getDatabase } = require('firebase-admin/database');
-const { getAuth } = require('firebase-admin/auth');
+
+
 const { getApp, safeEqual, safeJsonParse, normalizeMac, hashSecret, timingSafeEqual } = require('./_lib/firebaseAdmin');
 
 const MAX_BODY_LENGTH = 400;

@@ -58,3 +58,7 @@ GROUP-7_MANUSCRIPT.txt
 # files moved out during cleanup, and the generated icon contact sheet
 # (.workbuddy-ai/icon-preview.png). Internal state, not project source.
 .workbuddy-ai/
+
+# Local tools and scratch scripts
+tools/
+*.cjs

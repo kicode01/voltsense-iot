@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoltSense 3D Enclosure Viewer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #18181b;
+      color: #f4f4f5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      padding: 12px 24px;
+      background: #27272a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #3f3f46;
+      z-index: 10;
+    }
+    h1 { font-size: 1.1rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .badge { background: #800000; color: #fff; font-size: 0.75rem; padding: 2px 8px; border-radius: 9999px; }
+    .controls { display: flex; gap: 12px; align-items: center; }
+    button, label.btn {
+      background: #3f3f46;
+      border: 1px solid #52525b;
+      color: #fff;
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    button:hover, label.btn:hover { background: #52525b; }
+    button.active { background: #800000; border-color: #a00000; }
+    #canvas-container { flex: 1; position: relative; width: 100%; height: 100%; }
+    #info-panel {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(24, 24, 27, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid #3f3f46;
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      max-width: 320px;
+      pointer-events: none;
+    }
+    #drop-hint {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      background: rgba(39, 39, 42, 0.9);
+      border: 2px dashed #71717a;
+      padding: 30px 40px;
+      border-radius: 12px;
+      display: none;
+      pointer-events: none;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+</head>
+<body>
+  <header>
+    <h1>VoltSense 3D Enclosure <span class="badge">170 x 110 x 63.5 mm</span></h1>
+    <div class="controls">
+      <button id="btn-base" class="active" onclick="loadModel('voltsense_enclosure_base.stl', 'base')">Base Chassis</button>
+      <button id="btn-lid" onclick="loadModel('voltsense_enclosure_lid.stl', 'lid')">Top Lid</button>
+      <button id="btn-all" onclick="loadModel('voltsense_enclosure_assembled.stl', 'all')">Assembled</button>
+      <button id="btn-wire" onclick="toggleWireframe()">Wireframe</button>
+      <button id="btn-reset" onclick="resetCamera()">Reset View</button>
+      <label class="btn" style="display:none;" id="file-label">Load STL <input type="file" id="file-input" accept=".stl" style="display:none;"></label>
+    </div>
+  </header>
+
+  <div id="canvas-container">
+    <div id="info-panel">
+      <strong>Model Details:</strong><br>
+      • <span id="model-name">Loading...</span><br>
+      • Left-click + drag to rotate<br>
+      • Right-click + drag to pan<br>
+      • Scroll wheel to zoom
+    </div>
+    <div id="drop-hint">Drop your .STL file here to preview</div>
+  </div>
+
+  <script>
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x18181b);
+
+    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 2000);
+    camera.position.set(220, 260, 240);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Grid Floor
+    const grid = new THREE.GridHelper(400, 40, 0x52525b, 0x27272a);
+    grid.position.y = -1;
+    scene.add(grid);
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight1.position.set(200, 300, 200);
+    scene.add(dirLight1);
+
+    const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
+    dirLight2.position.set(-200, -100, -200);
+    scene.add(dirLight2);
+
+    let currentMesh = null;
+    let isWireframe = false;
+    const loader = new THREE.STLLoader();
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xe4e4e7,
+      metalness: 0.15,
+      roughness: 0.4
+    });
+
+    function displayGeometry(geometry, name) {
+      if (currentMesh) scene.remove(currentMesh);
+      geometry.center();
+      geometry.computeVertexNormals();
+
+      currentMesh = new THREE.Mesh(geometry, material);
+      currentMesh.rotation.x = -Math.PI / 2; // Align to Z-up
+      currentMesh.castShadow = true;
+      currentMesh.receiveShadow = true;
+      scene.add(currentMesh);
+
+      document.getElementById('model-name').textContent = name;
+      controls.target.set(0, 0, 0);
+    }
+
+    function loadModel(filename, type) {
+      document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById('btn-' + type);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      document.getElementById('model-name').textContent = 'Loading ' + filename + '...';
+      loader.load(filename, function (geometry) {
+        displayGeometry(geometry, filename);
+      }, undefined, function (error) {
+        document.getElementById('model-name').textContent = 'Open via local server or drag & drop ' + filename;
+        document.getElementById('file-label').style.display = 'inline-block';
+      });
+    }
+
+    function toggleWireframe() {
+      isWireframe = !isWireframe;
+      material.wireframe = isWireframe;
+      document.getElementById('btn-wire').classList.toggle('active', isWireframe);
+    }
+
+    function resetCamera() {
+      camera.position.set(220, 260, 240);
+      controls.target.set(0, 0, 0);
+    }
+
+    // Drag and Drop
+    window.addEventListener('dragover', (e) => { e.preventDefault(); document.getElementById('drop-hint').style.display = 'block'; });
+    window.addEventListener('dragleave', (e) => { if (e.clientX <= 0 || e.clientY <= 0) document.getElementById('drop-hint').style.display = 'none'; });
+    window.addEventListener('drop', (e) => {
+      e.preventDefault();
+      document.getElementById('drop-hint').style.display = 'none';
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.toLowerCase().endsWith('.stl')) {
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          const geom = loader.parse(event.target.result);
+          displayGeometry(geom, file.name);
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+
+    // File Input fallback
+    document.getElementById('file-input').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          const geom = loader.parse(event.target.result);
+          displayGeometry(geom, file.name);
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Initial load
+    loadModel('voltsense_enclosure_base.stl', 'base');
+  </script>
+</body>
+</html>

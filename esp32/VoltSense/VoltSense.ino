@@ -2554,6 +2554,15 @@ void pollRemoteChanges() {
   whole._json = body;
   applyRemoteChange(whole);
 
+  // Dispatch override first
+  json.get(field, "override");
+  if (field.success) {
+    RemoteChange o;
+    o._path = "/override";
+    o._bool = field.boolValue;
+    applyRemoteChange(o);
+  }
+
   // Then every control the app can touch.
   for (int i = 0; i < NUM_PORTS; i++) {
     const String suffix = "ports/port_0" + String(i + 1);
@@ -2572,6 +2581,19 @@ void pollRemoteChanges() {
     if (field.success) {
       policy._str = field.stringValue;
       applyRemoteChange(policy);
+    }
+  }
+
+  // If the user manually turned off all relays (e.g. clicking ALL OFF) while the 
+  // countdown is ticking, we should cancel the timer and just go to SHUTDOWN state.
+  if (currentState == STATE_IDLE_COUNTDOWN || currentState == STATE_RESPONSE_WINDOW) {
+    bool anyOn = false;
+    for (int i = 0; i < NUM_PORTS; i++) {
+      if (relayIsOn(i)) { anyOn = true; break; }
+    }
+    if (!anyOn) {
+      currentState = STATE_SHUTDOWN;
+      Serial.println("All relays manually turned off. Skipping response window -> SHUTDOWN");
     }
   }
 }
