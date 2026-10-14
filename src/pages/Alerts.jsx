@@ -9,10 +9,67 @@ import {
   CircleSlash,
   CircleAlert,
   Power,
-  Loader2
+  Loader2,
+  Timer,
+  Zap,
+  Clock,
+  ArrowRight
 } from 'lucide-react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useAlerts } from '../hooks/useAlerts';
+
+const getAlertVisuals = (alert) => {
+  const tag = (alert?.tag || '').toLowerCase();
+  const title = (alert?.title || '').toLowerCase();
+  const body = (alert?.body || '').toLowerCase();
+
+  // Strip leading raw emojis (like ⚠️) so the typography remains crisp
+  const cleanTitle = (alert?.title || 'VoltSense Alert')
+    .replace(/^[\s\p{Extended_Pictographic}\uFE0F]+/u, '')
+    .trim() || 'VoltSense Alert';
+
+  if (tag.includes('overcurrent') || title.includes('overcurrent') || body.includes('overcurrent')) {
+    return {
+      cleanTitle,
+      category: 'Power Trip',
+      Icon: Zap,
+      badgeClass: 'bg-red-50 text-red-600 border-red-200/80',
+      watermarkClass: 'text-red-500/[0.04]',
+      isShutdown: false
+    };
+  }
+
+  if (tag.includes('shutdown') || tag.includes('inactivity') || body.includes('shut down') || body.includes('empty') || title.includes('empty')) {
+    return {
+      cleanTitle,
+      category: 'Auto Shutdown',
+      Icon: Timer,
+      badgeClass: 'bg-amber-50 text-amber-600 border-amber-200/80',
+      watermarkClass: 'text-amber-500/[0.04]',
+      isShutdown: true
+    };
+  }
+
+  if (tag.includes('power') || title.includes('power')) {
+    return {
+      cleanTitle,
+      category: 'System Power',
+      Icon: Power,
+      badgeClass: 'bg-maroon-50 text-maroon-800 border-maroon-200/80',
+      watermarkClass: 'text-maroon-900/[0.03]',
+      isShutdown: false
+    };
+  }
+
+  return {
+    cleanTitle,
+    category: 'Notification',
+    Icon: Bell,
+    badgeClass: 'bg-gray-50 text-gray-700 border-gray-200/80',
+    watermarkClass: 'text-gray-900/[0.03]',
+    isShutdown: false
+  };
+};
 
 // Outcome describes what the SERVER managed to do, not what the alert means. A history that said
 // "delivered" for an alert nobody received would be worse than no history at all, so the badge is
@@ -136,27 +193,46 @@ const Alerts = () => {
           <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">
             Preview · what an alert looks like
           </p>
-          <article className="rounded-3xl border bg-white border-maroon-200/70 shadow-sm shadow-maroon-900/5 p-4">
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 w-9 h-9 rounded-2xl bg-maroon-50 text-maroon-800 flex items-center justify-center shrink-0">
-                <Bell className="w-4 h-4" />
+          <article className="relative rounded-3xl border bg-white/85 backdrop-blur-xl border-amber-200/80 shadow-[0_4px_20px_rgb(0,0,0,0.03)] p-4 md:p-5 overflow-hidden group">
+            <Timer
+              strokeWidth={1.5}
+              className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-amber-500/[0.04] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none"
+            />
+            <div className="flex items-start gap-3.5 md:gap-4 relative z-10">
+              <div className="w-10 h-10 md:w-11 md:h-11 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200/80 flex items-center justify-center shrink-0 shadow-sm transition-transform duration-300 group-hover:scale-105">
+                <Timer className="w-5 h-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-gray-900 truncate">Room became empty</h3>
-                  <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-maroon-600" />
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  The lounge has been unoccupied for 15 minutes. Power will shut off in 5 minutes
-                  unless you tap Keep Power On.
-                </p>
-                <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-                  <span className="text-[10px] font-semibold text-gray-400">Just now · example</span>
-                  <span className="text-gray-200">·</span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60">
+                      Auto Shutdown
+                    </span>
+                    <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">Room became empty</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest bg-maroon-100 text-maroon-800 border border-maroon-200">
+                      New
+                    </span>
+                  </div>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-bold shrink-0">
                     <CircleCheck className="w-3 h-3" />
                     Delivered
                   </span>
+                </div>
+                <p className="text-xs md:text-sm text-gray-600 mt-1 leading-relaxed">
+                  The lounge has been unoccupied for 15 minutes. Power will shut off in 5 minutes
+                  unless you tap Keep Power On.
+                </p>
+                <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100/80 text-[10px] md:text-xs font-medium text-gray-400">
+                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                  <span>Just now · example</span>
+                  <span className="text-gray-300">•</span>
+                  <Link
+                    to="/"
+                    className="font-bold text-maroon-800 hover:text-maroon-900 inline-flex items-center gap-0.5 hover:underline"
+                  >
+                    Open Dashboard
+                    <ArrowRight className="w-3 h-3" />
+                  </Link>
                 </div>
               </div>
             </div>
@@ -220,59 +296,79 @@ const Alerts = () => {
               <div className="space-y-2">
                 {group.items.map((alert) => {
                   const meta = OUTCOME[alert.outcome] || OUTCOME.unknown;
-                  const { Icon } = meta;
-                  // Three states, not two. `undefined` = the read marker is still loading, so
-                  // nothing should be highlighted yet — highlighting the whole list for a frame and
-                  // then clearing it is a visible flicker. `null` = loaded with no marker on file,
-                  // which genuinely means every row is new.
+                  const { Icon: OutcomeIcon } = meta;
+                  const visual = getAlertVisuals(alert);
+                  const { Icon: AlertIcon } = visual;
                   const isUnread =
                     lastSeenId === null || (lastSeenId !== undefined && alert.at > lastSeenId);
 
                   return (
                     <article
                       key={alert.id}
-                      className={`rounded-3xl border p-4 transition-colors ${
+                      className={`relative rounded-3xl border p-4 md:p-5 transition-all duration-300 ease-apple-spring overflow-hidden group ${
                         isUnread
-                          ? 'bg-white border-maroon-200/70 shadow-sm shadow-maroon-900/5'
-                          : 'bg-white/60 border-gray-200/60'
+                          ? 'bg-white border-maroon-300/80 shadow-[0_8px_30px_rgb(128,0,0,0.06)]'
+                          : 'bg-white/85 backdrop-blur-xl border-white/60 hover:border-gray-200 shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-md'
                       }`}
                     >
-                      <div className="flex items-start gap-3">
+                      {/* Subtle watermark in the side, matching dashboard cards */}
+                      <AlertIcon
+                        strokeWidth={1.5}
+                        className={`absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 ${visual.watermarkClass} transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none`}
+                      />
+
+                      <div className="flex items-start gap-3.5 md:gap-4 relative z-10">
+                        {/* Type badge on the left */}
                         <div
-                          className={`mt-0.5 w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
-                            isUnread ? 'bg-maroon-50 text-maroon-800' : 'bg-gray-50 text-gray-400'
-                          }`}
+                          className={`w-10 h-10 md:w-11 md:h-11 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-transform duration-300 group-hover:scale-105 ${visual.badgeClass}`}
                         >
-                          {alert.tag === 'voltsense-power' ? (
-                            <Power className="w-4 h-4" />
-                          ) : (
-                            <Bell className="w-4 h-4" />
-                          )}
+                          <AlertIcon className="w-5 h-5" />
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-bold text-gray-900 truncate">
-                              {alert.title}
-                            </h3>
-                            {isUnread && (
-                              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-maroon-600" />
-                            )}
-                          </div>
+                          <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
+                            <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500 bg-gray-100/80 px-2 py-0.5 rounded-md border border-gray-200/60">
+                                {visual.category}
+                              </span>
+                              <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">
+                                {visual.cleanTitle}
+                              </h3>
+                              {isUnread && (
+                                <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest bg-maroon-100 text-maroon-800 border border-maroon-200">
+                                  New
+                                </span>
+                              )}
+                            </div>
 
-                          <p className="text-xs text-gray-600 mt-1 break-words">{alert.body}</p>
-
-                          <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-                            <span className="text-[10px] font-semibold text-gray-400">
-                              {formatStamp(alert.at)}
-                            </span>
-                            <span className="text-gray-200">·</span>
+                            {/* Status outcome pill on the right */}
                             <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${meta.className}`}
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-bold tracking-tight shrink-0 ${meta.className}`}
                             >
-                              <Icon className="w-3 h-3" />
+                              <OutcomeIcon className="w-3 h-3" />
                               {meta.label}
                             </span>
+                          </div>
+
+                          <p className="text-xs md:text-sm text-gray-600 mt-1 leading-relaxed break-words">
+                            {alert.body}
+                          </p>
+
+                          <div className="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100/80 text-[10px] md:text-xs font-medium text-gray-400">
+                            <Clock className="w-3.5 h-3.5 text-gray-400" />
+                            <span>{formatStamp(alert.at)}</span>
+                            {visual.isShutdown && (
+                              <>
+                                <span className="text-gray-300">•</span>
+                                <Link
+                                  to="/"
+                                  className="font-bold text-maroon-800 hover:text-maroon-900 inline-flex items-center gap-0.5 hover:underline"
+                                >
+                                  Open Dashboard
+                                  <ArrowRight className="w-3 h-3" />
+                                </Link>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
