@@ -299,61 +299,38 @@ const Dashboard = () => {
       )}
       
       {data.state === 'RESPONSE_WINDOW' && (
-        <div className="relative bg-white/80 backdrop-blur-2xl border-2 border-red-300/80 rounded-3xl shadow-[0_8px_30px_rgb(239,68,68,0.12)] p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 overflow-hidden mb-2 animate-in fade-in slide-in-from-top-4 transition-all duration-500 ease-apple-spring group">
-          {/* Subtle watermark icon in the side, matching Night Mode & Inactivity Limit cards, with an active pulse */}
-          <AlertTriangle
-            strokeWidth={1.5}
-            className="absolute -right-3 -bottom-3 w-24 h-24 md:w-32 md:h-32 text-red-500/[0.08] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none animate-pulse"
-          />
-
-          <div className="flex items-center gap-3.5 md:gap-4 relative z-10 min-w-0">
-            {/* Prominent side icon badge with animated blinking warning effect */}
-            <div className="relative shrink-0 flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-red-50 border border-red-200/90 text-red-600 shadow-sm">
-              <span className="absolute -inset-1 rounded-2xl bg-red-400/30 animate-ping pointer-events-none" />
-              <AlertTriangle className="w-6 h-6 md:w-7 md:h-7 text-red-600 animate-pulse relative z-10" />
-            </div>
-
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-red-600 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block" />
-                  Auto Shutdown In
-                </span>
-              </div>
-              <div className="flex items-baseline gap-2 leading-none">
-                <span className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
-                  {data.countdown_remaining_seconds ?? 300}s
-                </span>
-                <span className="text-xs md:text-sm font-bold text-red-600 uppercase tracking-wider">
-                  Remaining
-                </span>
-              </div>
-              <p className="text-[11px] text-gray-400 mt-1 font-medium">
-                No motion detected. Tap Keep Power On to stay powered.
-              </p>
-            </div>
-          </div>
-
-          <div className="relative z-10 shrink-0 flex items-center">
-            <button
-              onClick={async () => {
-                setOverridePending(true);
-                if (isDemo) {
-                  setDemoData(prev => ({ ...prev, state: 'OCCUPIED' }));
-                }
-                const ok = await setOverride(true);
-                setOverridePending(false);
-                if (!ok) {
-                  reportFailure('Could not cancel the shutdown — the room may still power off. Try again now.');
-                }
-              }}
-              disabled={overridePending}
-              aria-label="Keep Power On (Override Shutdown)"
-              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-red-600/25 hover:shadow-red-600/35 transition-all duration-300 ease-apple-spring disabled:opacity-70 flex items-center justify-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
-            >
-              {overridePending ? <><Loader2 className="w-4 h-4 animate-spin" /> Cancelling…</> : 'Keep Power On'}
-            </button>
-          </div>
+        <div className="bg-gradient-to-r from-red-600 to-orange-500 rounded-3xl p-6 shadow-2xl flex flex-col items-center justify-center text-white relative overflow-hidden mb-2 animate-in fade-in slide-in-from-top-4">
+           {/* Side icon placed in the side like Night Mode & Inactivity Limit cards, but blinking */}
+           <AlertTriangle
+             strokeWidth={1.5}
+             className="absolute -right-3 -bottom-3 w-28 h-28 md:w-36 md:h-36 text-white/25 transform rotate-12 pointer-events-none animate-pulse"
+           />
+           <h2 className="text-2xl font-bold uppercase tracking-widest text-center relative z-10">Auto Shutdown In</h2>
+           {/* Fall back to the FIRMWARE's real response window (5 minutes), not 60 seconds — the
+               alert text says "60 seconds" but RESPONSE_WINDOW_MS is 300000. Showing 60 here would
+               understate the time the user actually has, and could make them rush a decision. */}
+           <div className="text-7xl font-black drop-shadow-md my-4 relative z-10">{data.countdown_remaining_seconds ?? 300}s</div>
+           <button
+             onClick={async () => {
+               setOverridePending(true);
+               if (isDemo) {
+                 setDemoData(prev => ({ ...prev, state: 'OCCUPIED' }));
+               }
+               const ok = await setOverride(true);
+               setOverridePending(false);
+               // This is the highest-stakes control in the app: if the write fails silently the
+               // room powers down anyway, so say so plainly rather than letting the button appear
+               // to have worked.
+               if (!ok) {
+                 reportFailure('Could not cancel the shutdown — the room may still power off. Try again now.');
+               }
+             }}
+             disabled={overridePending}
+             aria-label="Keep Power On (Override Shutdown)"
+             className="relative z-10 bg-white text-red-600 px-8 py-3 rounded-full font-bold text-lg shadow-lg hover:scale-105 active:scale-95 transition-all uppercase tracking-wider focus:outline-none focus-visible:ring-4 focus-visible:ring-white/50 disabled:opacity-70 disabled:hover:scale-100 flex items-center justify-center gap-2"
+           >
+             {overridePending ? <><Loader2 className="w-5 h-5 animate-spin" /> Cancelling…</> : 'Keep Power On'}
+           </button>
         </div>
       )}
 
