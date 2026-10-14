@@ -14,7 +14,7 @@ const timeRanges = ['Today', 'Yesterday', 'Last 7 Days', 'This Month', 'Custom']
 const rangeLabel = (timeRange) => {
   if (timeRange === 'Last 7 Days') return '7 Days';
   if (timeRange === 'This Month') return 'Month';
-  if (timeRange === 'Yesterday') return 'Y-Day';
+  if (timeRange === 'Yesterday') return 'Yesterday';
   const custom = timeRange.match(/^(\d{1,2}\/\d{1,2})(?:\/\d{2,4})?\s*-\s*(\d{1,2}\/\d{1,2})(?:\/\d{2,4})?$/);
   if (custom) return `${custom[1]} - ${custom[2]}`;
   return timeRange;
@@ -116,6 +116,8 @@ const Analytics = () => {
           <span>
             {isCustomRange
               ? 'No recorded data for this range. The device keeps 31 days of daily history, and the latest day updates as it runs.'
+              : timeRange === 'Yesterday'
+              ? 'No history recorded for yesterday yet. The device archives daily rollups at midnight (00:00). If this prototype was powered on today, yesterday’s record is empty.'
               : 'No recorded data yet for this range. Telemetry appears once the device has been running.'}
           </span>
         </div>
@@ -308,7 +310,12 @@ const Analytics = () => {
         {/* Energy Chart */}
         <div className="analytics-energy-chart bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300 fill-mode-both flex flex-col justify-between">
           <div>
-            <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Energy Usage (kWh)</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Energy Usage (kWh)</h3>
+              <span className="text-[9px] md:text-[10px] font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
+                {timeRange === 'Today' ? 'Hourly (24h)' : timeRange === 'Yesterday' ? 'Daily Rollup' : 'Daily Trend'}
+              </span>
+            </div>
             {!activeDeviceId && (
               <p className="text-[10px] text-gray-400 mt-1 mb-4 md:mb-6 font-medium">Daily power consumption history.</p>
             )}
@@ -323,6 +330,20 @@ const Analytics = () => {
                     <BarChart3 className="w-8 h-8 md:w-10 md:h-10 mb-2 opacity-20" />
                     <p className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400/60">No energy data yet</p>
                   </div>
+                ) : dataToRender.energy.length === 1 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dataToRender.energy} barSize={48} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                      <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} width={40} />
+                      <Tooltip 
+                        cursor={{fill: '#f9fafb'}}
+                        contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', color: '#111827', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)', padding: '12px', borderRadius: '12px', fontWeight: 'bold' }}
+                        formatter={(val) => [`${Number(val).toFixed(2)} kWh`, 'Energy']}
+                      />
+                      <Bar dataKey="kwh" fill="#852636" radius={[6, 6, 0, 0]} animationDuration={1000} />
+                    </BarChart>
+                  </ResponsiveContainer>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={dataToRender.energy} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -338,8 +359,9 @@ const Analytics = () => {
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', color: '#111827', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)', padding: '12px', borderRadius: '12px', fontWeight: 'bold' }}
                         itemStyle={{ color: '#852636' }}
+                        formatter={(val) => [`${Number(val).toFixed(2)} kWh`, 'Energy']}
                       />
-                      <Area type="monotone" dataKey="kwh" stroke="#852636" strokeWidth={3} fillOpacity={1} fill="url(#colorKwh)" animationDuration={1000} />
+                      <Area type="monotone" dataKey="kwh" stroke="#852636" strokeWidth={3} fillOpacity={1} fill="url(#colorKwh)" animationDuration={1000} dot={{ r: 3, fill: '#852636' }} activeDot={{ r: 5 }} />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -355,7 +377,12 @@ const Analytics = () => {
         {/* Occupancy Chart */}
         <div className="analytics-occupancy-chart bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 mb-4 md:mb-0 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500 fill-mode-both flex flex-col justify-between">
           <div>
-            <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Occupancy Timeline</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Occupancy Timeline</h3>
+              <span className="text-[9px] md:text-[10px] font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
+                {timeRange === 'Today' ? 'Hourly Activity' : timeRange === 'Yesterday' ? 'Daily Status' : 'Daily Activity'}
+              </span>
+            </div>
             {!activeDeviceId && (
               <p className="text-[10px] text-gray-400 mt-1 mb-4 md:mb-6 font-medium">Motion sensor data tracking room usage.</p>
             )}
@@ -372,7 +399,7 @@ const Analytics = () => {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dataToRender.occupancy} barSize={24} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <BarChart data={dataToRender.occupancy} barSize={dataToRender.occupancy.length === 1 ? 48 : 24} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                       <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
                       <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} ticks={[0, 1]} tickFormatter={(val) => val ? 'Yes' : 'No'} width={40} />

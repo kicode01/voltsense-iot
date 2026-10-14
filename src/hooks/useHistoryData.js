@@ -3,9 +3,9 @@ import { ref, onValue } from 'firebase/database';
 import { db } from '../lib/firebase';
 
 export const generateMockData = (range) => {
-  if (range === 'Today' || range === 'Yesterday') {
+  if (range === 'Today') {
     return {
-      totals: { energy: range === 'Today' ? 3.2 : 4.1, hours: range === 'Today' ? 8.5 : 14.2 },
+      totals: { energy: 3.2, hours: 8.5 },
       energy: [
         { label: "00:00", kwh: 0.1 }, { label: "04:00", kwh: 0.2 }, { label: "08:00", kwh: 0.8 },
         { label: "12:00", kwh: 1.2 }, { label: "16:00", kwh: 0.5 }, { label: "20:00", kwh: 0.4 }
@@ -19,6 +19,22 @@ export const generateMockData = (range) => {
       ],
       alerts: [
         { time: '08:30 AM', message: 'Workstation powered on', port: 'port_02' }
+      ]
+    };
+  } else if (range === 'Yesterday') {
+    return {
+      totals: { energy: 4.1, hours: 14.2 },
+      energy: [
+        { label: "Yesterday", kwh: 4.1 }
+      ],
+      occupancy: [
+        { label: "Yesterday", occupied: 1 }
+      ],
+      usage: [
+        { name: "Workstation", percentage: 75 }, { name: "Appliance", percentage: 15 }, { name: "Light", percentage: 10 }
+      ],
+      alerts: [
+        { time: 'Yesterday', message: 'Workstation powered on', port: 'port_02' }
       ]
     };
   } else if (range === 'This Month' || range.includes('/')) {
@@ -265,12 +281,35 @@ export const useHistoryData = (roomId, timeRange) => {
 
       if (snapshot.exists()) {
         const data = snapshot.val();
+        const toList = (val) => {
+          if (!val) return [];
+          if (Array.isArray(val)) return val;
+          if (typeof val === 'object') return Object.values(val);
+          return [];
+        };
+
+        let energy = toList(data.energy);
+        let occupancy = toList(data.occupancy);
+
+        // Normalize single-day rollup labels: if yesterday sends day-of-month (e.g. "14"),
+        // label it "Yesterday" so charts and tooltips don't confuse users with a cryptic number.
+        if (timeRange.toLowerCase() === 'yesterday' && energy.length === 1) {
+          energy = energy.map((item) => ({
+            ...item,
+            label: item.label === 'Yesterday' || isNaN(Number(item.label)) ? item.label : 'Yesterday'
+          }));
+          occupancy = occupancy.map((item) => ({
+            ...item,
+            label: item.label === 'Yesterday' || isNaN(Number(item.label)) ? item.label : 'Yesterday'
+          }));
+        }
+
         setHistoryData({
-          energy: data.energy || emptyData.energy,
-          occupancy: data.occupancy || emptyData.occupancy,
+          energy: energy.length > 0 ? energy : emptyData.energy,
+          occupancy: occupancy.length > 0 ? occupancy : emptyData.occupancy,
           totals: data.totals || emptyData.totals,
-          usage: data.usage || emptyData.usage,
-          alerts: data.alerts || emptyData.alerts
+          usage: toList(data.usage),
+          alerts: toList(data.alerts)
         });
       } else {
         setHistoryData(emptyData);
