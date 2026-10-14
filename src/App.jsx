@@ -77,6 +77,26 @@ class ErrorBoundary extends Component {
     console.error('Unhandled application error:', error, info);
   }
 
+  handleReload = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+        }
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        for (const key of keys) {
+          await caches.delete(key);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    window.location.reload();
+  };
+
   render() {
     if (!this.state.error) return this.props.children;
 
@@ -87,10 +107,10 @@ class ErrorBoundary extends Component {
           {String(this.state.error?.message || this.state.error)}
         </p>
         <button
-          onClick={() => window.location.reload()}
-          className="px-5 py-2.5 rounded-2xl bg-maroon-800 text-white text-sm font-bold"
+          onClick={this.handleReload}
+          className="px-5 py-2.5 rounded-2xl bg-maroon-800 hover:bg-maroon-900 text-white text-sm font-bold shadow-md transition-colors"
         >
-          Reload
+          Reload & Update App
         </button>
       </div>
     );
