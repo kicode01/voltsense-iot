@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
-import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2, FlaskConical, Timer, Radar } from 'lucide-react';
+import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2, Timer, Radar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MarqueeText from '../components/MarqueeText';
 
@@ -413,7 +413,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
         {nightMode.enabled && (
           <div className="joyride-night-mode relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden">
             <Moon strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
@@ -475,40 +475,12 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
-
-        {/* Desktop-only Bento Card 4: Sensor Accuracy Benchmark Quick Launcher */}
-        <Link 
-          to="/test-lab"
-          className="hidden lg:flex cursor-pointer relative bg-white/70 hover:bg-white backdrop-blur-2xl border border-white/40 hover:border-emerald-200 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-lg transition-all duration-500 ease-apple-spring p-4 md:p-5 flex-col justify-between group overflow-hidden"
-          title="Open Accuracy & Calibration Test Lab"
-        >
-          <FlaskConical strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-emerald-900/[0.04] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none" />
-          <div className="relative z-10">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">Calibration Lab</h3>
-              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Bench</span>
-            </div>
-            <p className="text-sm md:text-base font-bold text-gray-900 leading-tight">
-              Sensor Accuracy
-            </p>
-            <p className="text-[11px] text-emerald-700 font-semibold mt-2 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
-              Launch Test Bench &rarr;
-            </p>
-          </div>
-        </Link>
       </div>
 
       <div className="joyride-ports-list animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 fill-mode-both">
         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap sm:flex-nowrap">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Port / Device Management</h2>
           <div className="flex items-center gap-2">
-            <Link
-              to="/test-lab"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
-              title="Test and validate sensor accuracy against a multimeter"
-            >
-              <FlaskConical className="w-3 h-3 text-emerald-700" /> Accuracy Test Lab
-            </Link>
             <button 
               onClick={() => {
                 if (isRenameMode && editingPort) {
