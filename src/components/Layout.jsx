@@ -65,7 +65,7 @@ const Layout = () => {
       <header className={`z-50 shrink-0 pt-[var(--safe-top)] pl-[var(--safe-left)] pr-[var(--safe-right)] bg-[#F0F2F5] transition-shadow duration-300 ${
         scrolled ? 'shadow-sm shadow-maroon-900/5' : ''
       }`}>
-        <div className="max-w-5xl mx-auto px-4 md:px-6 h-20 flex items-center justify-between">
+        <div className="max-w-5xl lg:max-w-7xl mx-auto px-4 md:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img src="/logo.svg" alt="VoltSense Logo" className="w-10 h-10" />
             <div className="flex flex-col">
@@ -154,7 +154,7 @@ const Layout = () => {
         onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 10)}
       >
         {/* pb-* clears the floating bottom nav plus the home indicator / gesture bar */}
-        <main className="w-full max-w-5xl mx-auto px-4 md:px-6 py-6 pb-[calc(10rem_+_var(--safe-bottom))] md:pb-10 flex flex-col">
+        <main className="w-full max-w-5xl lg:max-w-7xl mx-auto px-4 md:px-6 lg:px-8 py-6 pb-[calc(10rem_+_var(--safe-bottom))] md:pb-10 flex flex-col">
           <Outlet />
         </main>
       </div>

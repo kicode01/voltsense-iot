@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from 'recharts';
-import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock } from 'lucide-react';
+import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity } from 'lucide-react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useHistoryData, generateMockData } from '../hooks/useHistoryData';
 import { Link } from 'react-router-dom';
@@ -238,7 +238,8 @@ const Analytics = () => {
         <p className="text-[10px] text-gray-400 font-medium px-2 mb-2">Filter the dashboard by different time ranges to view specific history.</p>
       )}
 
-      <div className="analytics-metrics grid grid-cols-2 gap-4 md:gap-5">
+      {/* Metric Stat Cards: 2 cols on mobile, 4 cols on desktop */}
+      <div className="analytics-metrics grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-5">
         <div className="relative bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] group overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100 fill-mode-both">
           <PlugZap strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
           <div className="relative z-10">
@@ -253,6 +254,7 @@ const Analytics = () => {
             </div>
           </div>
         </div>
+
         <div className="relative bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] group overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200 fill-mode-both">
           <Clock strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none" />
           <div className="relative z-10">
@@ -267,90 +269,129 @@ const Analytics = () => {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Energy Chart */}
-      <div className="analytics-energy-chart bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300 fill-mode-both">
-        <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Energy Usage (kWh)</h3>
-        {!activeDeviceId && (
-          <p className="text-[10px] text-gray-400 mt-1 mb-4 md:mb-6 font-medium">Daily power consumption history.</p>
-        )}
-        {activeDeviceId && <div className="mb-4 md:mb-6" />}
-        
-        <div className="h-48 md:h-64 w-full -ml-2 md:ml-0 relative">
-          {isChartsReady ? (
-            <div className="absolute inset-0 animate-in fade-in duration-500">
-              {(!dataToRender?.energy || dataToRender.energy.length === 0) ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                  <BarChart3 className="w-8 h-8 md:w-10 md:h-10 mb-2 opacity-20" />
-                  <p className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400/60">No energy data yet</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={dataToRender.energy} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorKwh" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#852636" stopOpacity={0.15}/>
-                        <stop offset="95%" stopColor="#852636" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                    <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} width={40} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', color: '#111827', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)', padding: '12px', borderRadius: '12px', fontWeight: 'bold' }}
-                      itemStyle={{ color: '#852636' }}
-                    />
-                    <Area type="monotone" dataKey="kwh" stroke="#852636" strokeWidth={3} fillOpacity={1} fill="url(#colorKwh)" animationDuration={1000} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
+        {/* Desktop-Only Stat Card 3: Average Active Load */}
+        <div className="hidden lg:block relative bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] group overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300 fill-mode-both">
+          <Zap strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
+          <div className="relative z-10">
+            <div className="text-gray-500 text-[10px] md:text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+              Avg Active Power
             </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-maroon-100 border-t-maroon-800 rounded-full animate-spin opacity-50" />
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tighter transition-all">
+                {Number(dataToRender?.totals?.hours) > 0 ? (((Number(dataToRender?.totals?.energy) || 0) * 1000) / Number(dataToRender?.totals?.hours)).toFixed(0) : '0'}
+              </span>
+              <span className="text-gray-400 text-sm font-bold uppercase tracking-widest">Watts</span>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Desktop-Only Stat Card 4: Occupancy Duty Cycle */}
+        <div className="hidden lg:block relative bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] group overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 delay-400 fill-mode-both">
+          <Activity strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none" />
+          <div className="relative z-10">
+            <div className="text-gray-500 text-[10px] md:text-xs font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+              Room Utilization
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tighter transition-all">
+                {dataToRender?.occupancy?.length ? Math.round((dataToRender.occupancy.filter(o => o.occupied > 0).length / dataToRender.occupancy.length) * 100) : 0}
+              </span>
+              <span className="text-gray-400 text-sm font-bold uppercase tracking-widest">% time</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Occupancy Chart */}
-      <div className="analytics-occupancy-chart bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 mb-4 md:mb-0 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500 fill-mode-both">
-        <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Occupancy Timeline</h3>
-        {!activeDeviceId && (
-          <p className="text-[10px] text-gray-400 mt-1 mb-4 md:mb-6 font-medium">Motion sensor data tracking room usage.</p>
-        )}
-        {activeDeviceId && <div className="mb-4 md:mb-6" />}
-        
-        <div className="h-40 md:h-48 w-full -ml-2 md:ml-0 relative">
-          {isChartsReady ? (
-            <div className="absolute inset-0 animate-in fade-in duration-500">
-              {(!dataToRender?.occupancy || dataToRender.occupancy.length === 0) ? (
-                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
-                  <BarChart3 className="w-8 h-8 md:w-10 md:h-10 mb-2 opacity-20" />
-                  <p className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400/60">No occupancy data yet</p>
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dataToRender.occupancy} barSize={24} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                    <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} ticks={[0, 1]} tickFormatter={(val) => val ? 'Yes' : 'No'} width={40} />
-                    <Tooltip 
-                      cursor={{fill: '#f9fafb'}}
-                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', color: '#111827', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)', padding: '12px', borderRadius: '12px', fontWeight: 'bold' }}
-                      formatter={(value) => [value ? 'Occupied' : 'Vacant', 'Status']}
-                    />
-                    <Bar dataKey="occupied" fill="#852636" radius={[4, 4, 0, 0]} animationDuration={1000} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-maroon-100 border-t-maroon-800 rounded-full animate-spin opacity-50" />
-            </div>
-          )}
+      {/* Dual Charts Container: 1 col on mobile, 2 cols on desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
+        {/* Energy Chart */}
+        <div className="analytics-energy-chart bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300 fill-mode-both flex flex-col justify-between">
+          <div>
+            <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Energy Usage (kWh)</h3>
+            {!activeDeviceId && (
+              <p className="text-[10px] text-gray-400 mt-1 mb-4 md:mb-6 font-medium">Daily power consumption history.</p>
+            )}
+            {activeDeviceId && <div className="mb-4 md:mb-6" />}
+          </div>
+          
+          <div className="h-48 md:h-64 lg:h-72 w-full -ml-2 md:ml-0 relative">
+            {isChartsReady ? (
+              <div className="absolute inset-0 animate-in fade-in duration-500">
+                {(!dataToRender?.energy || dataToRender.energy.length === 0) ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                    <BarChart3 className="w-8 h-8 md:w-10 md:h-10 mb-2 opacity-20" />
+                    <p className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400/60">No energy data yet</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={dataToRender.energy} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorKwh" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#852636" stopOpacity={0.15}/>
+                          <stop offset="95%" stopColor="#852636" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                      <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} width={40} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', color: '#111827', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)', padding: '12px', borderRadius: '12px', fontWeight: 'bold' }}
+                        itemStyle={{ color: '#852636' }}
+                      />
+                      <Area type="monotone" dataKey="kwh" stroke="#852636" strokeWidth={3} fillOpacity={1} fill="url(#colorKwh)" animationDuration={1000} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-maroon-100 border-t-maroon-800 rounded-full animate-spin opacity-50" />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Occupancy Chart */}
+        <div className="analytics-occupancy-chart bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 mb-4 md:mb-0 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500 fill-mode-both flex flex-col justify-between">
+          <div>
+            <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Occupancy Timeline</h3>
+            {!activeDeviceId && (
+              <p className="text-[10px] text-gray-400 mt-1 mb-4 md:mb-6 font-medium">Motion sensor data tracking room usage.</p>
+            )}
+            {activeDeviceId && <div className="mb-4 md:mb-6" />}
+          </div>
+          
+          <div className="h-48 md:h-64 lg:h-72 w-full -ml-2 md:ml-0 relative">
+            {isChartsReady ? (
+              <div className="absolute inset-0 animate-in fade-in duration-500">
+                {(!dataToRender?.occupancy || dataToRender.occupancy.length === 0) ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                    <BarChart3 className="w-8 h-8 md:w-10 md:h-10 mb-2 opacity-20" />
+                    <p className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-gray-400/60">No occupancy data yet</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dataToRender.occupancy} barSize={24} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                      <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} ticks={[0, 1]} tickFormatter={(val) => val ? 'Yes' : 'No'} width={40} />
+                      <Tooltip 
+                        cursor={{fill: '#f9fafb'}}
+                        contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', color: '#111827', boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)', padding: '12px', borderRadius: '12px', fontWeight: 'bold' }}
+                        formatter={(value) => [value ? 'Occupied' : 'Vacant', 'Status']}
+                      />
+                      <Bar dataKey="occupied" fill="#852636" radius={[4, 4, 0, 0]} animationDuration={1000} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 border-4 border-maroon-100 border-t-maroon-800 rounded-full animate-spin opacity-50" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Bell,
@@ -130,11 +130,32 @@ const Alerts = () => {
     }
   }, [loading, unreadCount, markAllSeen]);
 
+  const [filter, setFilter] = useState('all');
+
+  const filteredAlerts = useMemo(() => {
+    if (filter === 'all') return alerts;
+    return alerts.filter((alert) => {
+      const tag = (alert?.tag || '').toLowerCase();
+      const title = (alert?.title || '').toLowerCase();
+      const body = (alert?.body || '').toLowerCase();
+      if (filter === 'shutdown') {
+        return tag.includes('shutdown') || tag.includes('inactivity') || body.includes('shut down') || body.includes('empty');
+      }
+      if (filter === 'overcurrent') {
+        return tag.includes('overcurrent') || title.includes('overcurrent') || body.includes('current');
+      }
+      if (filter === 'system') {
+        return !tag.includes('shutdown') && !tag.includes('inactivity') && !body.includes('shut down') && !body.includes('empty') && !tag.includes('overcurrent') && !title.includes('overcurrent') && !body.includes('current');
+      }
+      return true;
+    });
+  }, [alerts, filter]);
+
   const grouped = useMemo(() => {
     const groups = [];
     let current = null;
 
-    alerts.forEach((alert) => {
+    filteredAlerts.forEach((alert) => {
       const day = alert.at ? new Date(alert.at).toDateString() : 'Unknown date';
       if (!current || current.day !== day) {
         current = { day, label: formatStamp(alert.at).split(',')[0] || 'Unknown date', items: [] };
@@ -144,7 +165,7 @@ const Alerts = () => {
     });
 
     return groups;
-  }, [alerts]);
+  }, [filteredAlerts]);
 
   const busy = devicesLoading || loading;
 
@@ -173,6 +194,30 @@ const Alerts = () => {
           </button>
         )}
       </div>
+
+      {/* Category Filter Pills */}
+      {!busy && alerts.length > 0 && (
+        <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 no-scrollbar">
+          {[
+            { id: 'all', label: `All (${alerts.length})` },
+            { id: 'shutdown', label: 'Auto-Shutdown' },
+            { id: 'overcurrent', label: 'Overcurrent' },
+            { id: 'system', label: 'System Notice' },
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setFilter(item.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 whitespace-nowrap shrink-0 ${
+                filter === item.id
+                  ? 'bg-maroon-800 text-white shadow-sm'
+                  : 'bg-white/80 text-gray-500 hover:text-gray-900 border border-gray-100 hover:bg-white'
+              }`}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* No device paired — the hook has nothing to subscribe to. Show a representative alert so
           the user can see what an entry will look like, instead of three empty cards. */}
@@ -262,7 +307,7 @@ const Alerts = () => {
                 {group.label}
               </h2>
 
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {group.items.map((alert) => {
                   const meta = OUTCOME[alert.outcome] || OUTCOME.unknown;
                   const { Icon: OutcomeIcon } = meta;
@@ -332,6 +377,18 @@ const Alerts = () => {
           <p className="text-[10px] text-gray-400 text-center pt-2 px-4">
             The newest 200 alerts are kept. Older entries are removed automatically.
           </p>
+        </div>
+      )}
+
+      {!busy && alerts.length > 0 && grouped.length === 0 && (
+        <div className="rounded-3xl bg-white border border-gray-200/70 p-8 text-center mt-6">
+          <p className="text-xs text-gray-500 font-medium">No alerts match the selected category filter.</p>
+          <button
+            onClick={() => setFilter('all')}
+            className="mt-3 text-xs font-bold text-maroon-800 underline hover:text-maroon-900"
+          >
+            Show all alerts
+          </button>
         </div>
       )}
     </div>

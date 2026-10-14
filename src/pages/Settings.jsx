@@ -453,321 +453,326 @@ const Settings = () => {
         </button>
       </div>
 
-      <div className="bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
-        
-        {/* Paired Devices Section */}
-        <div className="settings-paired-devices p-4 md:p-6 border-b border-gray-100">
-          <div className="flex items-center gap-3 md:gap-4 mb-4">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
-              <Wifi className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
-            </div>
-            <div>
-              <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Paired Devices</h3>
-              <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight">Manage your VoltSense hardware</p>
-            </div>
-          </div>
-          
-          <div className="space-y-3 mb-5">
-            {devices.map(mac => (
-              <div key={mac} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
-                <div className="flex items-center justify-between p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-                    <span className="font-mono text-sm font-bold text-gray-700">{mac}</span>
-                  </div>
-                  <button 
-                    onClick={() => handleUnpairDevice(mac)}
-                    disabled={unpairingId === mac}
-                    className={`px-3 py-2 rounded-lg transition-all duration-300 ease-apple-spring disabled:opacity-50 flex items-center text-xs font-bold overflow-hidden ${
-                      confirmUnpairId === mac 
-                        ? 'bg-red-500 text-white hover:bg-red-600 shadow-md shadow-red-500/20' 
-                        : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
-                    }`}
-                  >
-                    {unpairingId === mac ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Trash2 className={`w-4 h-4 shrink-0 transition-transform duration-300 ease-apple-spring ${confirmUnpairId === mac ? 'scale-110' : 'scale-100'}`} />
-                        <span 
-                          className={`transition-all duration-300 ease-apple-spring whitespace-nowrap overflow-hidden ${
-                            confirmUnpairId === mac ? 'max-w-[100px] opacity-100 ml-1.5' : 'max-w-0 opacity-0 ml-0'
-                          }`}
-                        >
-                          Confirm
-                        </span>
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* A removal that genuinely failed (offline, not the owner, server error) must not
-                    vanish with a dismissed modal. It stays here, next to the button, until retried. */}
-                {unpairError?.mac === mac && (
-                  <div className="px-3 pb-3 -mt-1 flex items-start gap-2 text-xs font-medium text-red-600">
-                    <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                    <span>{unpairError.message}</span>
-                  </div>
-                )}
-              </div>
-            ))}
-            {devices.length === 0 && (
-              <p className="text-sm text-gray-500 italic text-center py-2">No devices paired.</p>
-            )}
-          </div>
-
-          {/* Add a device by pairing code.
-              A MAC address is deliberately NOT accepted here: a MAC is public (it is broadcast in
-              every Wi-Fi frame) so typing one proves nothing about possession, and the old form let
-              anyone attach someone else's device — and therefore their alerts — to this account.
-              The code is printed by the device itself and expires in 30 minutes. */}
-          <form onSubmit={handleClaimDevice} className="relative">
-            <label htmlFor="pairing-code-input" className="sr-only">Pairing code</label>
-
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                <input
-                  id="pairing-code-input"
-                  name="pairingCode"
-                  type="text"
-                  inputMode="text"
-                  autoComplete="off"
-                  autoCapitalize="characters"
-                  spellCheck="false"
-                  maxLength={9}
-                  placeholder="Pairing code (e.g. K7M2-PQX4)"
-                  value={pairingCodeInput}
-                  onChange={(e) => {
-                    // Format as you type so the code stays readable and a stray paste with spaces
-                    // does not get rejected by a length check.
-                    setPairingCodeInput(formatPairingCodeInput(e.target.value));
-                    if (claimError) setClaimError(null);
-                  }}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-base md:text-sm font-mono font-bold tracking-wider uppercase focus:outline-none focus:border-maroon-300 focus:ring-4 focus:ring-maroon-50 transition-all placeholder:normal-case placeholder:font-sans placeholder:tracking-normal placeholder:font-medium"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={pairing || pairingCodeInput.replace(/[^A-Z0-9]/g, '').length !== 8}
-                className="bg-maroon-800 text-white px-4 rounded-xl font-bold flex items-center justify-center disabled:opacity-50 hover:bg-maroon-900 transition-colors"
-              >
-                {pairing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-              </button>
-            </div>
-
-            {claimError && (
-              <p className="text-xs font-semibold text-red-600 mt-2 px-1" role="alert">
-                {claimError}
-              </p>
-            )}
-
-            <p className="text-[11px] text-gray-500 mt-2 px-1 leading-relaxed">
-              The code is shown on the device after it powers on and joins Wi-Fi.
-            </p>
-          </form>
-        </div>
-        {/* Night Mode Section */}
-        <div className="settings-night-mode p-4 md:p-6 border-b border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3 md:gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-5 items-start">
+        {/* Left Column (Desktop: 7 cols) */}
+        <div className="lg:col-span-7 flex flex-col gap-4 md:gap-5">
+          {/* Paired Devices Section */}
+          <div className="settings-paired-devices bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
+            <div className="flex items-center gap-3 md:gap-4 mb-4">
               <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
-                <Moon className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+                <Wifi className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
               </div>
               <div>
-                <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Night Mode</h3>
-                <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">Ignore occupancy during sleep hours</p>
+                <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Paired Devices</h3>
+                <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight">Manage your VoltSense hardware</p>
               </div>
             </div>
             
-            <button 
-              onClick={() => handleNightModeChange('enabled', !nightMode.enabled)}
-              className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${nightMode.enabled ? 'bg-maroon-800' : 'bg-gray-200'}`}
-            >
-              <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ${nightMode.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
-          </div>
-
-          {nightMode.enabled && (
-            <div className="grid grid-cols-2 gap-3 mt-4 pt-4 md:mt-6 md:pt-6 border-t border-gray-100 animate-in slide-in-from-top-2 duration-300 relative">
-              <TimePicker 
-                label="Start Time (NTP)"
-                value={nightMode.start_time}
-                onChange={(val) => handleNightModeChange('start_time', val)}
-              />
-              <TimePicker 
-                label="End Time (NTP)"
-                value={nightMode.end_time}
-                onChange={(val) => handleNightModeChange('end_time', val)}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* mmWave Radar Toggle */}
-        <div className="p-4 md:p-6 border-b border-gray-100">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
-                <Radar className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
-              </div>
-              <div>
-                <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">mmWave Radar</h3>
-                <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">Enable secondary motion sensing for stillness detection</p>
-              </div>
-            </div>
-            
-            <button 
-              onClick={() => handleMmwaveChange(!mmwaveEnabled)}
-              className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${mmwaveEnabled ? 'bg-maroon-800' : 'bg-gray-200'}`}
-            >
-              <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ${mmwaveEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Device limits — the four settings that had no UI, plus per-port policy */}
-        <div className="settings-device-limits p-4 md:p-6 border-b border-gray-100">
-          <div className="flex items-center gap-3 md:gap-4 mb-4">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
-              <Sliders className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
-            </div>
-            <div>
-              <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Device limits</h3>
-              <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">
-                Live device behaviour — previously only changeable from the database console
-              </p>
-            </div>
-          </div>
-
-          {limitsError && (
-            <div role="alert" className="mb-4 flex items-start gap-2 rounded-2xl bg-red-50 border border-red-200 px-3 py-2 text-[11px] font-medium text-red-800">
-              <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>{limitsError}</span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {Object.entries(limitsMeta).map(([field, meta]) => (
-              <label key={field} className="block">
-                <span className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
-                  {meta.label} ({meta.unit})
-                </span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={meta.min}
-                    max={meta.max}
-                    step="any"
-                    defaultValue={limits[field]}
-                    key={`${field}-${limits[field]}`}
-                    onBlur={(e) => {
-                      if (Number(e.target.value) !== Number(limits[field])) {
-                        handleLimitSave(field, e.target.value);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') e.currentTarget.blur();
-                    }}
-                    className="w-full text-[16px] md:text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-300"
-                  />
-                  {savingLimit === field && <Loader2 className="w-4 h-4 animate-spin text-maroon-800 shrink-0" />}
-                </div>
-                <span className="block text-[10px] text-gray-400 mt-1 leading-snug">{meta.hint}</span>
-              </label>
-            ))}
-          </div>
-
-          {/* Per-port shutdown policy */}
-          <div className="mt-5 pt-5 border-t border-gray-100">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
-              When the room empties
-            </p>
-            <p className="text-[10px] text-gray-400 mb-3 leading-snug">
-              The device cannot tell a lamp from a charger by current alone, so say what each port is
-              for. Default is to cut — that is what the device is for.
-            </p>
-
-            <div className="space-y-2">
-              {(roomData?.ports ? Object.keys(roomData.ports) : []).map((portId) => {
-                const label = roomData.ports[portId]?.name || portId;
-                const value = roomData.ports[portId]?.policy || 'occupancy';
-                return (
-                  <div key={portId} className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-gray-700 truncate flex-1 min-w-0">
-                      {label}
-                    </span>
-                    {savingLimit === portId && <Loader2 className="w-3.5 h-3.5 animate-spin text-maroon-800 shrink-0" />}
-                    <select
-                      value={value}
-                      onChange={(e) => handlePolicyChange(portId, e.target.value)}
-                      aria-label={`Shutdown policy for ${label}`}
-                      className="text-[11px] font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-maroon-300 shrink-0"
+            <div className="space-y-3 mb-5">
+              {devices.map(mac => (
+                <div key={mac} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+                  <div className="flex items-center justify-between p-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                      <span className="font-mono text-sm font-bold text-gray-700">{mac}</span>
+                    </div>
+                    <button 
+                      onClick={() => handleUnpairDevice(mac)}
+                      disabled={unpairingId === mac}
+                      className={`px-3 py-2 rounded-lg transition-all duration-300 ease-apple-spring disabled:opacity-50 flex items-center text-xs font-bold overflow-hidden ${
+                        confirmUnpairId === mac 
+                          ? 'bg-red-500 text-white hover:bg-red-600 shadow-md shadow-red-500/20' 
+                          : 'text-gray-400 hover:text-red-500 hover:bg-red-50'
+                      }`}
                     >
-                      <option value="occupancy">Cut when empty</option>
-                      <option value="always_on">Never cut</option>
-                      <option value="keep_while_drawing">Keep while drawing</option>
-                    </select>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Notifications Section */}
-        <div className="settings-push-notifications p-4 md:p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 md:gap-4">
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
-                <Bell className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-0.5">
-                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight">Push Notifications</h3>
-                  {pushPermission === 'granted' && (
-                    <button
-                      onClick={handleTestNotification}
-                      className="bg-maroon-50 text-maroon-700 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-maroon-100 transition-colors"
-                    >
-                      Test
+                      {unpairingId === mac ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Trash2 className={`w-4 h-4 shrink-0 transition-transform duration-300 ease-apple-spring ${confirmUnpairId === mac ? 'scale-110' : 'scale-100'}`} />
+                          <span 
+                            className={`transition-all duration-300 ease-apple-spring whitespace-nowrap overflow-hidden ${
+                              confirmUnpairId === mac ? 'max-w-[100px] opacity-100 ml-1.5' : 'max-w-0 opacity-0 ml-0'
+                            }`}
+                          >
+                            Confirm
+                          </span>
+                        </>
+                      )}
                     </button>
+                  </div>
+
+                  {/* A removal that genuinely failed (offline, not the owner, server error) must not
+                      vanish with a dismissed modal. It stays here, next to the button, until retried. */}
+                  {unpairError?.mac === mac && (
+                    <div className="px-3 pb-3 -mt-1 flex items-start gap-2 text-xs font-medium text-red-600">
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <span>{unpairError.message}</span>
+                    </div>
                   )}
                 </div>
+              ))}
+              {devices.length === 0 && (
+                <p className="text-sm text-gray-500 italic text-center py-2">No devices paired.</p>
+              )}
+            </div>
+
+            {/* Add a device by pairing code.
+                A MAC address is deliberately NOT accepted here: a MAC is public (it is broadcast in
+                every Wi-Fi frame) so typing one proves nothing about possession, and the old form let
+                anyone attach someone else's device — and therefore their alerts — to this account.
+                The code is printed by the device itself and expires in 30 minutes. */}
+            <form onSubmit={handleClaimDevice} className="relative">
+              <label htmlFor="pairing-code-input" className="sr-only">Pairing code</label>
+
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <input
+                    id="pairing-code-input"
+                    name="pairingCode"
+                    type="text"
+                    inputMode="text"
+                    autoComplete="off"
+                    autoCapitalize="characters"
+                    spellCheck="false"
+                    maxLength={9}
+                    placeholder="Pairing code (e.g. K7M2-PQX4)"
+                    value={pairingCodeInput}
+                    onChange={(e) => {
+                      // Format as you type so the code stays readable and a stray paste with spaces
+                      // does not get rejected by a length check.
+                      setPairingCodeInput(formatPairingCodeInput(e.target.value));
+                      if (claimError) setClaimError(null);
+                    }}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-base md:text-sm font-mono font-bold tracking-wider uppercase focus:outline-none focus:border-maroon-300 focus:ring-4 focus:ring-maroon-50 transition-all placeholder:normal-case placeholder:font-sans placeholder:tracking-normal placeholder:font-medium"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={pairing || pairingCodeInput.replace(/[^A-Z0-9]/g, '').length !== 8}
+                  className="bg-maroon-800 text-white px-4 rounded-xl font-bold flex items-center justify-center disabled:opacity-50 hover:bg-maroon-900 transition-colors"
+                >
+                  {pairing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
+                </button>
+              </div>
+
+              {claimError && (
+                <p className="text-xs font-semibold text-red-600 mt-2 px-1" role="alert">
+                  {claimError}
+                </p>
+              )}
+
+              <p className="text-[11px] text-gray-500 mt-2 px-1 leading-relaxed">
+                The code is shown on the device after it powers on and joins Wi-Fi.
+              </p>
+            </form>
+          </div>
+
+          {/* Device limits — the four settings that had no UI, plus per-port policy */}
+          <div className="settings-device-limits bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
+            <div className="flex items-center gap-3 md:gap-4 mb-4">
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                <Sliders className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+              </div>
+              <div>
+                <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Device limits</h3>
                 <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">
-                  {pushPermission === 'unsupported'
-                    ? 'Not available on this device'
-                    : pushPermission === 'denied'
-                      ? 'Blocked in browser settings'
-                      : pushPermission === 'granted'
-                        ? 'Alerts for inactivity shutdown'
-                        : 'Enable alerts for inactivity shutdown'}
+                  Live device behaviour — previously only changeable from the database console
                 </p>
               </div>
             </div>
 
-            <button
-              onClick={handleToggleNotifications}
-              disabled={loadingPush || pushPermission === 'unsupported'}
-              className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${pushPermission === 'granted' ? 'bg-maroon-800' : 'bg-gray-200'} ${loadingPush ? 'opacity-70 cursor-wait' : ''} ${pushPermission === 'unsupported' ? 'cursor-not-allowed opacity-50' : ''}`}
-            >
-              <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 flex items-center justify-center ${pushPermission === 'granted' ? 'translate-x-6' : 'translate-x-0'}`}>
-                {loadingPush && <Loader2 className={`w-3.5 h-3.5 animate-spin ${pushPermission === 'granted' ? 'text-maroon-800' : 'text-gray-400'}`} />}
+            {limitsError && (
+              <div role="alert" className="mb-4 flex items-start gap-2 rounded-2xl bg-red-50 border border-red-200 px-3 py-2 text-[11px] font-medium text-red-800">
+                <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{limitsError}</span>
               </div>
-            </button>
-          </div>
+            )}
 
-          {pushPermission === 'denied' && (
-            <p className="mt-3 pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-500 font-medium leading-relaxed">
-              Notifications are blocked for this site. Re-enable them in your browser's site
-              settings, then toggle this back on. On iPhone, VoltSense must be added to the Home
-              Screen before push notifications work at all.
-            </p>
-          )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {Object.entries(limitsMeta).map(([field, meta]) => (
+                <label key={field} className="block">
+                  <span className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                    {meta.label} ({meta.unit})
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={meta.min}
+                      max={meta.max}
+                      step="any"
+                      defaultValue={limits[field]}
+                      key={`${field}-${limits[field]}`}
+                      onBlur={(e) => {
+                        if (Number(e.target.value) !== Number(limits[field])) {
+                          handleLimitSave(field, e.target.value);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                      }}
+                      className="w-full text-[16px] md:text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-300"
+                    />
+                    {savingLimit === field && <Loader2 className="w-4 h-4 animate-spin text-maroon-800 shrink-0" />}
+                  </div>
+                  <span className="block text-[10px] text-gray-400 mt-1 leading-snug">{meta.hint}</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Per-port shutdown policy */}
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                When the room empties
+              </p>
+              <p className="text-[10px] text-gray-400 mb-3 leading-snug">
+                The device cannot tell a lamp from a charger by current alone, so say what each port is
+                for. Default is to cut — that is what the device is for.
+              </p>
+
+              <div className="space-y-2">
+                {(roomData?.ports ? Object.keys(roomData.ports) : []).map((portId) => {
+                  const label = roomData.ports[portId]?.name || portId;
+                  const value = roomData.ports[portId]?.policy || 'occupancy';
+                  return (
+                    <div key={portId} className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-gray-700 truncate flex-1 min-w-0">
+                        {label}
+                      </span>
+                      {savingLimit === portId && <Loader2 className="w-3.5 h-3.5 animate-spin text-maroon-800 shrink-0" />}
+                      <select
+                        value={value}
+                        onChange={(e) => handlePolicyChange(portId, e.target.value)}
+                        aria-label={`Shutdown policy for ${label}`}
+                        className="text-[11px] font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-maroon-300 shrink-0"
+                      >
+                        <option value="occupancy">Cut when empty</option>
+                        <option value="always_on">Never cut</option>
+                        <option value="keep_while_drawing">Keep while drawing</option>
+                      </select>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
 
+        {/* Right Column (Desktop: 5 cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-4 md:gap-5">
+          {/* Night Mode Section */}
+          <div className="settings-night-mode bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <Moon className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+                </div>
+                <div>
+                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Night Mode</h3>
+                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">Ignore occupancy during sleep hours</p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => handleNightModeChange('enabled', !nightMode.enabled)}
+                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${nightMode.enabled ? 'bg-maroon-800' : 'bg-gray-200'}`}
+              >
+                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ${nightMode.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            {nightMode.enabled && (
+              <div className="grid grid-cols-2 gap-3 mt-4 pt-4 md:mt-6 md:pt-6 border-t border-gray-100 animate-in slide-in-from-top-2 duration-300 relative">
+                <TimePicker 
+                  label="Start Time (NTP)"
+                  value={nightMode.start_time}
+                  onChange={(val) => handleNightModeChange('start_time', val)}
+                />
+                <TimePicker 
+                  label="End Time (NTP)"
+                  value={nightMode.end_time}
+                  onChange={(val) => handleNightModeChange('end_time', val)}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* mmWave Radar Toggle */}
+          <div className="bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <Radar className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+                </div>
+                <div>
+                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">mmWave Radar</h3>
+                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">Enable secondary motion sensing for stillness detection</p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => handleMmwaveChange(!mmwaveEnabled)}
+                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${mmwaveEnabled ? 'bg-maroon-800' : 'bg-gray-200'}`}
+              >
+                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ${mmwaveEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Notifications Section */}
+          <div className="settings-push-notifications bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <Bell className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight">Push Notifications</h3>
+                    {pushPermission === 'granted' && (
+                      <button
+                        onClick={handleTestNotification}
+                        className="bg-maroon-50 text-maroon-700 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-maroon-100 transition-colors"
+                      >
+                        Test
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">
+                    {pushPermission === 'unsupported'
+                      ? 'Not available on this device'
+                      : pushPermission === 'denied'
+                        ? 'Blocked in browser settings'
+                        : pushPermission === 'granted'
+                          ? 'Alerts for inactivity shutdown'
+                          : 'Enable alerts for inactivity shutdown'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleToggleNotifications}
+                disabled={loadingPush || pushPermission === 'unsupported'}
+                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${pushPermission === 'granted' ? 'bg-maroon-800' : 'bg-gray-200'} ${loadingPush ? 'opacity-70 cursor-wait' : ''} ${pushPermission === 'unsupported' ? 'cursor-not-allowed opacity-50' : ''}`}
+              >
+                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 flex items-center justify-center ${pushPermission === 'granted' ? 'translate-x-6' : 'translate-x-0'}`}>
+                  {loadingPush && <Loader2 className={`w-3.5 h-3.5 animate-spin ${pushPermission === 'granted' ? 'text-maroon-800' : 'text-gray-400'}`} />}
+                </div>
+              </button>
+            </div>
+
+            {pushPermission === 'denied' && (
+              <p className="mt-3 pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-500 font-medium leading-relaxed">
+                Notifications are blocked for this site. Re-enable them in your browser's site
+                settings, then toggle this back on. On iPhone, VoltSense must be added to the Home
+                Screen before push notifications work at all.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Sign Out Modal */}

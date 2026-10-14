@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
-import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2, FlaskConical, Timer } from 'lucide-react';
+import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2, FlaskConical, Timer, Radar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MarqueeText from '../components/MarqueeText';
 import SensorValidationModal from '../components/SensorValidationModal';
@@ -334,8 +334,8 @@ const Dashboard = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
-        <div className="joyride-system-load h-full bg-gradient-to-br from-maroon-800 to-maroon-950 p-5 md:p-6 rounded-3xl shadow-2xl shadow-maroon-900/30 text-white relative overflow-hidden transition-transform duration-500 hover:-translate-y-1 flex flex-col justify-between">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-5">
+        <div className="joyride-system-load lg:col-span-7 h-full bg-gradient-to-br from-maroon-800 to-maroon-950 p-5 md:p-6 rounded-3xl shadow-2xl shadow-maroon-900/30 text-white relative overflow-hidden transition-transform duration-500 hover:-translate-y-1 flex flex-col justify-between">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
           <div className="absolute bottom-0 left-0 w-40 h-40 bg-maroon-500/20 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4" />
           
@@ -376,7 +376,7 @@ const Dashboard = () => {
           )}
         </div>
 
-        <div className="joyride-master-power h-full bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-6 flex flex-col justify-between animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100 fill-mode-both">
+        <div className="joyride-master-power lg:col-span-5 h-full bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-6 flex flex-col justify-between animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100 fill-mode-both">
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900 mb-0.5">Master Power</h2>
@@ -413,9 +413,9 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:gap-5 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
         {nightMode.enabled && (
-          <div className="joyride-night-mode relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col group overflow-hidden">
+          <div className="joyride-night-mode relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden">
             <Moon strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
             <div className="relative z-10">
               <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Night Mode</h3>
@@ -439,7 +439,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        <div className={`joyride-inactivity-limit relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col group overflow-hidden ${!nightMode.enabled ? 'col-span-2' : ''}`}>
+        <div className={`joyride-inactivity-limit relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden ${!nightMode.enabled ? 'col-span-2 lg:col-span-1' : ''}`}>
           <Timer strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none" />
           <div className="relative z-10">
             <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Inactivity Limit</h3>
@@ -450,6 +450,50 @@ const Dashboard = () => {
             {!activeDeviceId && (
               <p className="hidden md:block text-[10px] text-gray-400 mt-1 font-medium">Auto-shutdown when room is empty.</p>
             )}
+            {activeDeviceId && (
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-1.5">Countdown threshold</p>
+            )}
+          </div>
+        </div>
+
+        {/* Desktop-only Bento Card 3: Dual Presence Sensing Indicator */}
+        <div className="hidden lg:flex relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex-col justify-between group overflow-hidden">
+          <Radar strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
+          <div className="relative z-10">
+            <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Dual Presence</h3>
+            <p className="text-sm md:text-base font-bold text-gray-900 leading-tight">
+              {occupied ? 'Occupant Present' : 'Room Vacant'}
+            </p>
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${occupied ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${occupied ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
+                PIR Motion
+              </span>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${data?.settings?.mmwave_enabled !== false ? 'bg-maroon-50 text-maroon-800 border-maroon-100' : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
+                mmWave Radar
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop-only Bento Card 4: Sensor Accuracy Benchmark Quick Launcher */}
+        <div 
+          onClick={() => setShowValidationModal(true)}
+          className="hidden lg:flex cursor-pointer relative bg-white/70 hover:bg-white backdrop-blur-2xl border border-white/40 hover:border-emerald-200 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-lg transition-all duration-500 ease-apple-spring p-4 md:p-5 flex-col justify-between group overflow-hidden"
+          title="Open Accuracy & Calibration Test Lab"
+        >
+          <FlaskConical strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-emerald-900/[0.04] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none" />
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest">Calibration Lab</h3>
+              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Bench</span>
+            </div>
+            <p className="text-sm md:text-base font-bold text-gray-900 leading-tight">
+              Sensor Accuracy
+            </p>
+            <p className="text-[11px] text-emerald-700 font-semibold mt-2 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+              Launch Test Bench &rarr;
+            </p>
           </div>
         </div>
       </div>
@@ -482,7 +526,7 @@ const Dashboard = () => {
           <p className="text-[10px] text-gray-400 mb-4 font-medium">Toggle, rename, and view power draw for each smart port.</p>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
           {Object.entries(ports).map(([portId, portData], index) => {
             const portIconName = portData.icon || defaultIcons[portId] || 'zap';
             const Icon = iconMap[portIconName] || Zap;
