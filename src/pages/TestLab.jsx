@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import {
   FlaskConical,
-  ArrowLeft,
   CheckCircle2,
   AlertTriangle,
   Copy,
@@ -468,27 +466,18 @@ const TestLab = () => {
       
       {/* Top Header Card */}
       <div className="bg-white/90 backdrop-blur-xl p-4 md:p-6 rounded-3xl border border-white/20 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Link
-            to="/dashboard"
-            className="w-10 h-10 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center justify-center transition-colors shrink-0"
-            title="Return to Dashboard"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg md:text-xl font-bold text-gray-900 tracking-tight leading-tight">
-                VoltSense Validation & Diagnostic Test Lab
-              </h2>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-maroon-50 text-maroon-800 border border-maroon-100">
-                <Cpu className="w-3 h-3 text-maroon-700" /> Workbench
-              </span>
-            </div>
-            <p className="text-gray-500 text-xs md:text-sm font-medium mt-0.5">
-              End-to-end prototype commissioning, hardware diagnostics, and Chapter 4 sensor accuracy bench
-            </p>
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg md:text-xl font-bold text-gray-900 tracking-tight leading-tight">
+              VoltSense Validation & Diagnostic Test Lab
+            </h2>
+            <span className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-maroon-50 text-maroon-800 border border-maroon-100">
+              <Cpu className="w-3 h-3 text-maroon-700" /> Workbench
+            </span>
           </div>
+          <p className="text-gray-500 text-xs md:text-sm font-medium mt-0.5">
+            End-to-end prototype commissioning, hardware diagnostics, and Chapter 4 sensor accuracy bench
+          </p>
         </div>
 
         <div className="flex items-center gap-2 self-start md:self-auto">
