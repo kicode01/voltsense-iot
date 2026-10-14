@@ -10,6 +10,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const Alerts = lazy(() => import('./pages/Alerts'));
 const Settings = lazy(() => import('./pages/Settings'));
+const TestLab = lazy(() => import('./pages/TestLab'));
 const Login = lazy(() => import('./pages/Login'));
 
 const useAuth = () => {
@@ -119,6 +120,7 @@ function App() {
                 <Route path="analytics" element={<Analytics />} />
                 <Route path="alerts" element={<Alerts />} />
                 <Route path="settings" element={<Settings />} />
+                <Route path="test-lab" element={<TestLab />} />
               </Route>
             </Routes>
           </Suspense>

@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Home, BarChart3, Bell, Settings as SettingsIcon, ChevronDown, Wifi } from 'lucide-react';
+import { Home, BarChart3, Bell, Settings as SettingsIcon, ChevronDown, Wifi, FlaskConical } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useAlerts } from '../hooks/useAlerts';
@@ -142,6 +142,21 @@ const Layout = () => {
                 </NavLink>
               );
             })}
+
+            <NavLink
+              to="/test-lab"
+              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-bold transition-all duration-500 ease-apple-spring transform-gpu hover:scale-[1.02] active:scale-[0.98] ${
+                location.pathname.startsWith('/test-lab')
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-md shadow-emerald-900/5'
+                  : 'text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50/50'
+              }`}
+            >
+              <FlaskConical className="w-4 h-4 text-emerald-600" />
+              <span>Test Lab</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full">
+                Bench
+              </span>
+            </NavLink>
           </nav>
         </div>
       </header>

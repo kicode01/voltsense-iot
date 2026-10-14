@@ -4,7 +4,6 @@ import { useDeviceContext } from '../contexts/deviceContextCore';
 import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2, FlaskConical, Timer, Radar } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MarqueeText from '../components/MarqueeText';
-import SensorValidationModal from '../components/SensorValidationModal';
 
 const iconMap = {
   lamp: Lamp,
@@ -27,7 +26,6 @@ const Dashboard = () => {
   const [editingPort, setEditingPort] = useState(null);
   const [editName, setEditName] = useState('');
   const [isRenameMode, setIsRenameMode] = useState(false);
-  const [showValidationModal, setShowValidationModal] = useState(false);
   const [turningOn, setTurningOn] = useState(false);
   const [turningOff, setTurningOff] = useState(false);
   // Which ports have a toggle in flight, so the switch can show a spinner instead of looking
@@ -477,8 +475,8 @@ const Dashboard = () => {
         </div>
 
         {/* Desktop-only Bento Card 4: Sensor Accuracy Benchmark Quick Launcher */}
-        <div 
-          onClick={() => setShowValidationModal(true)}
+        <Link 
+          to="/test-lab"
           className="hidden lg:flex cursor-pointer relative bg-white/70 hover:bg-white backdrop-blur-2xl border border-white/40 hover:border-emerald-200 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-lg transition-all duration-500 ease-apple-spring p-4 md:p-5 flex-col justify-between group overflow-hidden"
           title="Open Accuracy & Calibration Test Lab"
         >
@@ -495,20 +493,20 @@ const Dashboard = () => {
               Launch Test Bench &rarr;
             </p>
           </div>
-        </div>
+        </Link>
       </div>
 
       <div className="joyride-ports-list animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 fill-mode-both">
         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap sm:flex-nowrap">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Port / Device Management</h2>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowValidationModal(true)}
+            <Link
+              to="/test-lab"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition-colors shadow-sm"
               title="Test and validate sensor accuracy against a multimeter"
             >
               <FlaskConical className="w-3 h-3 text-emerald-700" /> Accuracy Test Lab
-            </button>
+            </Link>
             <button 
               onClick={() => {
                 if (isRenameMode && editingPort) {
@@ -653,14 +651,6 @@ const Dashboard = () => {
           )})}
         </div>
       </div>
-
-      {/* Sensor Accuracy & Validation Lab Modal (For Testing Only) */}
-      <SensorValidationModal
-        isOpen={showValidationModal}
-        onClose={() => setShowValidationModal(false)}
-        ports={ports}
-        powerIsMeasured={powerIsMeasured}
-      />
     </div>
   );
 };

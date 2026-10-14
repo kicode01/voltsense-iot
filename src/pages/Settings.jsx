@@ -14,8 +14,10 @@ import {
   AlertCircle,
   Sliders,
   TriangleAlert,
-  Radar
+  Radar,
+  FlaskConical
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { auth } from '../lib/firebase';
 import { enablePushForUser, clearPushToken } from '../lib/pushNotifications';
 import { claimDevice, unpairDevice, formatPairingCodeInput } from '../lib/deviceClaim';
@@ -657,6 +659,27 @@ const Settings = () => {
                   );
                 })}
               </div>
+            </div>
+
+            {/* Link to Dedicated Test Lab */}
+            <div className="mt-5 pt-4 border-t border-gray-100">
+              <Link
+                to="/test-lab"
+                className="flex items-center justify-between p-3.5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-emerald-950 hover:bg-emerald-100 transition-colors group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-sm">
+                    <FlaskConical className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold leading-tight">Sensor Validation & Calibration Lab</h4>
+                    <p className="text-[10px] text-emerald-800/80 font-medium">Live multimeter benchmarking & Chapter 4 trials</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-emerald-800 group-hover:translate-x-0.5 transition-transform">
+                  Open &rarr;
+                </span>
+              </Link>
             </div>
           </div>
         </div>
