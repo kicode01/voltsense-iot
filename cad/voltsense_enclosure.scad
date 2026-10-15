@@ -10,7 +10,7 @@
 //   - mmWave Radar Sensor: 22.0 mm x 16.0 mm
 //   - Master Power Switch: 20.0 mm x 14.0 mm (KCD1 rocker)
 //   - Panel Fuse Holder: 12.2 mm (for 5x20mm T5AH250V fuse)
-//   - 3x Output Cable Glands: 12.5 mm (PG7 for Outlets 1, 2, 3)
+//   - 3x Output Cord Pass-Throughs: 12.5 mm (Rubber Grommets for Powerflex Royal Cord SJT 1.25 mm² x 3C / #16/3)
 //   - 3x Status LEDs: 10.0 mm (10.2 mm cutout clearance)
 //   - Dual Side Ventilation Grilles: 9x 2.5 mm thin convection slots (60 mm span)
 // ============================================================================
@@ -243,13 +243,14 @@ module enclosure_base() {
         translate([iec_center_x + 20.0, box_width - wall_th - 1.0, iec_center_z])
             rotate([-90, 0, 0]) cylinder(d=3.2, h=wall_th + 2.0);
 
-        // 5. 3x Cable Glands (Outlets 1, 2, 3 - PG7: 12.5 mm dia)
-        // Positioned at X = 117, 131, 145 with 5.75 mm clearance from corner pillar at X=157
-        translate([117.0, box_width - wall_th - 1.0, 22.0])
+        // 5. 3x Rubber Grommet Cutouts (Outlets 1, 2, 3 - 12.5 mm dia)
+        // Sized for standard rubber wiring grommets holding Powerflex Royal Cord SJT 1.25 mm² x 3C (8.5 mm OD)
+        // Positioned at X = 116, 131, 146 mm; Outlet 3 has 4.75 mm clearance from corner pillar at X=157
+        translate([116.0, box_width - wall_th - 1.0, 22.0])
             rotate([-90, 0, 0]) cylinder(d=12.5, h=wall_th + 2.0);
         translate([131.0, box_width - wall_th - 1.0, 22.0])
             rotate([-90, 0, 0]) cylinder(d=12.5, h=wall_th + 2.0);
-        translate([145.0, box_width - wall_th - 1.0, 22.0])
+        translate([146.0, box_width - wall_th - 1.0, 22.0])
             rotate([-90, 0, 0]) cylinder(d=12.5, h=wall_th + 2.0);
 
         // ====================================================================
