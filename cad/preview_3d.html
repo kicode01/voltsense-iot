@@ -76,9 +76,9 @@
   <header>
     <h1>VoltSense 3D Enclosure <span class="badge">170 x 110 x 63.5 mm</span></h1>
     <div class="controls">
-      <button id="btn-base" class="active" onclick="loadModel('voltsense_enclosure_base.stl', 'base')">Base Chassis</button>
-      <button id="btn-lid" onclick="loadModel('voltsense_enclosure_lid.stl', 'lid')">Top Lid</button>
-      <button id="btn-all" onclick="loadModel('voltsense_enclosure_assembled.stl', 'all')">Assembled</button>
+      <button id="btn-base" class="active" onclick="loadModel('voltsense_enclosure_base_final.stl', 'base')">Base (Final)</button>
+      <button id="btn-lid" onclick="loadModel('voltsense_enclosure_lid_final.stl', 'lid')">Lid (Final)</button>
+      <button id="btn-all" onclick="loadModel('voltsense_enclosure_final.stl', 'all')">Assembled (Final)</button>
       <button id="btn-wire" onclick="toggleWireframe()">Wireframe</button>
       <button id="btn-reset" onclick="resetCamera()">Reset View</button>
       <label class="btn" style="display:none;" id="file-label">Load STL <input type="file" id="file-input" accept=".stl" style="display:none;"></label>
@@ -89,6 +89,9 @@
     <div id="info-panel">
       <strong>Model Details:</strong><br>
       • <span id="model-name">Loading...</span><br>
+      • <span id="model-dim">Dimensions: calculating...</span><br>
+      • <span id="model-tris">Mesh: calculating...</span><br>
+      <hr style="border: 0; border-top: 1px solid #3f3f46; margin: 6px 0;">
       • Left-click + drag to rotate<br>
       • Right-click + drag to pan<br>
       • Scroll wheel to zoom
@@ -145,6 +148,13 @@
       if (currentMesh) scene.remove(currentMesh);
       geometry.center();
       geometry.computeVertexNormals();
+      geometry.computeBoundingBox();
+
+      const box = geometry.boundingBox;
+      const sizeX = Math.abs(box.max.x - box.min.x).toFixed(1);
+      const sizeY = Math.abs(box.max.y - box.min.y).toFixed(1);
+      const sizeZ = Math.abs(box.max.z - box.min.z).toFixed(1);
+      const tris = geometry.attributes.position ? Math.round(geometry.attributes.position.count / 3).toLocaleString() : 'N/A';
 
       currentMesh = new THREE.Mesh(geometry, material);
       currentMesh.rotation.x = -Math.PI / 2; // Align to Z-up
@@ -153,6 +163,10 @@
       scene.add(currentMesh);
 
       document.getElementById('model-name').textContent = name;
+      const dimEl = document.getElementById('model-dim');
+      if (dimEl) dimEl.textContent = `Dimensions: ${sizeX} × ${sizeY} × ${sizeZ} mm`;
+      const trisEl = document.getElementById('model-tris');
+      if (trisEl) trisEl.textContent = `Mesh: ${tris} triangles`;
       controls.target.set(0, 0, 0);
     }
 
@@ -225,7 +239,7 @@
     animate();
 
     // Initial load
-    loadModel('voltsense_enclosure_base.stl', 'base');
+    loadModel('voltsense_enclosure_base_final.stl', 'base');
   </script>
 </body>
 </html>
