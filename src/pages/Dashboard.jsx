@@ -18,6 +18,53 @@ const defaultIcons = {
   port_03: 'smartphone'
 };
 
+/**
+ * Evaluates whether an outlet is in use, energized without a load, or switched off.
+ * Filters out ACS712 zero-point noise (<= 3W or <= 0.03A).
+ */
+const getPortConnectionState = (portData) => {
+  const isRelayOn = Boolean(portData?.relay_status);
+  if (!isRelayOn) {
+    return {
+      statusLabel: 'Switched Off',
+      loadCategory: 'De-energized',
+      dotColor: 'bg-gray-300',
+      isDrawing: false,
+      isEnergized: false
+    };
+  }
+
+  const watts = Number(portData?.power_watts) || 0;
+  const amps = Number(portData?.current_amps) || 0;
+
+  if (watts > 3 || amps > 0.03) {
+    let category = 'Active Load';
+    if (watts <= 30) {
+      category = 'Charging / Low Power';
+    } else if (watts <= 120) {
+      category = 'Active Device';
+    } else {
+      category = 'High Power Draw';
+    }
+
+    return {
+      statusLabel: 'In Use',
+      loadCategory: category,
+      dotColor: 'bg-emerald-500 animate-pulse',
+      isDrawing: true,
+      isEnergized: true
+    };
+  }
+
+  return {
+    statusLabel: 'Port ON · No Device',
+    loadCategory: 'Empty Socket',
+    dotColor: 'bg-amber-400',
+    isDrawing: false,
+    isEnergized: true
+  };
+};
+
 const Dashboard = () => {
   const { activeDeviceId, devicesLoading } = useDeviceContext();
 
@@ -52,9 +99,9 @@ const Dashboard = () => {
     countdown_remaining_seconds: /** @type {number | undefined} */ (undefined),
     settings: { night_mode_enabled: true, night_mode_start: '22:00', night_mode_end: '06:00' },
     ports: {
-      port_01: { name: 'Demo Light', relay_status: true, power_watts: 15.5, current_amps: 0.12 },
+      port_01: { name: 'Demo Charger', relay_status: true, power_watts: 15.5, current_amps: 0.12 },
       port_02: { name: 'Demo Workstation', relay_status: true, power_watts: 145.2, current_amps: 1.2 },
-      port_03: { name: 'Demo Appliance', relay_status: false, power_watts: 0, current_amps: 0 }
+      port_03: { name: 'Demo Open Socket', relay_status: true, power_watts: 0, current_amps: 0 }
     }
   });
 
@@ -96,6 +143,7 @@ const Dashboard = () => {
   const occupied = data.is_occupied !== undefined ? Boolean(data.is_occupied) : anyOn;
   const allOn = Object.values(ports).every(p => p.relay_status);
   const activeCount = Object.values(ports).filter(p => p.relay_status).length;
+  const drawingCount = Object.values(ports).filter(p => p.relay_status && (Number(p.power_watts) > 3 || Number(p.current_amps) > 0.03)).length;
   
   // `|| 0` guards a null node, but RTDB can also hand back a numeric STRING ("301.5") — coerce
   // before any .toFixed() or the whole page throws a TypeError and unmounts.
@@ -138,8 +186,8 @@ const Dashboard = () => {
           [portId]: {
             ...prev.ports[portId],
             relay_status: newStatus,
-            power_watts: newStatus ? (portId === 'port_01' ? 15.5 : portId === 'port_02' ? 145.2 : 45.0) : 0,
-            current_amps: newStatus ? (portId === 'port_01' ? 0.12 : portId === 'port_02' ? 1.2 : 0.4) : 0,
+            power_watts: newStatus ? (portId === 'port_01' ? 15.5 : portId === 'port_02' ? 145.2 : 0) : 0,
+            current_amps: newStatus ? (portId === 'port_01' ? 0.12 : portId === 'port_02' ? 1.2 : 0) : 0,
           }
         }
       }));
@@ -380,7 +428,9 @@ const Dashboard = () => {
           <div className="flex items-center justify-between mb-5">
             <div>
               <h2 className="text-sm font-bold uppercase tracking-widest text-gray-900 mb-0.5">Master Power</h2>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">{activeCount} / {Object.keys(ports).length} Active</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                {activeCount} / {Object.keys(ports).length} ON • {drawingCount} In Use
+              </p>
               {!activeDeviceId && (
                 <p className="text-[10px] text-gray-400 mt-1 font-medium">Turn all ports on or off at once.</p>
               )}
@@ -553,56 +603,73 @@ const Dashboard = () => {
                   </div>
                 )}
                 
-                <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${portData.relay_status ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-gray-400 transition-colors duration-500">
-                      {portData.relay_status ? 'Active' : 'Offline'}
-                    </span>
-                  </div>
-                  <span className="text-gray-300 text-[10px] hidden sm:inline">•</span>
-                  <div className="flex items-center gap-2">
-                    {/* W with a voltage sensor, VA without. The difference is not cosmetic: the
-                        ACS712 measures current only, so without voltage sensing this is V x A with
-                        no power-factor correction, and a switch-mode load at PF 0.6 draws ~40% less
-                        real power than it shows. The unit must follow the hardware. */}
-                    <span
-                      className="text-[10px] md:text-[11px] font-bold text-gray-600 tracking-tight"
-                      title={
-                        powerIsMeasured
-                          ? 'Real power (W), measured from the voltage and current waveforms.'
-                          : 'Apparent power (VA). No voltage sensing, so this is not real power in watts.'
-                      }
-                    >
-                      {(Number(portData.power_watts) || 0).toFixed(1)} {powerIsMeasured ? 'W' : 'VA'}
-                    </span>
-                    <span className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight">
-                      {(Number(portData.current_amps) || 0).toFixed(2)} A
-                    </span>
-                    {/* Measured mains voltage at the socket. Only shown when a voltage sensor is
-                        actually fitted (powerIsMeasured), because otherwise it is just the configured
-                        assumption. This was one of the firmware's published-but-ignored fields. */}
-                    {powerIsMeasured && Number(portData.voltage) > 0 && (
-                      <span
-                        className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight"
-                        title="Measured mains voltage at this socket."
-                      >
-                        {Number(portData.voltage).toFixed(0)} V
-                      </span>
-                    )}
-                    {/* Power factor, shown only when it was actually measured. A hard-coded or
-                        assumed PF would be worse than showing nothing — it is a property of the
-                        load, not of the device. */}
-                    {powerIsMeasured && Number(portData.power_factor) > 0 && (
-                      <span
-                        className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight"
-                        title="Measured power factor (real power / apparent power)."
-                      >
-                        PF {Number(portData.power_factor).toFixed(2)}
-                      </span>
-                    )}
-                  </div>
-                </div>
+                {(() => {
+                  const conn = getPortConnectionState(portData);
+                  return (
+                    <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-0.5">
+                      <div className="flex items-center gap-1.5" title={conn.loadCategory}>
+                        <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${conn.dotColor}`} />
+                        <span className={`text-[9px] md:text-[10px] font-bold uppercase tracking-wider transition-colors duration-500 ${
+                          conn.isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
+                        }`}>
+                          {conn.statusLabel}
+                        </span>
+                      </div>
+                      <span className="text-gray-300 text-[10px] hidden sm:inline">•</span>
+                      <div className="flex items-center gap-2">
+                        {/* W with a voltage sensor, VA without. The difference is not cosmetic: the
+                            ACS712 measures current only, so without voltage sensing this is V x A with
+                            no power-factor correction, and a switch-mode load at PF 0.6 draws ~40% less
+                            real power than it shows. The unit must follow the hardware. */}
+                        <span
+                          className="text-[10px] md:text-[11px] font-bold text-gray-600 tracking-tight"
+                          title={
+                            powerIsMeasured
+                              ? 'Real power (W), measured from the voltage and current waveforms.'
+                              : 'Apparent power (VA). No voltage sensing, so this is not real power in watts.'
+                          }
+                        >
+                          {(Number(portData.power_watts) || 0).toFixed(1)} {powerIsMeasured ? 'W' : 'VA'}
+                        </span>
+                        <span className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight">
+                          {(Number(portData.current_amps) || 0).toFixed(2)} A
+                        </span>
+                        {/* Intelligent load tag: Charging, Workstation, or Empty */}
+                        <span className={`hidden sm:inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded border ${
+                          conn.isDrawing 
+                            ? 'text-emerald-800 bg-emerald-50 border-emerald-200' 
+                            : conn.isEnergized 
+                            ? 'text-amber-800 bg-amber-50 border-amber-200'
+                            : 'text-gray-400 bg-gray-50 border-gray-100'
+                        }`}>
+                          {conn.loadCategory}
+                        </span>
+                        {/* Measured mains voltage at the socket. Only shown when a voltage sensor is
+                            actually fitted (powerIsMeasured), because otherwise it is just the configured
+                            assumption. This was one of the firmware's published-but-ignored fields. */}
+                        {powerIsMeasured && Number(portData.voltage) > 0 && (
+                          <span
+                            className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight"
+                            title="Measured mains voltage at this socket."
+                          >
+                            {Number(portData.voltage).toFixed(0)} V
+                          </span>
+                        )}
+                        {/* Power factor, shown only when it was actually measured. A hard-coded or
+                            assumed PF would be worse than showing nothing — it is a property of the
+                            load, not of the device. */}
+                        {powerIsMeasured && Number(portData.power_factor) > 0 && (
+                          <span
+                            className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight"
+                            title="Measured power factor (real power / apparent power)."
+                          >
+                            PF {Number(portData.power_factor).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="flex items-center gap-2 shrink-0">

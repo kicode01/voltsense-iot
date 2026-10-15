@@ -753,7 +753,24 @@ const TestLab = () => {
                           {pData.name || `Socket 0${idx + 1}`}
                         </h4>
                       </div>
-                      <span className={`w-2.5 h-2.5 rounded-full ${isOn ? 'bg-emerald-500 shadow-sm shadow-emerald-400' : 'bg-gray-300'}`} />
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full border ${
+                          !isOn 
+                            ? 'bg-gray-100 text-gray-500 border-gray-200' 
+                            : (Number(pData.power_watts) > 3 || Number(pData.current_amps) > 0.03)
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                            : 'bg-amber-50 text-amber-800 border-amber-200'
+                        }`}>
+                          {!isOn ? 'OFF' : (Number(pData.power_watts) > 3 || Number(pData.current_amps) > 0.03) ? 'IN USE' : 'NO LOAD'}
+                        </span>
+                        <span className={`w-2.5 h-2.5 rounded-full ${
+                          !isOn 
+                            ? 'bg-gray-300' 
+                            : (Number(pData.power_watts) > 3 || Number(pData.current_amps) > 0.03)
+                            ? 'bg-emerald-500 shadow-sm shadow-emerald-400 animate-pulse'
+                            : 'bg-amber-400'
+                        }`} />
+                      </div>
                     </div>
 
                     <div className="space-y-1.5 my-3 text-[11px] font-mono">
