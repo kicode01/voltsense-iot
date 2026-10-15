@@ -176,7 +176,8 @@
       if (activeBtn) activeBtn.classList.add('active');
 
       document.getElementById('model-name').textContent = 'Loading ' + filename + '...';
-      loader.load(filename, function (geometry) {
+      const cacheBustUrl = filename + '?v=' + Date.now();
+      loader.load(cacheBustUrl, function (geometry) {
         displayGeometry(geometry, filename);
       }, undefined, function (error) {
         document.getElementById('model-name').textContent = 'Open via local server or drag & drop ' + filename;
