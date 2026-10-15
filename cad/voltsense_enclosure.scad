@@ -216,22 +216,23 @@ module enclosure_base() {
 
         // ====================================================================
         // REAR PANEL CUTOUTS (Y = box_width)
+        // Calibrated with verified clearance from corner support pillars (X=3..13 and X=157..167)
         // ====================================================================
         
-        // 1. DC Power Input Barrel Jack (Left: X = 18)
-        translate([18.0, box_width - wall_th - 1.0, 22.0])
+        // 1. DC Power Input Barrel Jack (X = 20: 1.4 mm clear of left pillar at X=13)
+        translate([20.0, box_width - wall_th - 1.0, 22.0])
             rotate([-90, 0, 0]) cylinder(d=11.2, h=wall_th + 2.0);
             
-        // 2. Master Power Switch (KCD1 Rocker: 20 mm x 14 mm bezel -> 19.5 x 13.0 mm cutout)
-        translate([38.0 - 9.75, box_width - wall_th - 1.0, 22.0 - 6.5])
+        // 2. Master Power Switch (KCD1 Rocker: 20 mm x 14 mm bezel -> 19.5 x 13.0 mm cutout, centered at X=39)
+        translate([39.0 - 9.75, box_width - wall_th - 1.0, 22.0 - 6.5])
             cube([19.5, wall_th + 2.0, 13.0]);
 
-        // 3. Panel-Mount Fuse Holder (for 5x20 mm T5AH250V fuse: 12.2 mm dia hole)
-        translate([56.0, box_width - wall_th - 1.0, 22.0])
+        // 3. Panel-Mount Fuse Holder (for 5x20 mm T5AH250V fuse: 12.2 mm dia hole, centered at X=57)
+        translate([57.0, box_width - wall_th - 1.0, 22.0])
             rotate([-90, 0, 0]) cylinder(d=12.2, h=wall_th + 2.0);
 
-        // 4. 3P AC Power Male Plug C14 (55 mm x 22.5 mm x 20 mm, Centered at X = 86)
-        iec_center_x = 86.0;
+        // 4. 3P AC Power Male Plug C14 (55 mm x 22.5 mm x 20 mm, Centered at X = 85)
+        iec_center_x = 85.0;
         iec_center_z = 22.0;
         // Body cutout through wall
         translate([iec_center_x - 14.0, box_width - wall_th - 1.0, iec_center_z - 10.5])
@@ -243,11 +244,12 @@ module enclosure_base() {
             rotate([-90, 0, 0]) cylinder(d=3.2, h=wall_th + 2.0);
 
         // 5. 3x Cable Glands (Outlets 1, 2, 3 - PG7: 12.5 mm dia)
-        translate([122.0, box_width - wall_th - 1.0, 22.0])
+        // Positioned at X = 117, 131, 145 with 5.75 mm clearance from corner pillar at X=157
+        translate([117.0, box_width - wall_th - 1.0, 22.0])
             rotate([-90, 0, 0]) cylinder(d=12.5, h=wall_th + 2.0);
-        translate([138.0, box_width - wall_th - 1.0, 22.0])
+        translate([131.0, box_width - wall_th - 1.0, 22.0])
             rotate([-90, 0, 0]) cylinder(d=12.5, h=wall_th + 2.0);
-        translate([154.0, box_width - wall_th - 1.0, 22.0])
+        translate([145.0, box_width - wall_th - 1.0, 22.0])
             rotate([-90, 0, 0]) cylinder(d=12.5, h=wall_th + 2.0);
 
         // ====================================================================
