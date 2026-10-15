@@ -12,6 +12,7 @@
 //   - Panel Fuse Holder: 12.2 mm (for 5x20mm T5AH250V fuse)
 //   - 3x Output Cable Glands: 12.5 mm (PG7 for Outlets 1, 2, 3)
 //   - 3x Status LEDs: 10.0 mm (10.2 mm cutout clearance)
+//   - Dual Side Ventilation Grilles: 9x 2.5 mm thin convection slots (60 mm span)
 // ============================================================================
 
 /* [Part to Render] */
@@ -40,7 +41,13 @@ lid_cb_d     =   6.2; // M3 screw counterbore diameter (mm)
 lid_cb_depth =   2.0; // Counterbore depth (mm)
 
 /* [Panel Cutouts] */
-led_hole_d   =  10.2; // Diameter for 10 mm status LEDs (or 10 mm panel-mount bezels with 0.2 mm clearance)
+led_hole_d    =  10.2; // Diameter for 10 mm status LEDs (or 10 mm panel-mount bezels with 0.2 mm clearance)
+
+/* [Side Ventilation Grilles] */
+vent_slot_len =  60.0; // Horizontal length of vent slot along Y (mm)
+vent_slot_h   =   2.5; // Thinner slot opening height (2.5 mm: sleek, finger-safe, debris resistant)
+vent_rib_h    =   2.5; // Solid wall bridge between slots (mm)
+vent_slots_num=     9; // Number of horizontal slots (spans from Z = 12 mm bottom to Z = 52 mm top)
 
 /* [Tolerances] */
 fit_clearance =  0.35; // Gap for lid interlocking skirt (mm)
@@ -242,6 +249,26 @@ module enclosure_base() {
             rotate([-90, 0, 0]) cylinder(d=12.5, h=wall_th + 2.0);
         translate([154.0, box_width - wall_th - 1.0, 22.0])
             rotate([-90, 0, 0]) cylinder(d=12.5, h=wall_th + 2.0);
+
+        // ====================================================================
+        // SIDE WALL VENTILATION GRILLES (Left: X = 0, Right: X = box_length)
+        // High-airflow convection cooling louvers (thinner, multi-line array)
+        // ====================================================================
+        vent_y_center = box_width / 2.0; // Y = 55.0 mm (centered on side wall)
+        vent_y_start  = vent_y_center - vent_slot_len / 2.0; // Y = 25.0 to 85.0 mm
+        
+        for (side_x = [-1.0, box_length - wall_th - 1.0]) {
+            for (v_idx = [0 : vent_slots_num - 1]) {
+                v_z = 12.0 + v_idx * (vent_slot_h + vent_rib_h);
+                translate([side_x, vent_y_start + vent_slot_h/2.0, v_z])
+                    rotate([0, 90, 0])
+                        hull() {
+                            cylinder(d=vent_slot_h, h=wall_th + 2.0);
+                            translate([0, vent_slot_len - vent_slot_h, 0])
+                                cylinder(d=vent_slot_h, h=wall_th + 2.0);
+                        }
+            }
+        }
     }
 }
 
