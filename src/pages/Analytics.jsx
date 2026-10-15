@@ -250,7 +250,7 @@ const Analytics = () => {
             </div>
             <div className="flex items-baseline gap-1.5">
               <span className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tighter transition-all" key={dataToRender?.totals?.energy}>
-                {(Number(dataToRender?.totals?.energy) || 0).toFixed(timeRange === 'Last 7 Days' ? 1 : 2)}
+                {(Number(dataToRender?.totals?.energy) || 0).toFixed(2)}
               </span>
               <span className="text-gray-400 text-xs md:text-sm font-bold uppercase tracking-widest">kWh</span>
             </div>
