@@ -11,6 +11,7 @@
 //   - Master Power Switch: 20.0 mm x 14.0 mm (KCD1 rocker)
 //   - Panel Fuse Holder: 12.2 mm (for 5x20mm T5AH250V fuse)
 //   - 3x Output Cable Glands: 12.5 mm (PG7 for Outlets 1, 2, 3)
+//   - 3x Status LEDs: 10.0 mm (10.2 mm cutout clearance)
 // ============================================================================
 
 /* [Part to Render] */
@@ -37,6 +38,9 @@ screw_depth  =  25.0; // Depth of screw hole
 lid_screw_d  =   3.4; // Clearance hole for M3 screw in lid (mm)
 lid_cb_d     =   6.2; // M3 screw counterbore diameter (mm)
 lid_cb_depth =   2.0; // Counterbore depth (mm)
+
+/* [Panel Cutouts] */
+led_hole_d   =  10.2; // Diameter for 10 mm status LEDs (or 10 mm panel-mount bezels with 0.2 mm clearance)
 
 /* [Tolerances] */
 fit_clearance =  0.35; // Gap for lid interlocking skirt (mm)
@@ -191,17 +195,17 @@ module enclosure_base() {
         translate([radar_center_x - 16.0, -0.1, radar_center_z - 12.0])
             cube([32.0, 1.2, 24.0]);
             
-        // C. 3x Status LEDs (Right)
+        // C. 3x Status LEDs (Right - 10 mm LEDs)
         led_x = 148.0;
         // Status LED (Top - Green)
         translate([led_x, -1.0, 43.0])
-            rotate([-90, 0, 0]) cylinder(d=5.2, h=wall_th + 2.0);
+            rotate([-90, 0, 0]) cylinder(d=led_hole_d, h=wall_th + 2.0);
         // Wi-Fi LED (Middle - Blue)
         translate([led_x, -1.0, 30.0])
-            rotate([-90, 0, 0]) cylinder(d=5.2, h=wall_th + 2.0);
+            rotate([-90, 0, 0]) cylinder(d=led_hole_d, h=wall_th + 2.0);
         // Load Alert LED (Bottom - Red)
         translate([led_x, -1.0, 17.0])
-            rotate([-90, 0, 0]) cylinder(d=5.2, h=wall_th + 2.0);
+            rotate([-90, 0, 0]) cylinder(d=led_hole_d, h=wall_th + 2.0);
 
         // ====================================================================
         // REAR PANEL CUTOUTS (Y = box_width)
