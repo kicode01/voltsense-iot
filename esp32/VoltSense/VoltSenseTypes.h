@@ -28,6 +28,7 @@
 
 #ifndef VOLTSENSE_TYPES_H
 #define VOLTSENSE_TYPES_H
+#define VOLTSENSE_TYPES_V2 1
 
 #include <Arduino.h>
 

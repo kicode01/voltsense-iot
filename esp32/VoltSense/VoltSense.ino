@@ -125,7 +125,7 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
 // the relay / PIR / ADC1 pins like every other pin. GPIO 4 is ADC2, but the radar drives it as a
 // plain digital input, so the ADC2/Wi-Fi limitation above does not apply. Enabling the read is the
 // only extra step: see HAS_MMWAVE in the mmWave section below.
-#define MMWAVE_PIN 4
+#define MMWAVE_PIN 14
 
 // Voltage-sense channel (ZMPT101B or equivalent). ANALOG, so it MUST be an ADC1 pin for the same
 // reason the current sensors are: ADC2 is dead while Wi-Fi is up, and a dead voltage channel would
@@ -134,8 +134,15 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
 //
 // ADC1 is GPIO 32-39. The current sensors already take 34, 35 and 32, leaving 33, 36 and 39.
 // GPIO 33 is the default (a normal I/O); 36 and 39 work too but are input-only with no pull-ups.
-// Checked against the other pins: 33 collides with nothing (relays 23/21/19, PIR 22, mmWave 4).
+// Checked against the other pins: 33 collides with nothing (relays 23/21/19, PIR 22, mmWave 14).
 #define VOLTAGE_SENSE_PIN 33
+
+// ---------------------------------------------------------------------------
+// Front Panel Status Indicator LEDs (10mm LEDs: Green, Blue, Yellow)
+// ---------------------------------------------------------------------------
+#define LED_STATUS_PIN  27  // Green LED (System Heartbeat) - Moved to GPIO 27
+#define LED_WIFI_PIN    25  // Blue LED (Wi-Fi & Firebase Status)
+#define LED_LOAD_PIN    26  // Yellow LED (Load / Relays Active)
 
 // ---------------------------------------------------------------------------
 // HC-SR501 PIR — the primary occupancy sensor, and its two traps
@@ -178,7 +185,7 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
 // countdown never completes and the smart shutdown never fires. The feature would look alive while
 // doing nothing. So only read the pin when the radar is actually wired.
 //
-// TO ENABLE: wire the radar's digital OUT to MMWAVE_PIN (GPIO 4 by default), share ground with the
+// TO ENABLE: wire the radar's digital OUT to MMWAVE_PIN (GPIO 14), share ground with the
 // ESP32, then uncomment the line below and reflash. The OR-with-PIR logic needs no other change.
 // The app also lets you switch the radar on/off at runtime and change its pin; that preference is
 // stored in RTDB — see the occupancy handling in loop().
@@ -236,6 +243,30 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", UTC_OFFSET_SECONDS, 60000);
 // State Machine Definitions
 // `enum SystemState` is declared in VoltSenseTypes.h — `stateToString(SystemState)` takes one, so it
 // appears in a signature and must be visible above the prototypes the Arduino build generates.
+
+#ifndef VOLTSENSE_TYPES_V2
+#define VOLTSENSE_TYPES_V2 1
+struct RemoteChange {
+  String _path;
+  String _json;
+  String _str;
+  bool _bool = false;
+  long _int = 0;
+  float _float = 0.0f;
+  String dataPath() const { return _path; }
+  bool boolData() const { return _bool; }
+  String stringData() const { return _str; }
+  long intData() const { return _int; }
+  float floatData() const { return _float; }
+  String jsonString() const { return _json; }
+};
+enum SystemState {
+  STATE_OCCUPIED,
+  STATE_IDLE_COUNTDOWN,
+  STATE_RESPONSE_WINDOW,
+  STATE_SHUTDOWN
+};
+#endif
 
 SystemState currentState = STATE_OCCUPIED;
 SystemState previousState = STATE_OCCUPIED;
@@ -1320,7 +1351,9 @@ void setAllRelays(bool state) {
 // are using the 20 A or 30 A part, change the constant (or build with -DACS712_MV_PER_AMP=100.0f).
 // Verify by putting a known resistive load (e.g. a 100 W bulb ≈ 0.43 A at 230 V) on a port and
 // checking the reported amps against a clamp meter.
-#define ACS712_MV_PER_AMP   185.0f  // ACS712-05B (5 A variant). Use 100.0f for the 20 A, 66.0f for 30 A.
+// Calibrated for 1k / 2k resistor divider on ACS712 output:
+// 185.0 mV/A * (2k / (1k + 2k)) = 123.33 mV/A
+#define ACS712_MV_PER_AMP   123.33f
 #define CURRENT_SAMPLE_MS   100UL   // 5 full cycles at 50 Hz
 #define CURRENT_SAMPLE_US   250UL   // ~4.8 kHz; well above Nyquist for both 50 and 60 Hz
 
@@ -2363,7 +2396,8 @@ void sendAlert(const String& title, const String& body, const String& tag = "vol
 // `struct RemoteChange` is declared in VoltSenseTypes.h — it appears in a function signature, so it
 // must be visible above the prototypes the Arduino build generates. See that file for the details.
 
-void applyRemoteChange(const RemoteChange& data) {
+template <typename RemoteChangeT>
+void applyRemoteChange(const RemoteChangeT& data) {
   String path = data.dataPath();
   Serial.printf("Remote change: %s\n", path.c_str());
 
@@ -3020,6 +3054,56 @@ void displayPairingPortal() {
   Serial.println("Pairing code portal closed.");
 }
 
+// ---------------------------------------------------------------------------
+// Front Panel LED State Machine (Non-blocking)
+// ---------------------------------------------------------------------------
+void updatePanelLeds() {
+  static unsigned long lastHeartbeat = 0;
+  static bool heartbeatState = false;
+  unsigned long now = millis();
+
+  // 1. GREEN LED (GPIO 27): Heartbeat pulse every 500ms
+  if (now - lastHeartbeat >= 500) {
+    lastHeartbeat = now;
+    heartbeatState = !heartbeatState;
+    digitalWrite(LED_STATUS_PIN, heartbeatState);
+  }
+
+  // 2. BLUE LED (GPIO 25): Wi-Fi & Cloud Status
+  // Solid ON when Wi-Fi is connected; blinks (150ms) if searching or disconnected
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(LED_WIFI_PIN, HIGH);
+  } else {
+    digitalWrite(LED_WIFI_PIN, ((now / 150) % 2) ? HIGH : LOW);
+  }
+
+  // 3. YELLOW LED (GPIO 26): Load / Outlet Active
+  // Solid ON if ANY relay is currently energized; OFF when all relays are cut
+  bool anyRelayOn = relayIsOn(0) || relayIsOn(1) || relayIsOn(2);
+  digitalWrite(LED_LOAD_PIN, anyRelayOn ? HIGH : LOW);
+}
+
+// ---------------------------------------------------------------------------
+// Non-blocking Wi-Fi Drop Recovery
+// ---------------------------------------------------------------------------
+// Reconnects the station interface if the link drops during runtime. Rate-limited
+// to every 10 seconds so it does not hammer the radio or block the main loop.
+// Relay switching, local occupancy detection, and overcurrent protections continue
+// unhindered while reconnection is in flight.
+void checkWiFiRecovery() {
+  static unsigned long lastWifiRetryMillis = 0;
+  const unsigned long WIFI_RETRY_INTERVAL_MS = 10000UL;
+
+  if (WiFi.status() != WL_CONNECTED) {
+    unsigned long now = millis();
+    if (now - lastWifiRetryMillis >= WIFI_RETRY_INTERVAL_MS) {
+      lastWifiRetryMillis = now;
+      Serial.println("[Wi-Fi] Connection lost. Attempting non-blocking reconnect...");
+      WiFi.reconnect();
+    }
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -3031,7 +3115,16 @@ void setup() {
   factoryResetIfRequested();
 
   pinMode(PIR_PIN, INPUT);
-pinMode(MMWAVE_PIN, INPUT);
+  pinMode(MMWAVE_PIN, INPUT);
+
+  // Initialize Front Panel Status LEDs (Green, Blue, Yellow)
+  pinMode(LED_STATUS_PIN, OUTPUT);
+  pinMode(LED_WIFI_PIN, OUTPUT);
+  pinMode(LED_LOAD_PIN, OUTPUT);
+  digitalWrite(LED_STATUS_PIN, LOW);
+  digitalWrite(LED_WIFI_PIN, LOW);
+  digitalWrite(LED_LOAD_PIN, LOW);
+
   for (int i = 0; i < NUM_PORTS; i++) {
     // Drive the OFF level BEFORE switching the pin to OUTPUT. pinMode() leaves the output latch low,
     // and on an active-LOW board LOW means ENERGISE — so every port would close for the few
@@ -3215,6 +3308,7 @@ pinMode(MMWAVE_PIN, INPUT);
     }
   }
   Serial.println("Connected to WiFi!");
+  WiFi.setAutoReconnect(true);
 
   // Network is up: restore the tight 30 s watchdog for the rest of the run (the provisioning window
   // above was only widened to survive the blocking portal).
@@ -3337,7 +3431,7 @@ pinMode(MMWAVE_PIN, INPUT);
   lastHourSeen = getLocalHour();
 }
 
-String stateToString(SystemState s) {
+String stateToString(int s) {
   switch (s) {
     case STATE_OCCUPIED: return "OCCUPIED";
     case STATE_IDLE_COUNTDOWN: return "IDLE_COUNTDOWN";
@@ -3352,6 +3446,12 @@ void loop() {
   // must reach the next iteration within WDT_TIMEOUT_SECONDS or the device resets — see the
   // watchdog section for why that is safe (relay state is NVS-persisted and restored on boot).
   watchdogFeed();
+
+  // Update Front Panel Status LEDs (Green, Blue, Yellow)
+  updatePanelLeds();
+
+  // Active Wi-Fi drop recovery (non-blocking periodic reconnect)
+  checkWiFiRecovery();
 
   // NTP can block for ~1 s on a slow network. Fed immediately before, so if it hangs the timeout
   // is charged to NTP rather than to work that already completed.
