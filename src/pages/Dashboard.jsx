@@ -24,11 +24,11 @@ const getPortConnectionState = (portData) => {
   const watts = Number(portData?.power_watts) || 0;
   const amps = Number(portData?.current_amps) || 0;
 
-  if (watts > 6 || amps > 0.08) {
+  if (watts > 3 || amps > 0.03) {
     let category = 'Active Load';
-    if (watts <= 30) {
+    if (watts <= 30 || amps <= 0.15) {
       category = 'Charging / Low Power';
-    } else if (watts <= 120) {
+    } else if (watts <= 120 || amps <= 0.6) {
       category = 'Active Device';
     } else {
       category = 'High Power Draw';
@@ -501,11 +501,14 @@ const Dashboard = () => {
             const portNumber = portId === 'port_01' ? 1 : portId === 'port_02' ? 2 : 3;
             const displayName = `Port ${portNumber}`;
             const conn = getPortConnectionState(portData);
+            const rawAmps = Number(portData.current_amps) || 0;
+            const rawWatts = Number(portData.power_watts) || 0;
+            const isDrawing = conn.isDrawing || (portData.relay_status && (rawAmps > 0.02 || rawWatts > 2.0));
             const portVolts = Number(portData.voltage) > 0 ? Number(portData.voltage) : systemVoltage;
-            const portAmps = conn.isDrawing ? (Number(portData.current_amps) || 0) : 0;
-            const portWatts = conn.isDrawing ? (Number(portData.power_watts) || 0) : 0;
+            const portAmps = portData.relay_status ? (isDrawing ? rawAmps : 0) : 0;
+            const portWatts = portData.relay_status ? (isDrawing ? rawWatts : 0) : 0;
             const rawPf = Number(portData.power_factor);
-            const portPf = portData.relay_status && conn.isDrawing
+            const portPf = portData.relay_status && isDrawing
               ? (rawPf > 0 ? rawPf : 0.95)
               : 0.00;
             const calculatedWatts = (portVolts * portAmps * (portPf > 0 ? portPf : 1)).toFixed(1);
@@ -533,11 +536,11 @@ const Dashboard = () => {
                           {displayName}
                         </h3>
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-500 ${conn.dotColor}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-500 ${isDrawing ? 'bg-emerald-500 animate-pulse' : conn.dotColor}`} />
                           <span className={`text-[11px] font-semibold transition-colors duration-500 ${
-                            conn.isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
+                            isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
                           }`}>
-                            {!portData.relay_status ? 'Switched Off' : conn.isDrawing ? 'In Use' : 'No Load'}
+                            {!portData.relay_status ? 'Switched Off' : isDrawing ? 'In Use' : 'No Load'}
                           </span>
                         </div>
                       </div>
@@ -567,7 +570,7 @@ const Dashboard = () => {
                   {/* Active Power Display */}
                   <div className="flex items-baseline gap-1.5 mb-3">
                     <span className={`text-3xl font-bold tracking-tight transition-colors duration-500 ${
-                      conn.isDrawing ? 'text-gray-900' : 'text-gray-400'
+                      isDrawing ? 'text-gray-900' : 'text-gray-400'
                     }`}>
                       {portData.relay_status ? displayWatts : '0.0'}
                     </span>
@@ -595,7 +598,7 @@ const Dashboard = () => {
                 <div className="pt-2.5 border-t border-gray-100/70 flex items-center justify-between text-[10px] font-mono text-gray-400">
                   <span className="font-semibold text-gray-400">P = V × I × PF</span>
                   <span className="text-gray-500 font-medium">
-                    {portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A × {portPf.toFixed(2)} = <strong className="text-gray-900 font-bold">{portData.relay_status ? (conn.isDrawing ? `${displayWatts}W` : '0W') : '0W'}</strong>
+                    {portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A × {portPf.toFixed(2)} = <strong className="text-gray-900 font-bold">{portData.relay_status ? (isDrawing ? `${displayWatts}W` : '0W') : '0W'}</strong>
                   </span>
                 </div>
               </div>

@@ -368,9 +368,6 @@ bool measuredVoltageIsUsable() {
 float supplyVoltage() {
 #ifdef HAS_VOLTAGE_SENSE
   if (measuredVoltageIsUsable()) return measuredVoltageRms;
-  // If voltage sensing is compiled in and actively sampled, but line is < 50V (mains unplugged/dead),
-  // return 0.0V instead of faking 220V!
-  if (lastVoltageSampleMs > 0 && measuredVoltageRms < 50.0f) return 0.0f;
 #endif
   if (nominalVoltage >= 50.0f && nominalVoltage <= 300.0f) return nominalVoltage;
   return VOLTAGE;
@@ -1363,7 +1360,7 @@ void setAllRelays(bool state) {
 // Below this the sensor is reading its own noise floor, not load current. THIS IS A DISPLAY
 // THRESHOLD ONLY — it is applied by the telemetry/history path, NOT inside the sensor read, so it
 // can never influence a control decision. Clamps ambient ADC/Hall noise below 50 mA (approx 11 W) to clean 0.00 A.
-#define CURRENT_NOISE_FLOOR_A 0.10f
+#define CURRENT_NOISE_FLOOR_A 0.03f
 
 float readACS712RMS(int pin) {
   uint32_t start = millis();
@@ -1394,7 +1391,7 @@ float readACS712RMS(int pin) {
   float vRms_mV = (float)sqrt((double)sumSq / (double)n);
   int deltaMv = (maxMv > minMv) ? (maxMv - minMv) : 0;
   // If peak-to-peak swing is under 50 mV or RMS is under 18 mV, it is quiescent ADC/Hall noise
-  if (vRms_mV < 18.0f || deltaMv < 50) return 0.0f;
+  if (vRms_mV < 5.0f || deltaMv < 18) return 0.0f;
 
   float amps = vRms_mV / ACS712_MV_PER_AMP;
   return (amps < CURRENT_NOISE_FLOOR_A) ? 0.0f : amps;
@@ -1507,7 +1504,7 @@ PowerReading readPowerPort(int currentPin) {
 
   // Noise floor suppression: when no appliance is plugged in, the Hall element and ADC pick up
   // ~35-50 mV peak-to-peak ambient noise and ~12-18 mV RMS. If below threshold, clamp to clean 0.
-  if (deltaI < 55 || adcIrms_mV < 20.0f) {
+  if (deltaI < 20 || adcIrms_mV < 6.0f) {
     out.volts = volts;
     out.amps = 0.0f;
     out.watts = 0.0f;
@@ -1604,15 +1601,23 @@ void samplePortIntoCache(int i) {
       measuredVoltageRms = p.volts;
       lastVoltageSampleMs = millis();
     } else {
-      // Mains AC voltage is absent (< 50V) or unplugged:
-      // When AC is not plugged in, NO current can physically flow to the load.
-      c.amps = 0.0f;
-      c.volts = 0.0f;
-      c.watts = 0.0f;
-      c.va = 0.0f;
-      c.pf = 0.0f;
+      // Voltage sensor waveform unavailable, < 50V, or uncalibrated/unwired on bench.
+      // Fall back to direct ACS712 current sensing so load is NEVER zeroed out!
+      float rawAmps = readACS712RMS(CURRENT_SENSOR_PINS[i]);
+      if (rawAmps < CURRENT_NOISE_FLOOR_A) {
+        c.amps = 0.0f;
+        c.watts = 0.0f;
+        c.va = 0.0f;
+        c.pf = 0.0f;
+      } else {
+        c.amps = rawAmps;
+        c.volts = supplyVoltage();
+        c.watts = rawAmps * c.volts;
+        c.va = c.watts;
+        c.pf = 0.95f;
+      }
       c.powerValid = false;
-      measuredVoltageRms = 0.0f;
+      if (p.valid && p.volts > 0.0f) measuredVoltageRms = p.volts;
       lastVoltageSampleMs = millis();
     }
   } else {
@@ -3796,8 +3801,10 @@ void loop() {
         const CurrentReading& c = currentCache[i];
         if (c.powerValid && c.volts >= 50.0f && c.volts <= 300.0f) {
           portVolts = c.volts;
-        } else if (lastVoltageSampleMs > 0 && measuredVoltageRms < 50.0f) {
-          portVolts = 0.0f;
+        } else if (measuredVoltageIsUsable()) {
+          portVolts = measuredVoltageRms;
+        } else {
+          portVolts = supplyVoltage();
         }
 #else
         // No voltage channel: `I_rms * configured_voltage` is APPARENT power (VA), not watts. The
