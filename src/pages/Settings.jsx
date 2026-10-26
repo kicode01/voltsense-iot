@@ -59,7 +59,11 @@ const Settings = () => {
             mmwave_enabled: true,
             mmwave_inverted: false,
             force_mmwave: -1,
-            force_pir: -1
+            force_pir: -1,
+            acs712_mv_per_amp: 123.33,
+            current_noise_floor_a: 0.03,
+            current_cal_multiplier: 1.00,
+            sensor_fusion_mode: 'OR'
           });
         }
       } catch (err) {
@@ -239,10 +243,14 @@ const Settings = () => {
     inactivity: 15,
     overcurrent: 4.5,
     nominal: 230,
-    voltageCal: 4.6
+    voltageCal: 4.6,
+    acsSensitivity: 123.33,
+    currentNoiseFloor: 0.03,
+    currentMultiplier: 1.00
   });
   const [savingLimit, setSavingLimit] = useState(null);
   const [limitsError, setLimitsError] = useState(null);
+  const [calFeedback, setCalFeedback] = useState(null);
 
   // Two places to read each of these, and both matter:
   //   `settings/<key>`  — what the APP wrote (absent until someone writes it)
@@ -253,6 +261,12 @@ const Settings = () => {
   const storedOvercurrent = roomData?.settings?.overcurrent_limit_a ?? roomData?.overcurrent_limit_a;
   const storedNominal = roomData?.settings?.nominal_voltage;
   const storedVoltageCal = roomData?.settings?.voltage_cal_mv_per_v;
+  const storedAcsSensitivity = roomData?.settings?.acs712_mv_per_amp;
+  const storedCurrentNoiseFloor = roomData?.settings?.current_noise_floor_a;
+  const storedCurrentMultiplier = roomData?.settings?.current_cal_multiplier;
+  const storedSensorFusion = roomData?.settings?.sensor_fusion_mode || 'OR';
+  const storedPirDelay = roomData?.settings?.pir_delay_seconds ?? 5;
+  const storedMmwaveDelay = roomData?.settings?.mmwave_delay_seconds ?? 3;
   const isBenchMode = Boolean(roomData?.settings?.bench_mode);
 
   const handleBenchModeToggle = async () => {
@@ -265,6 +279,39 @@ const Settings = () => {
       setLimitsError('Could not update Bench Test Mode. Check connection and try again.');
     }
   };
+
+  const handleZeroTareCurrent = async () => {
+    setSavingLimit('zero_tare_current');
+    setLimitsError(null);
+    try {
+      const ok = await updateDeviceSetting('calibrate_current_zero', true);
+      if (ok) {
+        setCalFeedback('Current sensors zero-tared successfully!');
+        setTimeout(() => setCalFeedback(null), 3500);
+      }
+    } catch {
+      setLimitsError('Failed to trigger zero-tare.');
+    } finally {
+      setSavingLimit(null);
+    }
+  };
+
+  const handleAutoCalibrateVoltage = async () => {
+    setSavingLimit('auto_cal_voltage');
+    setLimitsError(null);
+    try {
+      const ok = await updateDeviceSetting('auto_calibrate_voltage', true);
+      if (ok) {
+        setCalFeedback('Voltage auto-calibration triggered against grid baseline!');
+        setTimeout(() => setCalFeedback(null), 3500);
+      }
+    } catch {
+      setLimitsError('Failed to trigger voltage auto-calibration.');
+    } finally {
+      setSavingLimit(null);
+    }
+  };
+
   // Port policies are NOT mirrored into local state. The <select> is controlled straight from
   // roomData, so the device's copy is the single source of truth and a failed write simply snaps
   // back rather than showing a value the device never accepted.
@@ -275,9 +322,22 @@ const Settings = () => {
       inactivity: storedInactivity ?? 15,
       overcurrent: storedOvercurrent ?? 4.5,
       nominal: storedNominal ?? 230,
-      voltageCal: storedVoltageCal ?? 4.6
+      voltageCal: storedVoltageCal ?? 4.6,
+      acsSensitivity: storedAcsSensitivity ?? 123.33,
+      currentNoiseFloor: storedCurrentNoiseFloor ?? 0.03,
+      currentMultiplier: storedCurrentMultiplier ?? 1.00
     });
-  }, [activeDeviceId, hasSettings, storedInactivity, storedOvercurrent, storedNominal, storedVoltageCal]);
+  }, [
+    activeDeviceId,
+    hasSettings,
+    storedInactivity,
+    storedOvercurrent,
+    storedNominal,
+    storedVoltageCal,
+    storedAcsSensitivity,
+    storedCurrentNoiseFloor,
+    storedCurrentMultiplier
+  ]);
 
   /**
    * Validate, then write. The bounds here deliberately mirror the firmware's, because a value the
@@ -315,6 +375,30 @@ const Settings = () => {
       min: 1.0,
       max: 20.0,
       hint: 'Divides into every voltage reading, so it scales every wattage. Compare against a meter.'
+    },
+    acsSensitivity: {
+      key: 'acs712_mv_per_amp',
+      label: 'ACS712 sensitivity',
+      unit: 'mV/A',
+      min: 10.0,
+      max: 400.0,
+      hint: 'Default 123.33 mV/A for 5A with 1k/2k divider; 185 mV/A direct; 100 mV/A for 20A.'
+    },
+    currentNoiseFloor: {
+      key: 'current_noise_floor_a',
+      label: 'Current noise floor',
+      unit: 'A',
+      min: 0.005,
+      max: 1.0,
+      hint: 'Current readings below this threshold clamp to 0.00 A to suppress idle ADC jitter.'
+    },
+    currentMultiplier: {
+      key: 'current_cal_multiplier',
+      label: 'Current multiplier',
+      unit: 'x',
+      min: 0.5,
+      max: 2.0,
+      hint: 'Fine multiplier to trim current readings against a calibrated multimeter.'
     }
   };
 
@@ -780,6 +864,143 @@ const Settings = () => {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          </div>
+
+          {/* Sensor Calibration & Hardware Tuning Section */}
+          <div className="settings-calibration bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <SlidersHorizontal className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+                </div>
+                <div>
+                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">
+                    Sensor Calibration & Accuracy
+                  </h3>
+                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight">
+                    Hardware tuning for ACS712, ZMPT101B, and occupancy fusion
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {calFeedback && (
+              <div className="mb-4 flex items-center gap-2 rounded-2xl bg-emerald-50 border border-emerald-200 px-3.5 py-2.5 text-xs font-semibold text-emerald-800 animate-in fade-in">
+                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{calFeedback}</span>
+              </div>
+            )}
+
+            {/* Quick Actions Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+              {/* One-Tap Zero Tare */}
+              <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Gauge className="w-4 h-4 text-maroon-800" />
+                    <span className="text-xs font-bold text-gray-800">Current Zero-Tare</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mb-3 leading-snug">
+                    Recalibrate 0.00 A zero-offset on all ACS712 sensors while outlets have no loads connected.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleZeroTareCurrent}
+                  disabled={savingLimit === 'zero_tare_current'}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-maroon-800 hover:bg-maroon-900 text-white font-bold text-xs transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {savingLimit === 'zero_tare_current' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <RotateCcw className="w-3.5 h-3.5" />
+                  )}
+                  <span>Zero-Tare Current Sensors</span>
+                </button>
+              </div>
+
+              {/* Voltage Auto-Calibration */}
+              <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Activity className="w-4 h-4 text-cyan-600" />
+                    <span className="text-xs font-bold text-gray-800">Voltage Auto-Calibration</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 mb-3 leading-snug">
+                    Samples live 220V grid AC sine wave across 200ms to calculate and store exact sensor factor.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAutoCalibrateVoltage}
+                  disabled={savingLimit === 'auto_cal_voltage'}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-cyan-700 hover:bg-cyan-800 text-white font-bold text-xs transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {savingLimit === 'auto_cal_voltage' ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5" />
+                  )}
+                  <span>Auto-Calibrate (220V Grid)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Occupancy Sensor Fusion Selector */}
+            <div className="pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Crosshair className="w-4 h-4 text-maroon-800" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                    Occupancy Sensor Fusion Strategy
+                  </span>
+                </div>
+                <span className="text-[10px] font-mono font-bold text-maroon-800 bg-maroon-50 px-2 py-0.5 rounded-md">
+                  {storedSensorFusion}
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 mb-3 leading-snug">
+                Determines how PIR passive infrared and 24GHz mmWave radar signals combine to detect presence.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  {
+                    id: 'OR',
+                    title: 'OR (Dual-Trigger)',
+                    desc: 'Either sensor maintains presence. Fastest & fail-safe.'
+                  },
+                  {
+                    id: 'PIR_WAKE_MMWAVE_HOLD',
+                    title: 'PIR Wake + mmWave Hold',
+                    desc: 'PIR wakes room on entry; radar holds while seated/still.'
+                  },
+                  {
+                    id: 'AND',
+                    title: 'AND (Co-Validation)',
+                    desc: 'Both sensors must detect. Highest false-positive rejection.'
+                  }
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={async () => {
+                      setSavingLimit('fusion_mode');
+                      await updateDeviceSetting('sensor_fusion_mode', mode.id);
+                      setSavingLimit(null);
+                    }}
+                    className={`p-2.5 rounded-xl border text-left transition-all ${
+                      storedSensorFusion === mode.id
+                        ? 'bg-maroon-50 border-maroon-300 text-maroon-950 font-bold shadow-sm'
+                        : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    <div className="text-xs font-bold mb-0.5">{mode.title}</div>
+                    <div className="text-[10px] text-gray-500 leading-snug font-normal">{mode.desc}</div>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

@@ -6,6 +6,11 @@
  */
 
 declare global {
+  interface Window {
+    __E2E_AUTH__?: boolean;
+    webkitAudioContext?: typeof AudioContext;
+  }
+
   interface Navigator {
     /**
      * iOS Safari only. `true` when the page is running from a Home Screen install, i.e. in

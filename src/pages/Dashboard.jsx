@@ -3,7 +3,6 @@ import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { Zap, Moon, AlertTriangle, Loader2, Timer, Radar, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import MarqueeText from '../components/MarqueeText';
 
 /**
  * Evaluates whether an outlet is in use, energized without a load, or switched off.
@@ -83,6 +82,9 @@ const Dashboard = () => {
     countdown_remaining_seconds: /** @type {number | undefined} */ (undefined),
     voltage: 220,
     voltage_source: 'measured',
+    is_occupied: true,
+    pir_detected: true,
+    mmwave_detected: true,
     settings: { night_mode_enabled: true, night_mode_start: '22:00', night_mode_end: '06:00' },
     ports: {
       port_01: { name: 'Port 1', relay_status: true, power_watts: 25.9, current_amps: 0.12, voltage: 220, power_factor: 0.98 },
@@ -138,11 +140,6 @@ const Dashboard = () => {
   const computedTotalWatts = Number(
     data.total_power_watts || Object.values(ports).reduce((acc, curr) => acc + (Number(curr.power_watts) || 0), 0)
   ) || 0;
-
-  const computedTotalAmps = Object.values(ports).reduce(
-    (acc, curr) => acc + (Number(curr.current_amps) || 0),
-    0
-  );
 
   const systemVoltage = Number(
     Object.values(ports).find(p => Number(p.voltage) > 0)?.voltage || data.voltage || 220

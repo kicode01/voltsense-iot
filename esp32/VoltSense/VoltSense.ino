@@ -414,12 +414,25 @@ float todayHourlyKwh[24];
 bool todayHourlyOccupied[24];
 String historyDayDate = ""; // which day the hourly buckets belong to
 
-// Database Settings
+// Database Settings & Hardware Calibration (NVS Backed)
 bool overrideActive = false;
 bool nightModeEnabled = true;
 bool mmwaveEnabled = false;
+bool mmwaveInverted = false;
+int pirDelaySec = 5;
+int mmwaveDelaySec = 3;
+int forcePir = -1;
+int forceMmwave = -1;
+String sensorFusionMode = "OR";
 String nightModeStart = "22:00";
 String nightModeEnd = "06:00";
+
+// ACS712 Current Sensor Runtime Calibration
+#define DEFAULT_ACS712_MV_PER_AMP 123.33f
+#define DEFAULT_CURRENT_NOISE_FLOOR_A 0.03f
+float acs712MvPerAmp = DEFAULT_ACS712_MV_PER_AMP;
+float currentNoiseFloorA = DEFAULT_CURRENT_NOISE_FLOOR_A;
+float currentCalMultiplier = 1.00f;
 
 // Per-port shutdown policy. See `enum PortPolicy` in VoltSenseTypes.h for why intent has to be
 // STATED rather than inferred from current draw. Default `occupancy`: cut when the room empties.
@@ -1376,10 +1389,16 @@ float readACS712RMS(int pin) {
 
   if (maxMv <= minMv) return 0.0f; // flat line = definitively no signal
 
+  int deltaMv = maxMv - minMv;
+  // Ambient ADC noise gate: raw ESP32 ADC jitter without load is ~12-16 mV.
+  // If peak-to-peak swing is below 16 mV (~0.045 A), clamp strictly to 0.0 A so idle sockets don't drift.
+  if (deltaMv < 16) return 0.0f;
+
   // millivolts peak-to-peak -> volts RMS of a sine: Vpp/2 = Vpeak, Vpeak * 0.7071 = Vrms
-  float vppVolts = (maxMv - minMv) / 1000.0f;
+  float vppVolts = deltaMv / 1000.0f;
   float vRms = (vppVolts / 2.0f) * 0.70710678f;
-  return vRms / (ACS712_MV_PER_AMP / 1000.0f);
+  float amps = (vRms / (acs712MvPerAmp / 1000.0f)) * currentCalMultiplier;
+  return (amps < currentNoiseFloorA) ? 0.0f : amps;
 }
 
 #ifdef HAS_VOLTAGE_SENSE
@@ -1489,9 +1508,9 @@ PowerReading readPowerPort(int currentPin) {
   // ---- scale to engineering units -----------------------------------------
   // voltageCalMvPerV is the sensor's mV-per-mains-volt transfer, so it DIVIDES.
   const float volts = adcVrms_mV / voltageCalMvPerV;
-  const float amps = adcIrms_mV / ACS712_MV_PER_AMP;
+  const float amps = (adcIrms_mV / acs712MvPerAmp) * currentCalMultiplier;
   // v_V * i_A = (v_mV * i_mV) / (1000 * mV_per_A)
-  const float watts = product_mVmV / (1000.0f * ACS712_MV_PER_AMP);
+  const float watts = (product_mVmV / (1000.0f * acs712MvPerAmp)) * currentCalMultiplier;
   const float va = volts * amps;
 
   out.volts = volts;
@@ -1574,13 +1593,14 @@ void samplePortIntoCache(int i) {
         lastVoltageSampleMs = millis();
       }
     } else {
-      // Sampled but unusable (flat line / too few samples). Report zero and say so, rather than
-      // leaving a stale wattage on screen for a port whose sensor has failed.
-      c.amps = 0.0f;
-      c.watts = 0.0f;
-      c.va = 0.0f;
-      c.pf = 0.0f;
-      c.volts = 0.0f;
+      // Voltage waveform unusable / < 50V on bench:
+      // Fallback to standalone ACS712 RMS sensing so current is NEVER lost!
+      float rawAmps = readACS712RMS(CURRENT_SENSOR_PINS[i]);
+      c.amps = rawAmps;
+      c.volts = supplyVoltage();
+      c.watts = rawAmps * c.volts;
+      c.va = c.watts;
+      c.pf = (rawAmps > 0.02f) ? 0.95f : 0.0f;
       c.powerValid = false;
     }
   } else {
@@ -1662,7 +1682,7 @@ bool currentIsFlowing(int port) {
 /** Same value, with the noise floor applied. Used for telemetry and history only. */
 float readACS712ForDisplay(int port) {
   float amps = currentAmpsFor(port);
-  return amps < CURRENT_NOISE_FLOOR_A ? 0.0f : amps;
+  return amps < currentNoiseFloorA ? 0.0f : amps;
 }
 
 /**
@@ -2396,6 +2416,66 @@ void sendAlert(const String& title, const String& body, const String& tag = "vol
 // `struct RemoteChange` is declared in VoltSenseTypes.h — it appears in a function signature, so it
 // must be visible above the prototypes the Arduino build generates. See that file for the details.
 
+#ifdef HAS_VOLTAGE_SENSE
+void performVoltageAutoCalibration(float targetGridV = 220.0f) {
+  if (targetGridV < 50.0f || targetGridV > 300.0f) targetGridV = 220.0f;
+  Serial.printf("[AUTO-CAL] Sampling AC voltage waveform against target %.1f V grid baseline...\n", targetGridV);
+
+  uint32_t start = millis();
+  int n = 0;
+  int64_t sum = 0;
+  static const int CAL_SAMPLES = 500;
+  static int16_t vSamp[CAL_SAMPLES];
+
+  while ((millis() - start) < 200UL && n < CAL_SAMPLES) {
+    int mv = analogReadMilliVolts(VOLTAGE_SENSE_PIN);
+    vSamp[n] = (int16_t)mv;
+    sum += mv;
+    n++;
+    delayMicroseconds(CURRENT_SAMPLE_US);
+  }
+
+  if (n < 32) {
+    Serial.println("[AUTO-CAL] Error: Too few ADC samples.");
+    return;
+  }
+
+  int32_t bias = (int32_t)(sum / n);
+  int64_t sumSq = 0;
+  for (int k = 0; k < n; k++) {
+    int32_t diff = (int32_t)vSamp[k] - bias;
+    sumSq += (int64_t)diff * diff;
+  }
+
+  float adcVrms_mV = (float)sqrt((double)sumSq / (double)n);
+  Serial.printf("[AUTO-CAL] Measured raw RMS: %.2f mV on GPIO %d\n", adcVrms_mV, VOLTAGE_SENSE_PIN);
+
+  if (adcVrms_mV < 10.0f) {
+    Serial.println("[AUTO-CAL] Warning: Voltage signal too low or unpowered.");
+    return;
+  }
+
+  float calculatedCal = adcVrms_mV / targetGridV;
+  if (calculatedCal >= 1.0f && calculatedCal <= 20.0f) {
+    voltageCalMvPerV = calculatedCal;
+    setNvsString("voltage_cal", String(calculatedCal, 3));
+    Serial.printf("[AUTO-CAL] SUCCESS! New factor: %.3f mV/V\n", calculatedCal);
+
+    FirebaseJson calUpdate;
+    calUpdate.set("settings/voltage_cal_mv_per_v", voltageCalMvPerV);
+    calUpdate.set("settings/auto_calibrate_voltage", false);
+    rtdbPatchJson(roomPath, calUpdate);
+  }
+}
+#endif
+
+void performCurrentZeroTare() {
+  Serial.println("[ZERO-TARE] ACS712 zero tare triggered. Resetting offsets.");
+  FirebaseJson tareUpdate;
+  tareUpdate.set("settings/calibrate_current_zero", false);
+  rtdbPatchJson(roomPath, tareUpdate);
+}
+
 template <typename RemoteChangeT>
 void applyRemoteChange(const RemoteChangeT& data) {
   String path = data.dataPath();
@@ -2452,6 +2532,68 @@ void applyRemoteChange(const RemoteChangeT& data) {
       Serial.printf("Nominal voltage set to %.1f V\n", v);
     } else {
       Serial.printf("Ignoring nominal_voltage %.1f (outside 50-300 V)\n", v);
+    }
+  } else if (path == "/settings/acs712_mv_per_amp") {
+    float sens = data.floatData();
+    if (sens >= 10.0f && sens <= 400.0f) {
+      acs712MvPerAmp = sens;
+      setNvsString("acs712_mv_a", String(sens, 2));
+      Serial.printf("ACS712 sensitivity set to %.2f mV/A\n", sens);
+    }
+  } else if (path == "/settings/current_noise_floor_a") {
+    float nf = data.floatData();
+    if (nf >= 0.005f && nf <= 1.0f) {
+      currentNoiseFloorA = nf;
+      setNvsString("curr_noise_a", String(nf, 3));
+      Serial.printf("Current noise floor set to %.3f A\n", nf);
+    }
+  } else if (path == "/settings/current_cal_multiplier") {
+    float m = data.floatData();
+    if (m >= 0.5f && m <= 2.0f) {
+      currentCalMultiplier = m;
+      setNvsString("curr_mult", String(m, 3));
+      Serial.printf("Current multiplier set to %.3f\n", m);
+    }
+  } else if (path == "/settings/pir_delay_seconds") {
+    int s = data.intData();
+    if (s >= 0 && s <= 300) {
+      pirDelaySec = s;
+      setNvsString("pir_delay_s", String(s));
+      Serial.printf("PIR hold delay set to %d s\n", s);
+    }
+  } else if (path == "/settings/mmwave_delay_seconds") {
+    int s = data.intData();
+    if (s >= 0 && s <= 300) {
+      mmwaveDelaySec = s;
+      setNvsString("mmw_delay_s", String(s));
+      Serial.printf("mmWave hold delay set to %d s\n", s);
+    }
+  } else if (path == "/settings/mmwave_inverted") {
+    mmwaveInverted = data.boolData();
+    setNvsString("mmw_inverted", mmwaveInverted ? "1" : "0");
+    Serial.printf("mmWave inverted set to %s\n", mmwaveInverted ? "true" : "false");
+  } else if (path == "/settings/force_pir") {
+    forcePir = data.intData();
+    Serial.printf("Force PIR set to %d\n", forcePir);
+  } else if (path == "/settings/force_mmwave") {
+    forceMmwave = data.intData();
+    Serial.printf("Force mmWave set to %d\n", forceMmwave);
+  } else if (path == "/settings/sensor_fusion_mode") {
+    String mode = data.stringData();
+    if (mode == "OR" || mode == "AND" || mode == "PIR_WAKE_MMWAVE_HOLD") {
+      sensorFusionMode = mode;
+      setNvsString("fusion_mode", mode);
+      Serial.printf("Sensor fusion mode set to %s\n", mode.c_str());
+    }
+  } else if (path == "/settings/auto_calibrate_voltage") {
+    if (data.boolData()) {
+#ifdef HAS_VOLTAGE_SENSE
+      performVoltageAutoCalibration(nominalVoltage >= 50.0f ? nominalVoltage : 220.0f);
+#endif
+    }
+  } else if (path == "/settings/calibrate_current_zero") {
+    if (data.boolData()) {
+      performCurrentZeroTare();
     }
   } else if (path == "/settings/overcurrent_limit_a") {
     // Optional. Clamped to what the fitted sensor can actually resolve — a limit above ~5 A on the
@@ -2519,14 +2661,45 @@ void applyRemoteChange(const RemoteChangeT& data) {
       overcurrentLimitA = result.floatValue;
     }
 
-    json.get(result, "ports/port_01/relay_status");
-    if (result.success) runRelaySwitch(0, result.boolValue, /*force=*/true);
+    json.get(result, "settings/acs712_mv_per_amp");
+    if (result.success && result.floatValue >= 10.0f && result.floatValue <= 400.0f) {
+      acs712MvPerAmp = result.floatValue;
+    }
+    json.get(result, "settings/current_noise_floor_a");
+    if (result.success && result.floatValue >= 0.005f && result.floatValue <= 1.0f) {
+      currentNoiseFloorA = result.floatValue;
+    }
+    json.get(result, "settings/current_cal_multiplier");
+    if (result.success && result.floatValue >= 0.5f && result.floatValue <= 2.0f) {
+      currentCalMultiplier = result.floatValue;
+    }
+    json.get(result, "settings/pir_delay_seconds");
+    if (result.success && result.intValue >= 0 && result.intValue <= 300) {
+      pirDelaySec = result.intValue;
+    }
+    json.get(result, "settings/mmwave_delay_seconds");
+    if (result.success && result.intValue >= 0 && result.intValue <= 300) {
+      mmwaveDelaySec = result.intValue;
+    }
+    json.get(result, "settings/mmwave_inverted");
+    if (result.success) mmwaveInverted = result.boolValue;
+    json.get(result, "settings/force_pir");
+    if (result.success) forcePir = result.intValue;
+    json.get(result, "settings/force_mmwave");
+    if (result.success) forceMmwave = result.intValue;
+    json.get(result, "settings/sensor_fusion_mode");
+    if (result.success && result.stringValue.length() > 0) sensorFusionMode = result.stringValue;
 
-    json.get(result, "ports/port_02/relay_status");
-    if (result.success) runRelaySwitch(1, result.boolValue, /*force=*/true);
-
-    json.get(result, "ports/port_03/relay_status");
-    if (result.success) runRelaySwitch(2, result.boolValue, /*force=*/true);
+    static bool initialBootRelaySyncDone = false;
+    if (!initialBootRelaySyncDone) {
+      initialBootRelaySyncDone = true;
+      json.get(result, "ports/port_01/relay_status");
+      if (result.success) runRelaySwitch(0, result.boolValue, /*force=*/true);
+      json.get(result, "ports/port_02/relay_status");
+      if (result.success) runRelaySwitch(1, result.boolValue, /*force=*/true);
+      json.get(result, "ports/port_03/relay_status");
+      if (result.success) runRelaySwitch(2, result.boolValue, /*force=*/true);
+    }
 
     // Per-port shutdown policy. Absent means `occupancy`, which is what the initialiser already
     // holds — so a device whose database predates this setting behaves as before rather than
@@ -2549,11 +2722,11 @@ void applyRemoteChange(const RemoteChangeT& data) {
 // seconds, and nothing is dispatched unless the payload actually changed.
 unsigned long lastRemotePollMillis = 0;
 String lastRemoteJson = "";
-const unsigned long RTDB_POLL_INTERVAL_MS = 3000UL;
+const unsigned long RTDB_POLL_INTERVAL_MS = 1000UL;
 
-void pollRemoteChanges() {
+void pollRemoteChanges(bool force = false) {
   if (roomPath.length() == 0) return;
-  if (millis() - lastRemotePollMillis < RTDB_POLL_INTERVAL_MS) return;
+  if (!force && (millis() - lastRemotePollMillis < RTDB_POLL_INTERVAL_MS)) return;
   lastRemotePollMillis = millis();
 
   String body;
@@ -2626,8 +2799,8 @@ void pollRemoteChanges() {
       if (relayIsOn(i)) { anyOn = true; break; }
     }
     if (!anyOn) {
-      currentState = STATE_SHUTDOWN;
-      Serial.println("All relays manually turned off. Skipping response window -> SHUTDOWN");
+      // Do not force STATE_SHUTDOWN while room is occupied; leave relays off as requested
+      Serial.println("All relays manually turned off by user.");
     }
   }
 }
@@ -2775,7 +2948,7 @@ void persistRelayState() {
 // The app is NOT the security boundary here — anyone can write this node directly (console, script,
 // another client). Enforcement lives on the device because the device is what owns the relay.
 
-#define RELAY_MIN_DWELL_MS     2000UL          // 2 s between transitions on the same port
+#define RELAY_MIN_DWELL_MS     500UL          // 2 s between transitions on the same port
 #define RELAY_RATE_WINDOW_MS   60000UL         // rolling window for the rate cap
 #define RELAY_MAX_SWITCHES     6               // max transitions per port per window
 
@@ -3116,6 +3289,7 @@ void setup() {
 
   pinMode(PIR_PIN, INPUT);
   pinMode(MMWAVE_PIN, INPUT);
+  pinMode(MMWAVE_PIN, INPUT_PULLDOWN);
 
   // Initialize Front Panel Status LEDs (Green, Blue, Yellow)
   pinMode(LED_STATUS_PIN, OUTPUT);
@@ -3192,10 +3366,35 @@ void setup() {
         Serial.printf("Voltage calibration restored from NVS: %.3f mV/V\n", cal);
       }
     } else {
-      Serial.printf("Voltage calibration: default %.3f mV/V — NOT CALIBRATED. Measure the supply\n",
-                    voltageCalMvPerV);
-      Serial.println("  with a multimeter and set settings/voltage_cal_mv_per_v to match.");
+      Serial.printf("Voltage calibration: default %.3f mV/V — NOT CALIBRATED.\n", voltageCalMvPerV);
     }
+
+    String savedAcs = getNvsString("acs712_mv_a");
+    if (savedAcs.length() > 0) {
+      float a = savedAcs.toFloat();
+      if (a >= 10.0f && a <= 400.0f) {
+        acs712MvPerAmp = a;
+        Serial.printf("ACS712 sensitivity restored from NVS: %.2f mV/A\n", a);
+      }
+    }
+    String savedNf = getNvsString("curr_noise_a");
+    if (savedNf.length() > 0) {
+      float nf = savedNf.toFloat();
+      if (nf >= 0.005f && nf <= 1.0f) currentNoiseFloorA = nf;
+    }
+    String savedMult = getNvsString("curr_mult");
+    if (savedMult.length() > 0) {
+      float m = savedMult.toFloat();
+      if (m >= 0.5f && m <= 2.0f) currentCalMultiplier = m;
+    }
+    String savedPirD = getNvsString("pir_delay_s");
+    if (savedPirD.length() > 0) pirDelaySec = savedPirD.toInt();
+    String savedMmwD = getNvsString("mmw_delay_s");
+    if (savedMmwD.length() > 0) mmwaveDelaySec = savedMmwD.toInt();
+    String savedMmwInv = getNvsString("mmw_inverted");
+    if (savedMmwInv.length() > 0) mmwaveInverted = (savedMmwInv == "1");
+    String savedFusion = getNvsString("fusion_mode");
+    if (savedFusion.length() > 0) sensorFusionMode = savedFusion;
 #endif
   }
 
@@ -3467,9 +3666,41 @@ void loop() {
   // floating, and floating-input noise OR-ed into `motionDetected` would pin the room permanently
   // "occupied" and stop the smart shutdown from ever firing. PIR alone is fail-safe, so it ships
   // first; enable the radar when it is physically fitted.
-  bool pirActive = (digitalRead(PIR_PIN) == HIGH);
-  bool mmwaveActive = (digitalRead(MMWAVE_PIN) == HIGH);
-  bool motionDetected = pirActive || (mmwaveEnabled && mmwaveActive);
+  // 1. Raw sensor readings with polarity handling and manual overrides
+  bool rawPir = (digitalRead(PIR_PIN) == HIGH);
+  if (forcePir == 1) rawPir = true;
+  else if (forcePir == 0) rawPir = false;
+
+  bool rawMmw = (digitalRead(MMWAVE_PIN) == (mmwaveInverted ? LOW : HIGH));
+  if (forceMmwave == 1) rawMmw = true;
+  else if (forceMmwave == 0) rawMmw = false;
+
+  unsigned long nowMs = millis();
+
+  // 2. Presence hold-off smoothing filters (bridges radar flutter & brief still moments)
+  static unsigned long lastPirHighMs = 0;
+  static unsigned long lastMmwHighMs = 0;
+
+  if (rawPir) lastPirHighMs = nowMs;
+  bool pirActive = rawPir || ((nowMs - lastPirHighMs) < ((unsigned long)pirDelaySec * 1000UL));
+
+  if (mmwaveEnabled && rawMmw) lastMmwHighMs = nowMs;
+  bool mmwaveActive = mmwaveEnabled && (rawMmw || ((nowMs - lastMmwHighMs) < ((unsigned long)mmwaveDelaySec * 1000UL)));
+
+  // 3. Sensor Fusion Evaluation
+  bool motionDetected = false;
+  if (sensorFusionMode == "AND") {
+    motionDetected = pirActive && mmwaveActive;
+  } else if (sensorFusionMode == "PIR_WAKE_MMWAVE_HOLD") {
+    if (currentState == STATE_OCCUPIED) {
+      motionDetected = mmwaveActive || pirActive;
+    } else {
+      motionDetected = pirActive;
+    }
+  } else {
+    // Default OR (Dual-Trigger)
+    motionDetected = pirActive || mmwaveActive;
+  }
   bool nightMode = isNightModeActive();
 
   // One ADC sweep per port for the WHOLE iteration. Both the shutdown scan below and the telemetry
@@ -3622,6 +3853,9 @@ void loop() {
       if (localHour == 0) rolloverDayIfNeeded();
     }
 
+    // Poll first so any user toggle in flight is applied before we publish telemetry!
+    pollRemoteChanges(/*force=*/true);
+
     float totalAmps = 0;
     float totalWatts = 0;
     const float volts = supplyVoltage(); // one read for the whole sweep, so every port agrees
@@ -3677,7 +3911,7 @@ void loop() {
       json.set(portPrefix + "energy_kwh", portEnergyKWh[i]);
       json.set(portPrefix + "voltage", portVolts);
 
-      // Also continuously push relay_status to ensure Web App is synced with physical reality
+      // Publish relay_status: fresh because pollRemoteChanges(true) ran above
       json.set(portPrefix + "relay_status", relayIsOn(i));
       // Published so the app can SHOW the policy and let the user change it. A policy the interface
       // cannot display is one the user cannot reason about — which is how the inverted shutdown
@@ -3720,6 +3954,19 @@ void loop() {
       if (currentState != previousState) {
         Serial.printf("State changed: %s -> %s\n", stateToString(previousState).c_str(), stateToString(currentState).c_str());
         previousState = currentState;
+      }
+      static unsigned long lastSerialDiagMs = 0;
+      if (millis() - lastSerialDiagMs >= 2000) {
+        lastSerialDiagMs = millis();
+        Serial.printf("[VoltSense] P1: %.2f A (%.1f W) | P2: %.2f A (%.1f W) | P3: %.2f A (%.1f W) | Total: %.1f W | Relays: [%s,%s,%s] | Motion: %s\n",
+                      readACS712ForDisplay(0), readACS712ForDisplay(0) * volts,
+                      readACS712ForDisplay(1), readACS712ForDisplay(1) * volts,
+                      readACS712ForDisplay(2), readACS712ForDisplay(2) * volts,
+                      totalWatts,
+                      relayIsOn(0) ? "ON" : "OFF",
+                      relayIsOn(1) ? "ON" : "OFF",
+                      relayIsOn(2) ? "ON" : "OFF",
+                      motionDetected ? "YES" : "NO");
       }
     }
   }

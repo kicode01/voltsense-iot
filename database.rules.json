@@ -128,6 +128,45 @@
           "auto_calibrate_voltage": {
             ".validate": "newData.isBoolean()"
           },
+          "acs712_mv_per_amp": {
+            ".validate": "newData.isNumber() && newData.val() >= 10 && newData.val() <= 400"
+          },
+          "current_noise_floor_a": {
+            ".validate": "newData.isNumber() && newData.val() >= 0.005 && newData.val() <= 1.0"
+          },
+          "current_cal_multiplier": {
+            ".validate": "newData.isNumber() && newData.val() >= 0.5 && newData.val() <= 2.0"
+          },
+          "calibrate_current_zero": {
+            ".validate": "newData.isBoolean()"
+          },
+          "pir_delay_seconds": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 300"
+          },
+          "mmwave_delay_seconds": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 300"
+          },
+          "sensor_fusion_mode": {
+            ".validate": "newData.isString() && (newData.val() === 'OR' || newData.val() === 'AND' || newData.val() === 'PIR_WAKE_MMWAVE_HOLD')"
+          },
+          "mmwave_enabled": {
+            ".validate": "newData.isBoolean()"
+          },
+          "mmwave_inverted": {
+            ".validate": "newData.isBoolean()"
+          },
+          "force_mmwave": {
+            ".validate": "newData.isNumber()"
+          },
+          "force_pir": {
+            ".validate": "newData.isNumber()"
+          },
+          "inactivity_limit_seconds": {
+            ".validate": "newData.isNumber()"
+          },
+          "response_window_seconds": {
+            ".validate": "newData.isNumber()"
+          },
           "overcurrent_limit_a": {
             ".validate": "newData.isNumber() && newData.val() >= 0.5 && newData.val() <= 20"
           },
