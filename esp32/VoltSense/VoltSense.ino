@@ -225,7 +225,7 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
 //
 // Until step 3, every code path behaves exactly as it did before this section existed.
 // ---------------------------------------------------------------------------
-// #define HAS_VOLTAGE_SENSE       // uncomment ONLY when the sensor is physically wired AND calibrated
+#define HAS_VOLTAGE_SENSE       // Enabled: ZMPT101B AC voltage sensing on GPIO 33 with Method A Auto-Calibration
 #ifdef HAS_VOLTAGE_SENSE
   // The pin itself is defined at file scope above; nothing to redeclare here.
 #endif
@@ -1732,6 +1732,55 @@ float readVoltageOnly() {
 }
 
 /**
+ * Method A: One-click / On-boot Auto-calibration against standard 220.0V grid.
+ * Measures raw RMS millivolts on VOLTAGE_SENSE_PIN (GPIO 33) and sets:
+ *   voltageCalMvPerV = raw_mV / targetGridV;
+ * Saves permanently to NVS flash memory.
+ */
+bool performVoltageAutoCalibration(float targetGridV = 220.0f) {
+  int n = 0;
+  uint32_t start = millis();
+  while ((millis() - start) < CURRENT_SAMPLE_MS && n < POWER_SAMPLE_MAX) {
+    powerSampV[n] = (int16_t)analogReadMilliVolts(VOLTAGE_SENSE_PIN);
+    n++;
+    delayMicroseconds(CURRENT_SAMPLE_US);
+  }
+  if (n < 16) {
+    Serial.println("[AUTO-CAL] Too few samples on VOLTAGE_SENSE_PIN.");
+    return false;
+  }
+
+  int64_t sum = 0;
+  for (int k = 0; k < n; k++) sum += powerSampV[k];
+  const int32_t bias = (int32_t)(sum / n);
+
+  int64_t sumSq = 0;
+  for (int k = 0; k < n; k++) {
+    const int32_t d = (int32_t)powerSampV[k] - bias;
+    sumSq += (int64_t)d * d;
+  }
+  const float adcVrms_mV = (float)sqrt((double)sumSq / (double)n);
+
+  if (adcVrms_mV < 80.0f) {
+    Serial.printf("[AUTO-CAL] Signal too weak (%.1f mV RMS) — sensor may be disconnected or unpowered.\n", adcVrms_mV);
+    return false;
+  }
+
+  float calculatedCal = adcVrms_mV / targetGridV;
+  if (calculatedCal >= 1.0f && calculatedCal <= 20.0f) {
+    voltageCalMvPerV = calculatedCal;
+    setNvsString("voltage_cal", String(calculatedCal, 3));
+    Serial.printf("[AUTO-CAL SUCCESS] Measured %.1f mV RMS at GPIO %d. Scale factor set to %.3f mV/V (ref %.1f V, saved to NVS)\n",
+                  adcVrms_mV, VOLTAGE_SENSE_PIN, calculatedCal, targetGridV);
+    return true;
+  } else {
+    Serial.printf("[AUTO-CAL WARN] Factor %.3f mV/V outside safe bounds (1.0-20.0). Retaining %.3f mV/V\n",
+                  calculatedCal, voltageCalMvPerV);
+    return false;
+  }
+}
+
+/**
  * Keep the measured voltage fresh when no port is energised.
  *
  * Called once per loop. Cheap in the normal case (a timestamp compare); only pays for a real
@@ -2474,6 +2523,18 @@ void applyRemoteChange(const RemoteChangeT& data) {
       Serial.printf("Ignoring overcurrent_limit_a %.2f (outside 0.5-5.0 A)\n", a);
     }
 #ifdef HAS_VOLTAGE_SENSE
+  } else if (path == "/settings/auto_calibrate_voltage" && data.boolData()) {
+    Serial.println("[REMOTE] Method A auto-calibration requested from cloud (220.0V ref)...");
+    if (performVoltageAutoCalibration(220.0f)) {
+      FirebaseJson calUpdate;
+      calUpdate.set("settings/voltage_cal_mv_per_v", voltageCalMvPerV);
+      calUpdate.set("settings/auto_calibrate_voltage", false);
+      rtdbPatchJson(roomPath, calUpdate);
+    } else {
+      FirebaseJson resetTrigger;
+      resetTrigger.set("settings/auto_calibrate_voltage", false);
+      rtdbPatchJson(roomPath, resetTrigger);
+    }
   } else if (path == "/settings/voltage_cal_mv_per_v") {
     // The voltage sensor's transfer function. Adjustable at runtime so a unit can be CALIBRATED
     // without a reflash: measure the socket with a multimeter, compare against the reported
@@ -2519,6 +2580,22 @@ void applyRemoteChange(const RemoteChangeT& data) {
     if (result.success && result.floatValue >= 50.0f && result.floatValue <= 300.0f) {
       nominalVoltage = result.floatValue;
     }
+
+#ifdef HAS_VOLTAGE_SENSE
+    json.get(result, "settings/auto_calibrate_voltage");
+    if (result.success && result.boolValue) {
+      if (performVoltageAutoCalibration(220.0f)) {
+        FirebaseJson calUpdate;
+        calUpdate.set("settings/voltage_cal_mv_per_v", voltageCalMvPerV);
+        calUpdate.set("settings/auto_calibrate_voltage", false);
+        rtdbPatchJson(roomPath, calUpdate);
+      } else {
+        FirebaseJson resetTrigger;
+        resetTrigger.set("settings/auto_calibrate_voltage", false);
+        rtdbPatchJson(roomPath, resetTrigger);
+      }
+    }
+#endif
 
     json.get(result, "settings/overcurrent_limit_a");
     if (result.success && overcurrentLimitIsSane(result.floatValue)) {
@@ -3198,9 +3275,10 @@ void setup() {
         Serial.printf("Voltage calibration restored from NVS: %.3f mV/V\n", cal);
       }
     } else {
-      Serial.printf("Voltage calibration: default %.3f mV/V — NOT CALIBRATED. Measure the supply\n",
-                    voltageCalMvPerV);
-      Serial.println("  with a multimeter and set settings/voltage_cal_mv_per_v to match.");
+      Serial.println("[BOOT] No saved voltage calibration in NVS — executing Method A Auto-Calibration (220.0V ref)...");
+      if (!performVoltageAutoCalibration(220.0f)) {
+        Serial.printf("Auto-calibration fallback: default %.3f mV/V\n", voltageCalMvPerV);
+      }
     }
 #endif
   }

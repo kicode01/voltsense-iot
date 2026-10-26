@@ -62,6 +62,8 @@ const TestLab = () => {
   const [nominalV, setNominalV] = useState('230');
   const [savingCal, setSavingCal] = useState(false);
   const [calSavedNotice, setCalSavedNotice] = useState(false);
+  const [autoCalibrating, setAutoCalibrating] = useState(false);
+  const [autoCalSuccess, setAutoCalSuccess] = useState(false);
 
   // Sequential Relay Test State
   const [isCyclingRelays, setIsCyclingRelays] = useState(false);
@@ -184,6 +186,20 @@ const TestLab = () => {
     setSavingCal(false);
     setCalSavedNotice(true);
     setTimeout(() => setCalSavedNotice(false), 2500);
+  };
+
+  // Method A: Auto-calibrate voltage sensor against 220V grid baseline (Zero multimeter needed)
+  const handleAutoCalibrate = async () => {
+    setAutoCalibrating(true);
+    try {
+      await updateDeviceSetting('auto_calibrate_voltage', true);
+      setAutoCalSuccess(true);
+      setTimeout(() => setAutoCalSuccess(false), 3000);
+    } catch (err) {
+      console.error('Auto-calibration error:', err);
+    } finally {
+      setAutoCalibrating(false);
+    }
   };
 
   // Log a trial run
@@ -1259,7 +1275,7 @@ const TestLab = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500 block mb-1">
                   Voltage Cal Factor (mV/V)
@@ -1292,20 +1308,42 @@ const TestLab = () => {
                 </span>
               </div>
 
-              <div className="flex flex-col justify-end">
+              <div>
                 <button
                   onClick={handleSaveCalibration}
                   disabled={savingCal}
-                  className="w-full py-2.5 px-4 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                  className="w-full py-2.5 px-4 rounded-xl bg-gray-800 hover:bg-gray-900 text-white font-bold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 shadow-sm"
                 >
                   {savingCal ? (
                     <>Applying to Device...</>
                   ) : calSavedNotice ? (
-                    <><Check className="w-3.5 h-3.5" /> Calibrated & Saved!</>
+                    <><Check className="w-3.5 h-3.5 text-emerald-400" /> Saved to NVS!</>
                   ) : (
-                    <><RotateCcw className="w-3.5 h-3.5" /> Apply Calibration</>
+                    <><RotateCcw className="w-3.5 h-3.5" /> Save Manual Values</>
                   )}
                 </button>
+                <span className="text-[10px] text-gray-400 mt-1 block text-center">
+                  Save custom factors directly
+                </span>
+              </div>
+
+              <div>
+                <button
+                  onClick={handleAutoCalibrate}
+                  disabled={autoCalibrating}
+                  className="w-full py-2.5 px-4 rounded-xl bg-maroon-800 hover:bg-maroon-900 text-white font-bold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  {autoCalibrating ? (
+                    <>Sampling Grid...</>
+                  ) : autoCalSuccess ? (
+                    <><Check className="w-3.5 h-3.5 text-emerald-300" /> Auto-Calibrated (220V)!</>
+                  ) : (
+                    <><Sparkles className="w-3.5 h-3.5 text-amber-300" /> Method A: Auto-Cal (220V)</>
+                  )}
+                </button>
+                <span className="text-[10px] text-gray-400 mt-1 block text-center">
+                  Zero tools needed (assumes ~220V grid)
+                </span>
               </div>
             </div>
           </div>
