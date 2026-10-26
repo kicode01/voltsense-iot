@@ -14,7 +14,13 @@ import {
   AlertCircle,
   Sliders,
   TriangleAlert,
-  Zap
+  Zap,
+  SlidersHorizontal,
+  Check,
+  Gauge,
+  RotateCcw,
+  Activity,
+  Crosshair
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { enablePushForUser, clearPushToken } from '../lib/pushNotifications';
@@ -265,8 +271,6 @@ const Settings = () => {
   const storedCurrentNoiseFloor = roomData?.settings?.current_noise_floor_a;
   const storedCurrentMultiplier = roomData?.settings?.current_cal_multiplier;
   const storedSensorFusion = roomData?.settings?.sensor_fusion_mode || 'OR';
-  const storedPirDelay = roomData?.settings?.pir_delay_seconds ?? 5;
-  const storedMmwaveDelay = roomData?.settings?.mmwave_delay_seconds ?? 3;
   const isBenchMode = Boolean(roomData?.settings?.bench_mode);
 
   const handleBenchModeToggle = async () => {

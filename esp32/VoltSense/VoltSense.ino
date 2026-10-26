@@ -1510,7 +1510,7 @@ PowerReading readPowerPort(int currentPin) {
   const float volts = adcVrms_mV / voltageCalMvPerV;
   const float amps = (adcIrms_mV / acs712MvPerAmp) * currentCalMultiplier;
   // v_V * i_A = (v_mV * i_mV) / (1000 * mV_per_A)
-  const float watts = (product_mVmV / (1000.0f * acs712MvPerAmp)) * currentCalMultiplier;
+  const float watts = product_mVmV / (1000.0f * acs712MvPerAmp) * currentCalMultiplier;
   const float va = volts * amps;
 
   out.volts = volts;
@@ -3666,6 +3666,11 @@ void loop() {
   // floating, and floating-input noise OR-ed into `motionDetected` would pin the room permanently
   // "occupied" and stop the smart shutdown from ever firing. PIR alone is fail-safe, so it ships
   // first; enable the radar when it is physically fitted.
+  bool motionDetected = digitalRead(PIR_PIN) == HIGH;
+  if (mmwaveEnabled) {
+    motionDetected = motionDetected || (digitalRead(MMWAVE_PIN) == HIGH);
+  }
+
   // 1. Raw sensor readings with polarity handling and manual overrides
   bool rawPir = (digitalRead(PIR_PIN) == HIGH);
   if (forcePir == 1) rawPir = true;
@@ -3688,7 +3693,6 @@ void loop() {
   bool mmwaveActive = mmwaveEnabled && (rawMmw || ((nowMs - lastMmwHighMs) < ((unsigned long)mmwaveDelaySec * 1000UL)));
 
   // 3. Sensor Fusion Evaluation
-  bool motionDetected = false;
   if (sensorFusionMode == "AND") {
     motionDetected = pirActive && mmwaveActive;
   } else if (sensorFusionMode == "PIR_WAKE_MMWAVE_HOLD") {
