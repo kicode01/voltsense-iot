@@ -368,6 +368,9 @@ bool measuredVoltageIsUsable() {
 float supplyVoltage() {
 #ifdef HAS_VOLTAGE_SENSE
   if (measuredVoltageIsUsable()) return measuredVoltageRms;
+  // If voltage sensing is compiled in and actively sampled, but line is < 50V (mains unplugged/dead),
+  // return 0.0V instead of faking 220V!
+  if (lastVoltageSampleMs > 0 && measuredVoltageRms < 50.0f) return 0.0f;
 #endif
   if (nominalVoltage >= 50.0f && nominalVoltage <= 300.0f) return nominalVoltage;
   return VOLTAGE;
@@ -1364,26 +1367,36 @@ void setAllRelays(bool state) {
 
 float readACS712RMS(int pin) {
   uint32_t start = millis();
-  int minMv = INT32_MAX;
-  int maxMv = INT32_MIN;
+  int n = 0;
+  static const int MAX_SAMPLES = 420;
+  static int16_t samples[MAX_SAMPLES];
 
-  while ((millis() - start) < CURRENT_SAMPLE_MS) {
+  int64_t sum = 0;
+  while ((millis() - start) < CURRENT_SAMPLE_MS && n < MAX_SAMPLES) {
     int mv = analogReadMilliVolts(pin);
-    if (mv < minMv) minMv = mv;
-    if (mv > maxMv) maxMv = mv;
+    samples[n] = (int16_t)mv;
+    sum += mv;
+    n++;
     delayMicroseconds(CURRENT_SAMPLE_US);
   }
+  if (n < 16) return 0.0f;
 
-  if (maxMv <= minMv) return 0.0f; // flat line = definitively no signal
+  int32_t bias = (int32_t)(sum / n);
+  int64_t sumSq = 0;
+  int minMv = INT32_MAX, maxMv = INT32_MIN;
+  for (int k = 0; k < n; k++) {
+    int32_t diff = (int32_t)samples[k] - bias;
+    sumSq += (int64_t)diff * diff;
+    if (samples[k] < minMv) minMv = samples[k];
+    if (samples[k] > maxMv) maxMv = samples[k];
+  }
 
-  int deltaMv = maxMv - minMv;
-  // If peak-to-peak swing is within the resting ADC/Hall noise floor (~20-22 mV), treat as 0 A.
-  if (deltaMv < 55) return 0.0f;
+  float vRms_mV = (float)sqrt((double)sumSq / (double)n);
+  int deltaMv = (maxMv > minMv) ? (maxMv - minMv) : 0;
+  // If peak-to-peak swing is under 50 mV or RMS is under 18 mV, it is quiescent ADC/Hall noise
+  if (vRms_mV < 18.0f || deltaMv < 50) return 0.0f;
 
-  // millivolts peak-to-peak -> volts RMS of a sine: Vpp/2 = Vpeak, Vpeak * 0.7071 = Vrms
-  float vppVolts = (deltaMv) / 1000.0f;
-  float vRms = (vppVolts / 2.0f) * 0.70710678f;
-  float amps = vRms / (ACS712_MV_PER_AMP / 1000.0f);
+  float amps = vRms_mV / ACS712_MV_PER_AMP;
   return (amps < CURRENT_NOISE_FLOOR_A) ? 0.0f : amps;
 }
 
@@ -1591,16 +1604,16 @@ void samplePortIntoCache(int i) {
       measuredVoltageRms = p.volts;
       lastVoltageSampleMs = millis();
     } else {
-      // Voltage sensor waveform unavailable or uncalibrated.
-      // Gracefully fall back to direct ACS712 current sensing so load is NEVER zeroed out!
-      float rawAmps = readACS712RMS(CURRENT_SENSOR_PINS[i]);
-      if (rawAmps < CURRENT_NOISE_FLOOR_A) rawAmps = 0.0f;
-      c.amps = rawAmps;
-      c.volts = supplyVoltage();
-      c.watts = rawAmps * c.volts;
-      c.va = c.watts;
-      c.pf = (rawAmps > 0.0f) ? 1.0f : 0.0f;
+      // Mains AC voltage is absent (< 50V) or unplugged:
+      // When AC is not plugged in, NO current can physically flow to the load.
+      c.amps = 0.0f;
+      c.volts = 0.0f;
+      c.watts = 0.0f;
+      c.va = 0.0f;
+      c.pf = 0.0f;
       c.powerValid = false;
+      measuredVoltageRms = 0.0f;
+      lastVoltageSampleMs = millis();
     }
   } else {
     c.amps = 0.0f;
@@ -1819,7 +1832,11 @@ void refreshVoltageOnlyIfStale() {
 
   const float v = readVoltageOnly();
   lastVoltageSampleMs = millis();
-  if (v >= 50.0f && v <= 300.0f) measuredVoltageRms = v;
+  if (v >= 50.0f && v <= 300.0f) {
+    measuredVoltageRms = v;
+  } else {
+    measuredVoltageRms = 0.0f;
+  }
 }
 
 /** Real power for a port, or its apparent power when no voltage channel was compiled in. */
@@ -3777,7 +3794,11 @@ void loop() {
         // Each port's pass measured its own voltage; prefer it, since the watts were computed
         // against it and reporting a different number would make the two disagree.
         const CurrentReading& c = currentCache[i];
-        if (c.powerValid && c.volts >= 50.0f && c.volts <= 300.0f) portVolts = c.volts;
+        if (c.powerValid && c.volts >= 50.0f && c.volts <= 300.0f) {
+          portVolts = c.volts;
+        } else if (lastVoltageSampleMs > 0 && measuredVoltageRms < 50.0f) {
+          portVolts = 0.0f;
+        }
 #else
         // No voltage channel: `I_rms * configured_voltage` is APPARENT power (VA), not watts. The
         // UI labels it as such. See the voltage section for why this cannot be fixed in software.
