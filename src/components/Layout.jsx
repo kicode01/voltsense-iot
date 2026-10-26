@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useAlerts } from '../hooks/useAlerts';
 import AlertCatchUp from './AlertCatchUp';
+import EmergencyAlertBanner from './EmergencyAlertBanner';
 import ViewportDebug from './ViewportDebug';
 
 const Layout = () => {
@@ -47,6 +48,9 @@ const Layout = () => {
 
   return (
     <div className="app-shell bg-[#F4F5F7] flex flex-col font-sans selection:bg-maroon-500/30 overflow-hidden">
+      {/* Top Emergency Shutdown Alert Banner (Siren and Response Countdown) */}
+      <EmergencyAlertBanner activeDeviceId={activeDeviceId} />
+
       {/* Apple-style ambient background glow */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-[20%] -left-[10%] w-[60vw] h-[60vw] rounded-full bg-maroon-300/20 blur-[120px] mix-blend-multiply" />

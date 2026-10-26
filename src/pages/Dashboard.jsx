@@ -126,9 +126,9 @@ const Dashboard = () => {
   // "occupied"). The badge previously showed whether any relay happened to be energised, which is a
   // different question — a room can be occupied with everything off, or idle with a charger running.
   // Fall back to the old signal only when the device does not publish the field.
-  const occupied = data.is_occupied !== undefined ? Boolean(data.is_occupied) : anyOn;
-  const pirActive = data.pir_detected !== undefined ? Boolean(data.pir_detected) : occupied;
-  const mmwaveActive = data.mmwave_detected !== undefined ? Boolean(data.mmwave_detected) : occupied;
+  const occupied = data.is_occupied !== undefined ? Boolean(data.is_occupied) : (isDemo ? Boolean(demoData.is_occupied) : anyOn);
+  const pirActive = data.pir_detected !== undefined ? Boolean(data.pir_detected) : (isDemo ? Boolean(demoData.pir_detected) : false);
+  const mmwaveActive = data.mmwave_detected !== undefined ? Boolean(data.mmwave_detected) : (isDemo ? Boolean(demoData.mmwave_detected) : false);
   const allOn = Object.values(ports).every(p => p.relay_status);
   const activeCount = Object.values(ports).filter(p => p.relay_status).length;
   const drawingCount = Object.values(ports).filter(p => p.relay_status && (Number(p.power_watts) > 6 || Number(p.current_amps) > 0.08)).length;
@@ -173,8 +173,18 @@ const Dashboard = () => {
   // the one that matches a device with no sensor at all.
   const powerIsMeasured = data.voltage_source === 'measured';
 
-  // Inactivity limit comes from the device; fall back to the firmware default only when absent.
-  const inactivityLimitMinutes = Number(data.inactivity_limit ?? 15);
+  // Inactivity limit in seconds or minutes, synced from firmware / RTDB settings
+  const inactivityLimitSeconds = Number(
+    data.settings?.inactivity_limit_seconds ??
+    data.inactivity_limit_seconds ??
+    ((data.inactivity_limit || 15) * 60)
+  );
+  const isSubMinuteInactivity = inactivityLimitSeconds < 60;
+  const inactivityDisplayVal = isSubMinuteInactivity
+    ? inactivityLimitSeconds
+    : Math.round(inactivityLimitSeconds / 60);
+  const inactivityDisplayUnit = isSubMinuteInactivity ? 'sec' : 'min';
+  const isGodModeOn = typeof window !== 'undefined' && localStorage.getItem('voltsense_god_mode') === 'true';
 
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
@@ -282,6 +292,18 @@ const Dashboard = () => {
         </div>
       )}
 
+      {isGodModeOn && (
+        <div className="bg-amber-50 border border-amber-200/80 text-amber-900 px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold shadow-sm">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-amber-600 fill-current animate-pulse" />
+            <span>God Mode Enabled · Demonstration Overrides & Speed-Run Active</span>
+          </div>
+          <Link to="/settings" viewTransition className="bg-amber-400 text-black px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-amber-300 transition-colors">
+            God Mode Settings
+          </Link>
+        </div>
+      )}
+
       {isDemo && (
         <div className="bg-maroon-50 border border-maroon-100 text-maroon-800 px-4 py-3 rounded-2xl flex items-center justify-between text-sm font-medium">
           <div className="flex items-center gap-2">
@@ -317,7 +339,7 @@ const Dashboard = () => {
            {/* Fall back to the FIRMWARE's real response window (5 minutes), not 60 seconds — the
                alert text says "60 seconds" but RESPONSE_WINDOW_MS is 300000. Showing 60 here would
                understate the time the user actually has, and could make them rush a decision. */}
-           <div className="text-6xl sm:text-7xl font-black drop-shadow-md my-4 relative z-10">{data.countdown_remaining_seconds ?? 300}s</div>
+           <div className="text-6xl sm:text-7xl font-black drop-shadow-md my-4 relative z-10">{data.countdown_remaining_seconds ?? (settings.response_window_seconds || 300)}s</div>
            <button
              onClick={async () => {
                setOverridePending(true);
@@ -451,8 +473,8 @@ const Dashboard = () => {
           <div className="relative z-10">
             <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Inactivity Limit</h3>
             <div className="flex items-baseline gap-1 md:gap-1.5 leading-none mt-0.5">
-              <span className="text-2xl md:text-xl font-bold text-gray-900">{inactivityLimitMinutes}</span>
-              <span className="text-[11px] md:text-xs font-bold text-gray-500 uppercase tracking-wider">min</span>
+              <span className="text-2xl md:text-xl font-bold text-gray-900">{inactivityDisplayVal}</span>
+              <span className="text-[11px] md:text-xs font-bold text-gray-500 uppercase tracking-wider">{inactivityDisplayUnit}</span>
             </div>
             {!activeDeviceId && (
               <p className="hidden md:block text-[10px] text-gray-400 mt-1 font-medium">Auto-shutdown when room is empty.</p>

@@ -127,6 +127,17 @@ export const useRoomData = (roomId) => {
     }
   };
 
+  const updateDeviceSettings = async (settingsMap) => {
+    if (!roomId || !settingsMap || typeof settingsMap !== 'object') return true;
+    try {
+      await update(ref(db, `devices/${roomId}/settings`), settingsMap);
+      return true;
+    } catch (error) {
+      console.error('Failed to update multiple settings', error);
+      return false;
+    }
+  };
+
   /**
    * Set what a port should do when the room empties: `occupancy` (cut — the default), `always_on`
    * (never cut), or `keep_while_drawing` (keep while the load is drawing, then cut).
@@ -189,6 +200,7 @@ export const useRoomData = (roomId) => {
     togglePortRelay,
     updateNightMode,
     updateDeviceSetting,
+    updateDeviceSettings,
     updatePortPolicy,
     setOverride,
     updatePortName,
