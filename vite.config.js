@@ -6,6 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   server: {
     host: true, // Listen on all local IPs
+    allowedHosts: true, // Allow tunnel hostnames like .loca.lt
   },
   plugins: [
     react(),
