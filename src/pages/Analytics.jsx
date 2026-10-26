@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from 'recharts';
-import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity, Layers, DollarSign, Plug } from 'lucide-react';
+import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity, Layers, Plug } from 'lucide-react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useHistoryData, generateMockData } from '../hooks/useHistoryData';
 import { useRoomData } from '../hooks/useRoomData';
@@ -493,13 +493,7 @@ const Analytics = () => {
               <Layers className="w-4 h-4 text-maroon-800" />
               <h3 className="text-base md:text-lg font-bold text-gray-900 tracking-tight">Per-Outlet Monitoring &amp; Energy Breakdown</h3>
             </div>
-            <p className="text-gray-500 text-xs font-medium mt-1">Real-time electrical telemetry, power calculations, and consumption share per socket</p>
-          </div>
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-maroon-800 bg-maroon-50 px-3 py-1.5 rounded-xl border border-maroon-100 flex items-center gap-1.5">
-              <DollarSign className="w-3.5 h-3.5" />
-              ₱12.00 / kWh Base Rate
-            </span>
+            <p className="text-gray-500 text-xs font-medium mt-1">Real-time electrical telemetry and power calculations per socket</p>
           </div>
         </div>
 
@@ -535,16 +529,14 @@ const Analytics = () => {
                   </span>
                 </div>
 
-                {/* Energy & Share */}
+                {/* Energy & Consumption */}
                 <div className="bg-white border border-gray-100 rounded-xl p-3 mb-3 shadow-xs">
                   <div className="flex items-baseline justify-between mb-1.5">
                     <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Consumption</span>
-                    <span className="text-xs font-bold text-gray-900">{outlet.percentage}% share</span>
                   </div>
                   <div className="flex items-baseline gap-1.5 mb-2">
                     <span className="text-2xl font-black text-gray-900 tracking-tight">{outlet.energyKwh.toFixed(2)}</span>
                     <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
-                    <span className="text-xs font-semibold text-gray-500 ml-auto">≈ ₱{outlet.costPhp}</span>
                   </div>
                   {/* Progress Bar */}
                   <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
