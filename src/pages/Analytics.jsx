@@ -101,7 +101,6 @@ const Analytics = () => {
   const isCustomRange = /(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.test(String(timeRange));
 
   const totalEnergy = Number(dataToRender?.totals?.energy) || 3.2;
-  const MERALCO_RATE_PHP = 12.00; // Standard Philippine residential kWh rate
 
   const defaultPortShare = {
     port_01: { name: 'Port 1', icon: 'plug', share: 0.58, volts: 220, amps: 0.25, watts: 55.0, pf: 0.98 },
@@ -135,7 +134,6 @@ const Analytics = () => {
     const pf = Number(rawPort.power_factor) > 0 ? Number(rawPort.power_factor) : (amps > 0 ? fallback.pf : 0);
     const rawWatts = rawPort.power_watts !== undefined ? Number(rawPort.power_watts) : (isDemo ? fallback.watts : Number((volts * amps * (pf || 1)).toFixed(1)));
     const watts = isRelayOn ? (amps > 0 ? rawWatts : 0) : 0;
-    const costPhp = (energyKwh * MERALCO_RATE_PHP).toFixed(2);
 
     return {
       id: portKey,
@@ -149,7 +147,6 @@ const Analytics = () => {
       amps,
       watts,
       pf,
-      costPhp,
       color: portColors[portKey] || '#852636'
     };
   });
@@ -745,26 +742,17 @@ const Analytics = () => {
                         : 'bg-gray-50/60 border-gray-100/90 hover:bg-white hover:border-gray-200/80'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1 sm:mb-1.5">
-                      <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: outlet.color }} />
-                        <span className="text-[11px] sm:text-xs font-bold text-gray-800 truncate">{outlet.name}</span>
+                        <span className="text-xs font-bold text-gray-800 truncate">{outlet.name}</span>
                       </div>
-                      <span className="text-[9px] sm:text-[10px] font-bold text-gray-500">
-                        {outlet.percentage}%
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
-                      <div className="flex items-baseline gap-0.5 sm:gap-1">
+                      <div className="flex items-baseline gap-1">
                         <span className="text-xs sm:text-sm font-extrabold text-gray-900">
                           {outlet.energyKwh.toFixed(2)}
                         </span>
                         <span className="text-[9px] sm:text-[10px] font-bold text-gray-400">kWh</span>
                       </div>
-                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500">
-                        ₱{outlet.costPhp}
-                      </span>
                     </div>
                   </div>
                 ))}
