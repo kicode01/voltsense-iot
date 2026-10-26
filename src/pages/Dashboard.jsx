@@ -411,7 +411,9 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
+      <div className={`grid gap-3 md:gap-5 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both ${
+        nightMode.enabled ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2'
+      }`}>
         {nightMode.enabled && (
           <div className="joyride-night-mode relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden">
             <Moon strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
@@ -437,7 +439,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        <div className={`joyride-inactivity-limit relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden ${!nightMode.enabled ? 'col-span-2 lg:col-span-1' : ''}`}>
+        <div className="joyride-inactivity-limit relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden col-span-1">
           <Timer strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none" />
           <div className="relative z-10">
             <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Inactivity Limit</h3>
@@ -454,8 +456,10 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Desktop-only Bento Card 3: Dual Presence Sensing Indicator */}
-        <div className="hidden lg:flex relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex-col justify-between group overflow-hidden">
+        {/* Bento Card 3: Dual Presence Sensing Indicator */}
+        <div className={`joyride-dual-presence relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden ${
+          nightMode.enabled ? 'col-span-2 lg:col-span-1' : 'col-span-1'
+        }`}>
           <Radar strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
           <div className="relative z-10">
             <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Dual Presence</h3>
