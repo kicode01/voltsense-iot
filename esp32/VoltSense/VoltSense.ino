@@ -417,7 +417,7 @@ String historyDayDate = ""; // which day the hourly buckets belong to
 // Database Settings
 bool overrideActive = false;
 bool nightModeEnabled = true;
-bool mmwaveEnabled = false;
+bool mmwaveEnabled = true;
 String nightModeStart = "22:00";
 String nightModeEnd = "06:00";
 
@@ -2433,8 +2433,6 @@ void applyRemoteChange(const RemoteChangeT& data) {
     }
   } else if (path == "/settings/night_mode_enabled") {
     nightModeEnabled = data.boolData();
-  } else if (path == "/settings/mmwave_enabled") {
-    mmwaveEnabled = data.boolData();
   } else if (path == "/settings/night_mode_start") {
     nightModeStart = data.stringData();
   } else if (path == "/settings/night_mode_end") {
@@ -2494,9 +2492,6 @@ void applyRemoteChange(const RemoteChangeT& data) {
 
     json.get(result, "settings/night_mode_enabled");
     if (result.success) nightModeEnabled = result.boolValue;
-
-    json.get(result, "settings/mmwave_enabled");
-    if (result.success) mmwaveEnabled = result.boolValue;
 
     json.get(result, "settings/night_mode_start");
     if (result.success) nightModeStart = result.stringValue;
@@ -3462,14 +3457,23 @@ void loop() {
   // internally, so calling it every iteration is free.
   pollRemoteChanges();
 
-  // Occupancy = PIR OR the mmWave radar — the dual-sensor module. The radar term is compiled in with
-  // HAS_MMWAVE (see its section): reading MMWAVE_PIN while no radar is wired would leave the pin
-  // floating, and floating-input noise OR-ed into `motionDetected` would pin the room permanently
-  // "occupied" and stop the smart shutdown from ever firing. PIR alone is fail-safe, so it ships
-  // first; enable the radar when it is physically fitted.
-  bool motionDetected = digitalRead(PIR_PIN) == HIGH;
-if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN) == HIGH); }
+  // Occupancy = PIR OR mmWave radar (dual-sensor fusion). Both sensors are physically fitted
+  // and fused in hardware/firmware: PIR detects gross movements, mmWave detects micro-motion (breathing/stillness).
+  bool pirActive = (digitalRead(PIR_PIN) == HIGH);
+  bool mmwaveActive = (digitalRead(MMWAVE_PIN) == HIGH);
+  bool motionDetected = pirActive || mmwaveActive;
   bool nightMode = isNightModeActive();
+
+  static unsigned long lastSensorDebugMillis = 0;
+  if (millis() - lastSensorDebugMillis >= 2500) {
+    lastSensorDebugMillis = millis();
+    Serial.printf("[OCCUPANCY DEBUG] PIR: %s | mmWave(GPIO %d): %s => Overall: %s | State: %s\n",
+                  pirActive ? "HIGH" : "LOW",
+                  MMWAVE_PIN,
+                  mmwaveActive ? "HIGH" : "LOW",
+                  motionDetected ? "OCCUPIED" : "VACANT",
+                  stateToString(currentState).c_str());
+  }
 
   // One ADC sweep per port for the WHOLE iteration. Both the shutdown scan below and the telemetry
   // block at the end of this loop read from this cache, instead of each taking their own ~100 ms
@@ -3690,6 +3694,8 @@ if (mmwaveEnabled) { motionDetected = motionDetected || (digitalRead(MMWAVE_PIN)
     if (motionDetected) todayHourlyOccupied[localHour] = true;
 
     json.set("is_occupied", motionDetected);
+    json.set("pir_detected", pirActive);
+    json.set("mmwave_detected", mmwaveActive);
     json.set("state", stateToString(currentState));
     json.set("total_current_amps", totalAmps);
     json.set("total_power_watts", totalWatts);
