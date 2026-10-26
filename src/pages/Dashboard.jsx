@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
-import { Zap, Moon, AlertTriangle, Loader2, Timer, Radar, Plug, Calculator } from 'lucide-react';
+import { Zap, Moon, AlertTriangle, Loader2, Timer, Radar, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MarqueeText from '../components/MarqueeText';
 
@@ -52,47 +52,6 @@ const getPortConnectionState = (portData) => {
   };
 };
 
-const MERALCO_RATE_PHP = 12.00;
-
-const defaultPortShare = {
-  port_01: { share: 0.58, defaultKwh: 0.11 },
-  port_02: { share: 0.11, defaultKwh: 0.06 },
-  port_03: { share: 0.31, defaultKwh: 0.13 },
-};
-
-const portThemes = {
-  port_01: {
-    color: '#852636',
-    gradient: 'from-[#852636] to-[#b83b52]',
-    bgLight: 'bg-[#852636]/[0.03]',
-    borderCard: 'border-[#852636]/20 hover:border-[#852636]/40',
-    textAccent: 'text-[#852636]',
-    badge: 'bg-[#852636]/10 text-[#852636] border-[#852636]/20',
-    formulaBg: 'bg-[#852636]/[0.04] border-[#852636]/15',
-    dotColor: 'bg-[#852636]',
-  },
-  port_02: {
-    color: '#d97706',
-    gradient: 'from-amber-500 to-amber-600',
-    bgLight: 'bg-amber-500/[0.03]',
-    borderCard: 'border-amber-500/20 hover:border-amber-500/40',
-    textAccent: 'text-amber-700',
-    badge: 'bg-amber-50 text-amber-700 border-amber-200',
-    formulaBg: 'bg-amber-50/60 border-amber-200/60',
-    dotColor: 'bg-amber-500',
-  },
-  port_03: {
-    color: '#2563eb',
-    gradient: 'from-blue-600 to-indigo-600',
-    bgLight: 'bg-blue-500/[0.03]',
-    borderCard: 'border-blue-500/20 hover:border-blue-500/40',
-    textAccent: 'text-blue-700',
-    badge: 'bg-blue-50 text-blue-700 border-blue-200',
-    formulaBg: 'bg-blue-50/60 border-blue-200/60',
-    dotColor: 'bg-blue-600',
-  }
-};
-
 const Dashboard = () => {
   const { activeDeviceId, devicesLoading } = useDeviceContext();
 
@@ -117,6 +76,8 @@ const Dashboard = () => {
   const masterTimerRef = useRef(null);
   useEffect(() => () => clearTimeout(masterTimerRef.current), []);
 
+
+
   const [demoData, setDemoData] = useState({
     state: /** @type {string | undefined} */ ('OCCUPIED'),
     countdown_remaining_seconds: /** @type {number | undefined} */ (undefined),
@@ -124,9 +85,9 @@ const Dashboard = () => {
     voltage_source: 'measured',
     settings: { night_mode_enabled: true, night_mode_start: '22:00', night_mode_end: '06:00' },
     ports: {
-      port_01: { name: 'Port 1', relay_status: true, power_watts: 25.9, current_amps: 0.12, voltage: 220, power_factor: 0.98, energy_kwh: 0.11 },
-      port_02: { name: 'Port 2', relay_status: true, power_watts: 250.8, current_amps: 1.20, voltage: 220, power_factor: 0.95, energy_kwh: 0.06 },
-      port_03: { name: 'Port 3', relay_status: false, power_watts: 0, current_amps: 0, voltage: 220, power_factor: 0.0, energy_kwh: 0.13 }
+      port_01: { name: 'Port 1', relay_status: true, power_watts: 25.9, current_amps: 0.12, voltage: 220, power_factor: 0.98 },
+      port_02: { name: 'Port 2', relay_status: true, power_watts: 250.8, current_amps: 1.20, voltage: 220, power_factor: 0.95 },
+      port_03: { name: 'Port 3', relay_status: false, power_watts: 0, current_amps: 0, voltage: 220, power_factor: 0.0 }
     }
   });
 
@@ -198,8 +159,6 @@ const Dashboard = () => {
     ? Math.min(1.0, Number((computedTotalWatts / totalSystemVa).toFixed(2))) 
     : (drawingCount > 0 ? 0.95 : 0.00);
 
-  const totalEnergy = Number(data?.total_energy_kwh || data?.totals?.energy) || 3.2;
-
   // Does this device MEASURE voltage, or assume it?
   //
   // The firmware reports `voltage_source: "measured"` only when a voltage sensor is fitted, enabled
@@ -235,9 +194,8 @@ const Dashboard = () => {
           [portId]: {
             ...prev.ports[portId],
             relay_status: newStatus,
-            power_watts: newStatus ? (portId === 'port_01' ? 25.9 : portId === 'port_02' ? 250.8 : 0) : 0,
-            current_amps: newStatus ? (portId === 'port_01' ? 0.12 : portId === 'port_02' ? 1.20 : 0) : 0,
-            power_factor: newStatus ? (portId === 'port_01' ? 0.98 : portId === 'port_02' ? 0.95 : 0) : 0,
+            power_watts: newStatus ? (portId === 'port_01' ? 15.5 : portId === 'port_02' ? 145.2 : 0) : 0,
+            current_amps: newStatus ? (portId === 'port_01' ? 0.12 : portId === 'port_02' ? 1.2 : 0) : 0,
           }
         }
       }));
@@ -540,223 +498,105 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
           {['port_01', 'port_02', 'port_03'].map((portId, index) => {
             const portData = ports[portId] || {};
-            const theme = portThemes[portId] || portThemes.port_01;
-            const defaultShare = defaultPortShare[portId] || { share: 0.33, defaultKwh: 0.10 };
             const portNumber = portId === 'port_01' ? 1 : portId === 'port_02' ? 2 : 3;
             const displayName = `Port ${portNumber}`;
             const conn = getPortConnectionState(portData);
-            const isRelayOn = Boolean(portData.relay_status);
-
-            const energyKwh = Number(portData.energy_kwh) > 0 
-              ? Number(portData.energy_kwh) 
-              : (defaultShare.defaultKwh ?? Number((totalEnergy * defaultShare.share).toFixed(2)));
-            const percentage = totalEnergy > 0 ? Math.min(100, Math.round((energyKwh / totalEnergy) * 100)) : 0;
-            const costPhp = (energyKwh * MERALCO_RATE_PHP).toFixed(2);
-
             const portVolts = Number(portData.voltage) > 0 ? Number(portData.voltage) : systemVoltage;
-            const rawAmps = Number(portData.current_amps) || 0;
-            const portAmps = isRelayOn && conn.isDrawing ? rawAmps : 0;
+            const portAmps = conn.isDrawing ? (Number(portData.current_amps) || 0) : 0;
+            const portWatts = conn.isDrawing ? (Number(portData.power_watts) || 0) : 0;
             const rawPf = Number(portData.power_factor);
-            const portPf = isRelayOn && conn.isDrawing ? (rawPf > 0 ? rawPf : 0.95) : 0.00;
-            const rawWatts = Number(portData.power_watts) || (portVolts * portAmps * (portPf || 1));
-            const portWatts = isRelayOn && conn.isDrawing ? rawWatts : 0;
-
-            const isDrawingLoad = isRelayOn && (portWatts > 6 || portAmps > 0.08);
+            const portPf = portData.relay_status && conn.isDrawing
+              ? (rawPf > 0 ? rawPf : 0.95)
+              : 0.00;
+            const calculatedWatts = (portVolts * portAmps * (portPf > 0 ? portPf : 1)).toFixed(1);
+            const displayWatts = portWatts > 0 ? portWatts.toFixed(1) : calculatedWatts;
 
             return (
               <div 
                 key={portId} 
-                className={`bg-white border rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 relative overflow-hidden group shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-lg ${theme.borderCard}`}
+                className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] p-4 md:p-5 flex flex-col justify-between transition-all duration-500 ease-apple-spring hover:shadow-lg hover:-translate-y-0.5 group animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" 
                 style={{ animationDelay: `${400 + (index * 100)}ms` }}
               >
-                {/* Top Colored Accent Stripe */}
-                <div 
-                  className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${theme.gradient}`} 
-                />
-
                 <div>
-                  {/* Header: Label, Icon, Status & Toggle */}
-                  <div className="flex items-start justify-between gap-2 mb-3.5 pt-1">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                  {/* Header: Icon, Name + Status, Toggle Switch */}
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div 
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105 border shadow-2xs"
-                        style={{ 
-                          backgroundColor: `${theme.color}12`, 
-                          borderColor: `${theme.color}25`,
-                          color: theme.color 
-                        }}
-                      >
-                        <Plug strokeWidth={1.5} className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-base font-bold text-gray-900 leading-tight truncate">
-                          {displayName}
-                        </h4>
-                        <span className="text-[10px] font-semibold text-gray-400 block mt-0.5 uppercase tracking-wider">
-                          Socket {portNumber} • 220V AC
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Live Status Pill & Apple-style Toggle Switch */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border shadow-2xs transition-all ${
-                        !isRelayOn 
-                          ? 'bg-gray-100 text-gray-400 border-gray-200' 
-                          : isDrawingLoad
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : 'bg-amber-50 text-amber-700 border-amber-200'
-                      }`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${
-                          !isRelayOn 
-                            ? 'bg-gray-400' 
-                            : isDrawingLoad
-                            ? 'bg-emerald-500 animate-pulse'
-                            : 'bg-amber-500'
-                        }`} />
-                        {!isRelayOn 
-                          ? 'Relay Off' 
-                          : isDrawingLoad
-                          ? 'Active'
-                          : 'Standby'}
-                      </span>
-
-                      <button
-                        onClick={() => handleTogglePort(portId, !isRelayOn)}
-                        disabled={pendingPorts[portId]}
-                        aria-label={`Toggle ${displayName} ${isRelayOn ? 'Off' : 'On'}`}
-                        aria-busy={pendingPorts[portId] ? 'true' : 'false'}
-                        className={`relative w-11 h-6 shrink-0 rounded-full flex items-center p-0.5 transition-colors duration-500 ease-apple-spring focus:outline-none focus-visible:ring-4 focus-visible:ring-maroon-500/30 disabled:cursor-progress ${
-                          isRelayOn ? 'bg-maroon-800' : 'bg-gray-200'
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500 ${
+                          portData.relay_status ? 'bg-maroon-50 text-maroon-800 shadow-inner' : 'bg-gray-100 text-gray-400'
                         }`}
                       >
-                        <div className="absolute -inset-2" aria-hidden="true"></div>
-                        <div className={`w-5 h-5 bg-white rounded-full shadow-sm flex items-center justify-center transform transition-transform duration-500 ease-apple-spring ${
-                          isRelayOn ? 'translate-x-5' : 'translate-x-0'
-                        }`}>
-                          {pendingPorts[portId] && (
-                            <Loader2 className="w-3 h-3 animate-spin text-maroon-800" />
-                          )}
+                        <Plug strokeWidth={1.5} className="w-5 h-5 transition-transform duration-500 ease-apple-spring group-hover:scale-110" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-bold text-gray-900 leading-tight">
+                          {displayName}
+                        </h3>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-500 ${conn.dotColor}`} />
+                          <span className={`text-[11px] font-semibold transition-colors duration-500 ${
+                            conn.isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
+                          }`}>
+                            {!portData.relay_status ? 'Switched Off' : conn.isDrawing ? 'In Use' : 'No Load'}
+                          </span>
                         </div>
-                      </button>
+                      </div>
                     </div>
+
+                    {/* Apple-style Toggle Switch */}
+                    <button
+                      onClick={() => handleTogglePort(portId, !portData.relay_status)}
+                      disabled={pendingPorts[portId]}
+                      aria-label={`Toggle ${displayName} ${portData.relay_status ? 'Off' : 'On'}`}
+                      aria-busy={pendingPorts[portId] ? 'true' : 'false'}
+                      className={`relative w-12 h-7 shrink-0 rounded-full flex items-center p-1 transition-colors duration-500 ease-apple-spring focus:outline-none focus-visible:ring-4 focus-visible:ring-maroon-500/30 disabled:cursor-progress ${
+                        portData.relay_status ? 'bg-maroon-800' : 'bg-gray-200'
+                      }`}
+                    >
+                      <div className="absolute -inset-2" aria-hidden="true"></div>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-sm flex items-center justify-center transform transition-transform duration-500 ease-apple-spring ${
+                        portData.relay_status ? 'translate-x-5' : 'translate-x-0'
+                      }`}>
+                        {pendingPorts[portId] && (
+                          <Loader2 className="w-3 h-3 animate-spin text-maroon-800" />
+                        )}
+                      </div>
+                    </button>
                   </div>
 
-                  {/* Energy & Consumption Bento Card */}
-                  <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-3 sm:p-3.5 mb-3">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                        Energy Consumed
-                      </span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${theme.badge}`}>
-                        {percentage}% Share
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-baseline justify-between mb-2.5">
-                      <div className="flex items-baseline gap-1.5">
-                        <span className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
-                          {energyKwh.toFixed(2)}
-                        </span>
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-gray-800">₱{costPhp}</span>
-                        <span className="text-[9px] text-gray-400 font-semibold block uppercase tracking-wider">est. cost</span>
-                      </div>
-                    </div>
-
-                    {/* Dual-Tone Gradient Progress Bar */}
-                    <div className="w-full bg-gray-200/80 rounded-full h-2 overflow-hidden p-0.5">
-                      <div 
-                        className={`h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r ${theme.gradient}`} 
-                        style={{ width: `${Math.max(5, percentage)}%` }}
-                      />
-                    </div>
+                  {/* Active Power Display */}
+                  <div className="flex items-baseline gap-1.5 mb-3">
+                    <span className={`text-3xl font-bold tracking-tight transition-colors duration-500 ${
+                      conn.isDrawing ? 'text-gray-900' : 'text-gray-400'
+                    }`}>
+                      {portData.relay_status ? displayWatts : '0.0'}
+                    </span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">W</span>
                   </div>
 
-                  {/* Live Electrical Telemetry: 2x2 Bento Tiles */}
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
-                        Voltage (RMS)
-                      </span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-sm sm:text-base font-extrabold text-gray-900">
-                          {portVolts.toFixed(0)}
-                        </span>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase">V</span>
-                      </div>
+                  {/* Clean 3-Column Metrics Row */}
+                  <div className="grid grid-cols-3 gap-2 py-2.5 border-t border-gray-100">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Voltage</span>
+                      <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portVolts.toFixed(0)} V</span>
                     </div>
-
-                    <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
-                        Current (RMS)
-                      </span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-sm sm:text-base font-extrabold text-gray-900">
-                          {portAmps.toFixed(2)}
-                        </span>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase">A</span>
-                      </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Current</span>
+                      <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portAmps.toFixed(2)} A</span>
                     </div>
-
-                    <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
-                        Active Power
-                      </span>
-                      <div className="flex items-baseline gap-1">
-                        <span className={`text-sm sm:text-base font-extrabold ${portWatts > 0 ? theme.textAccent : 'text-gray-900'}`}>
-                          {portWatts.toFixed(1)}
-                        </span>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase">W</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
-                        Power Factor
-                      </span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-sm sm:text-base font-extrabold text-gray-900">
-                          {portPf.toFixed(2)}
-                        </span>
-                        <span className="text-[9px] font-bold text-gray-400 uppercase">PF</span>
-                      </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Power Factor</span>
+                      <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portPf.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Mathematical Telemetry Formula Chip */}
-                <div className={`rounded-xl p-2.5 border ${theme.formulaBg} transition-all duration-300`}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Calculator className={`w-3 h-3 ${theme.textAccent}`} />
-                      <span className={`text-[9px] font-bold uppercase tracking-wider ${theme.textAccent}`}>
-                        Formula (P = V × I × PF)
-                      </span>
-                    </div>
-                    <span className={`text-[10px] font-black ${theme.textAccent} font-mono`}>
-                      {portWatts.toFixed(1)} W
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] font-mono text-gray-600 overflow-x-auto hide-scrollbar py-0.5">
-                    <span className="bg-white border border-gray-200/70 px-1.5 py-0.5 rounded font-bold shadow-2xs whitespace-nowrap">
-                      {portVolts.toFixed(0)}V
-                    </span>
-                    <span className="text-gray-400 font-bold">×</span>
-                    <span className="bg-white border border-gray-200/70 px-1.5 py-0.5 rounded font-bold shadow-2xs whitespace-nowrap">
-                      {portAmps.toFixed(2)}A
-                    </span>
-                    <span className="text-gray-400 font-bold">×</span>
-                    <span className="bg-white border border-gray-200/70 px-1.5 py-0.5 rounded font-bold shadow-2xs whitespace-nowrap">
-                      {portPf.toFixed(2)}
-                    </span>
-                    <span className="text-gray-400 font-bold">=</span>
-                    <span className={`px-1.5 py-0.5 rounded font-bold ${theme.badge} whitespace-nowrap`}>
-                      {portWatts.toFixed(1)}W
-                    </span>
-                  </div>
+                {/* Formula Footnote */}
+                <div className="pt-2.5 border-t border-gray-100/70 flex items-center justify-between text-[10px] font-mono text-gray-400">
+                  <span className="font-semibold text-gray-400">P = V × I × PF</span>
+                  <span className="text-gray-500 font-medium">
+                    {portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A × {portPf.toFixed(2)} = <strong className="text-gray-900 font-bold">{portData.relay_status ? (conn.isDrawing ? `${displayWatts}W` : '0W') : '0W'}</strong>
+                  </span>
                 </div>
               </div>
             );
