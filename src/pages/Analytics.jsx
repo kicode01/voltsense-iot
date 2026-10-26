@@ -100,17 +100,21 @@ const Analytics = () => {
   const MERALCO_RATE_PHP = 12.00; // Standard Philippine residential kWh rate
 
   const defaultPortShare = {
-    port_01: { name: 'Port 1', icon: 'plug', share: 0.58, volts: 220, amps: 0.25, watts: 55.0, pf: 0.98 },
-    port_02: { name: 'Port 2', icon: 'plug', share: 0.11, volts: 220, amps: 0.05, watts: 12.0, pf: 0.95 },
     port_03: { name: 'Port 3', icon: 'plug', share: 0.31, volts: 220, amps: 0.20, watts: 44.0, pf: 0.92 },
+    port_02: { name: 'Port 2', icon: 'plug', share: 0.11, volts: 220, amps: 0.05, watts: 12.0, pf: 0.95 },
+    port_01: { name: 'Port 1', icon: 'plug', share: 0.58, volts: 220, amps: 0.25, watts: 55.0, pf: 0.98 },
   };
 
-  const colors = ['#852636', '#d97706', '#2563eb'];
+  const portColors = {
+    port_01: '#852636',
+    port_02: '#d97706',
+    port_03: '#2563eb'
+  };
 
-  const outletList = ['port_01', 'port_02', 'port_03'].map((portKey, idx) => {
+  const outletList = ['port_03', 'port_02', 'port_01'].map((portKey) => {
     const rawPort = roomData?.ports?.[portKey] || {};
     const fallback = defaultPortShare[portKey];
-    const portNumber = idx + 1;
+    const portNumber = portKey === 'port_01' ? 1 : portKey === 'port_02' ? 2 : 3;
     const name = `Port ${portNumber}`;
     const isRelayOn = rawPort.relay_status !== undefined ? Boolean(rawPort.relay_status) : true;
     
@@ -142,7 +146,7 @@ const Analytics = () => {
       watts,
       pf,
       costPhp,
-      color: colors[idx % colors.length]
+      color: portColors[portKey] || '#852636'
     };
   });
 

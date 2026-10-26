@@ -84,9 +84,9 @@ const Dashboard = () => {
     voltage: 220,
     settings: { night_mode_enabled: true, night_mode_start: '22:00', night_mode_end: '06:00' },
     ports: {
-      port_01: { name: 'Demo Charger', relay_status: true, power_watts: 15.5, current_amps: 0.12, voltage: 220, power_factor: 0.98 },
+      port_03: { name: 'Demo Open Socket', relay_status: false, power_watts: 0, current_amps: 0, voltage: 220, power_factor: 1.0 },
       port_02: { name: 'Demo Workstation', relay_status: true, power_watts: 145.2, current_amps: 1.2, voltage: 220, power_factor: 0.95 },
-      port_03: { name: 'Demo Open Socket', relay_status: false, power_watts: 0, current_amps: 0, voltage: 220, power_factor: 1.0 }
+      port_01: { name: 'Demo Charger', relay_status: true, power_watts: 15.5, current_amps: 0.12, voltage: 220, power_factor: 0.98 }
     }
   });
 
@@ -104,9 +104,9 @@ const Dashboard = () => {
   const settings = data.settings || { night_mode_enabled: false, night_mode_start: '22:00', night_mode_end: '06:00' };
   const nightMode = { enabled: settings.night_mode_enabled, start_time: settings.night_mode_start, end_time: settings.night_mode_end };
   const defaultPorts = {
-    port_01: { name: 'Light', relay_status: false, power_watts: 0, current_amps: 0 },
+    port_03: { name: 'Appliance', relay_status: false, power_watts: 0, current_amps: 0 },
     port_02: { name: 'Workstation', relay_status: false, power_watts: 0, current_amps: 0 },
-    port_03: { name: 'Appliance', relay_status: false, power_watts: 0, current_amps: 0 }
+    port_01: { name: 'Light', relay_status: false, power_watts: 0, current_amps: 0 }
   };
   
   // Deep merge Firebase data with default ports so names and default fields aren't wiped out
@@ -489,8 +489,9 @@ const Dashboard = () => {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-          {Object.entries(ports).map(([portId, portData], index) => {
-            const portNumber = index + 1;
+          {['port_03', 'port_02', 'port_01'].map((portId, index) => {
+            const portData = ports[portId] || {};
+            const portNumber = portId === 'port_01' ? 1 : portId === 'port_02' ? 2 : 3;
             const displayName = `Port ${portNumber}`;
 
             return (
