@@ -84,9 +84,9 @@ const Dashboard = () => {
     voltage: 220,
     settings: { night_mode_enabled: true, night_mode_start: '22:00', night_mode_end: '06:00' },
     ports: {
-      port_03: { name: 'Demo Open Socket', relay_status: false, power_watts: 0, current_amps: 0, voltage: 220, power_factor: 1.0 },
-      port_02: { name: 'Demo Workstation', relay_status: true, power_watts: 145.2, current_amps: 1.2, voltage: 220, power_factor: 0.95 },
-      port_01: { name: 'Demo Charger', relay_status: true, power_watts: 15.5, current_amps: 0.12, voltage: 220, power_factor: 0.98 }
+      port_03: { name: 'Port 1', relay_status: true, power_watts: 15.5, current_amps: 0.12, voltage: 220, power_factor: 0.98 },
+      port_02: { name: 'Port 2', relay_status: true, power_watts: 145.2, current_amps: 1.2, voltage: 220, power_factor: 0.95 },
+      port_01: { name: 'Port 3', relay_status: false, power_watts: 0, current_amps: 0, voltage: 220, power_factor: 0.0 }
     }
   });
 
@@ -104,9 +104,9 @@ const Dashboard = () => {
   const settings = data.settings || { night_mode_enabled: false, night_mode_start: '22:00', night_mode_end: '06:00' };
   const nightMode = { enabled: settings.night_mode_enabled, start_time: settings.night_mode_start, end_time: settings.night_mode_end };
   const defaultPorts = {
-    port_03: { name: 'Appliance', relay_status: false, power_watts: 0, current_amps: 0 },
-    port_02: { name: 'Workstation', relay_status: false, power_watts: 0, current_amps: 0 },
-    port_01: { name: 'Light', relay_status: false, power_watts: 0, current_amps: 0 }
+    port_03: { name: 'Port 1', relay_status: false, power_watts: 0, current_amps: 0, power_factor: 0 },
+    port_02: { name: 'Port 2', relay_status: false, power_watts: 0, current_amps: 0, power_factor: 0 },
+    port_01: { name: 'Port 3', relay_status: false, power_watts: 0, current_amps: 0, power_factor: 0 }
   };
   
   // Deep merge Firebase data with default ports so names and default fields aren't wiped out
@@ -146,6 +146,17 @@ const Dashboard = () => {
   const systemVoltage = Number(
     Object.values(ports).find(p => Number(p.voltage) > 0)?.voltage || data.voltage || 220
   );
+
+  // System-wide average power factor
+  const totalSystemVa = Object.values(ports).reduce((acc, curr) => {
+    const isDrawing = curr.relay_status && (Number(curr.power_watts) > 6 || Number(curr.current_amps) > 0.08);
+    const pVolts = Number(curr.voltage) > 0 ? Number(curr.voltage) : systemVoltage;
+    const pAmps = isDrawing ? (Number(curr.current_amps) || 0) : 0;
+    return acc + (pVolts * pAmps);
+  }, 0);
+  const systemAvgPf = totalSystemVa > 0 && computedTotalWatts > 0 
+    ? Math.min(1.0, Number((computedTotalWatts / totalSystemVa).toFixed(2))) 
+    : (drawingCount > 0 ? 0.95 : 0.00);
 
   // Does this device MEASURE voltage, or assume it?
   //
@@ -361,6 +372,14 @@ const Dashboard = () => {
                 {powerIsMeasured ? 'W' : 'VA'}
               </span>
             </div>
+            <div className="flex items-center gap-2 mt-2 relative z-10 flex-wrap">
+              <span className="text-[10px] md:text-xs font-bold uppercase tracking-wider text-maroon-100/90 bg-white/10 backdrop-blur-xs px-2 py-0.5 rounded-full border border-white/15">
+                Avg PF: {systemAvgPf.toFixed(2)}
+              </span>
+              <span className="text-[10px] text-maroon-200/70 font-medium uppercase tracking-widest">
+                {powerIsMeasured ? 'Real power, all active ports' : 'Apparent power, all active ports'}
+              </span>
+            </div>
           </div>
 
           {!activeDeviceId ? (
@@ -491,7 +510,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
           {['port_03', 'port_02', 'port_01'].map((portId, index) => {
             const portData = ports[portId] || {};
-            const portNumber = portId === 'port_01' ? 1 : portId === 'port_02' ? 2 : 3;
+            const portNumber = portId === 'port_01' ? 3 : portId === 'port_02' ? 2 : 1;
             const displayName = `Port ${portNumber}`;
 
             return (
@@ -516,7 +535,11 @@ const Dashboard = () => {
                   const portVolts = Number(portData.voltage) > 0 ? Number(portData.voltage) : systemVoltage;
                   const portAmps = conn.isDrawing ? (Number(portData.current_amps) || 0) : 0;
                   const portWatts = conn.isDrawing ? (Number(portData.power_watts) || 0) : 0;
-                  const calculatedWatts = (portVolts * portAmps).toFixed(1);
+                  const rawPf = Number(portData.power_factor);
+                  const portPf = portData.relay_status && conn.isDrawing
+                    ? (rawPf > 0 ? rawPf : 0.95)
+                    : 0.00;
+                  const calculatedWatts = (portVolts * portAmps * (portPf > 0 ? portPf : 1)).toFixed(1);
                   const displayWatts = portWatts > 0 ? portWatts.toFixed(1) : calculatedWatts;
 
                   return (
@@ -546,6 +569,13 @@ const Dashboard = () => {
                           >
                             {portAmps.toFixed(2)} A
                           </span>
+                          {/* Power Factor (PF) - Always displayed */}
+                          <span
+                            className="text-[10px] md:text-[11px] font-bold text-gray-700 tracking-tight bg-gray-100/80 px-1.5 py-0.5 rounded"
+                            title="Power Factor (cos φ)"
+                          >
+                            PF {portPf.toFixed(2)}
+                          </span>
                           {/* Intelligent load tag: Charging, Workstation, or Empty */}
                           <span className={`hidden sm:inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded border ${
                             conn.isDrawing 
@@ -561,12 +591,9 @@ const Dashboard = () => {
 
                       {/* Power Computation Formula Badge */}
                       <div className="flex items-center gap-1 text-[9.5px] md:text-[10px] font-mono text-maroon-900 bg-maroon-50/70 border border-maroon-100/80 rounded-md px-1.5 py-0.5 w-fit flex-wrap">
-                        <span className="font-bold text-maroon-800">P = V × I:</span>
-                        <span className="text-gray-600">{portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A =</span>
+                        <span className="font-bold text-maroon-800">P = V × I × PF:</span>
+                        <span className="text-gray-600">{portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A × {portPf.toFixed(2)} =</span>
                         <span className="font-bold text-maroon-900">{portData.relay_status ? (conn.isDrawing ? `${displayWatts} W` : '0.0 W (Idle)') : '0.0 W (Off)'}</span>
-                        {Number(portData.power_factor) > 0 && Number(portData.power_factor) < 1 && (
-                          <span className="text-gray-400 text-[9px] font-sans ml-0.5">(PF {Number(portData.power_factor).toFixed(2)})</span>
-                        )}
                       </div>
                     </div>
                   );
