@@ -21,7 +21,7 @@ import {
 import { useRoomData } from '../hooks/useRoomData';
 import { playEmergencyAlarm, playSuccessChime } from '../lib/soundAlert';
 
-export const GodModePanel = ({ activeDeviceId }) => {
+export const GodModePanel = ({ activeDeviceId, onDisable }) => {
   const { roomData, updateDeviceSetting, updateDeviceSettings, setOverride } = useRoomData(activeDeviceId);
 
   const [savingKey, setSavingKey] = useState(null);
@@ -104,8 +104,9 @@ export const GodModePanel = ({ activeDeviceId }) => {
         inactivity_limit_minutes: 15,
         response_window_seconds: 300,
         pir_delay_seconds: 5,
-        mmwave_delay_seconds: 5,
+        mmwave_delay_seconds: 3,
         mmwave_enabled: true,
+        mmwave_inverted: false,
         force_mmwave: -1,
         force_pir: -1
       };
@@ -118,6 +119,40 @@ export const GodModePanel = ({ activeDeviceId }) => {
       showSuccess(presetType);
     } catch (err) {
       console.error('Failed to apply preset:', err);
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  // Reset all settings to factory production defaults and turn off God Mode
+  const handleDisableAndRestore = async () => {
+    setSavingKey('restore_defaults');
+    const productionDefaults = {
+      inactivity_limit_seconds: 900,
+      inactivity_limit_minutes: 15,
+      response_window_seconds: 300,
+      pir_delay_seconds: 5,
+      mmwave_delay_seconds: 3,
+      mmwave_enabled: true,
+      mmwave_inverted: false,
+      force_mmwave: -1,
+      force_pir: -1
+    };
+
+    try {
+      if (activeDeviceId) {
+        await updateDeviceSettings(productionDefaults);
+      }
+      playSuccessChime();
+      if (onDisable) {
+        onDisable();
+      } else {
+        try {
+          localStorage.setItem('voltsense_god_mode', 'false');
+        } catch {}
+      }
+    } catch (err) {
+      console.error('Failed to restore defaults:', err);
     } finally {
       setSavingKey(null);
     }
@@ -203,6 +238,17 @@ export const GodModePanel = ({ activeDeviceId }) => {
             </p>
           </div>
         </div>
+
+        {/* Exit & Reset to Defaults Button */}
+        <button
+          onClick={handleDisableAndRestore}
+          disabled={savingKey === 'restore_defaults'}
+          className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-gray-200 hover:text-white transition-all duration-300 active:scale-95 shadow-sm"
+          title="Reset device timers & overrides to production and close God Mode"
+        >
+          <RotateCcw className="w-4 h-4 text-emerald-400" />
+          <span>Exit & Restore Defaults</span>
+        </button>
       </div>
 
       {/* SECTION 1: One-Tap Speed-Run Demonstration Presets */}

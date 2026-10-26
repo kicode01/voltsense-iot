@@ -33,6 +33,7 @@ const Settings = () => {
     loading: roomLoading,
     updateNightMode,
     updateDeviceSetting,
+    updateDeviceSettings,
     updatePortPolicy
   } = useRoomData(activeDeviceId);
   
@@ -44,14 +45,36 @@ const Settings = () => {
     }
   });
 
-  const toggleGodMode = () => {
-    setGodMode(prev => {
-      const next = !prev;
+  const toggleGodMode = async () => {
+    if (godMode) {
+      // Exiting God Mode: automatically restore production defaults in RTDB
       try {
-        localStorage.setItem('voltsense_god_mode', next ? 'true' : 'false');
+        if (activeDeviceId) {
+          await updateDeviceSettings({
+            inactivity_limit_seconds: 900,
+            inactivity_limit_minutes: 15,
+            response_window_seconds: 300,
+            pir_delay_seconds: 5,
+            mmwave_delay_seconds: 3,
+            mmwave_enabled: true,
+            mmwave_inverted: false,
+            force_mmwave: -1,
+            force_pir: -1
+          });
+        }
+      } catch (err) {
+        console.warn('Could not reset settings on god mode exit:', err);
+      }
+      setGodMode(false);
+      try {
+        localStorage.setItem('voltsense_god_mode', 'false');
       } catch {}
-      return next;
-    });
+    } else {
+      setGodMode(true);
+      try {
+        localStorage.setItem('voltsense_god_mode', 'true');
+      } catch {}
+    }
   };
 
   const [nightMode, setNightMode] = useState({
@@ -501,7 +524,17 @@ const Settings = () => {
       </div>
 
       {/* God Mode / Demonstration Control Suite Panel */}
-      {godMode && <GodModePanel activeDeviceId={activeDeviceId} />}
+      {godMode && (
+        <GodModePanel 
+          activeDeviceId={activeDeviceId} 
+          onDisable={() => {
+            setGodMode(false);
+            try {
+              localStorage.setItem('voltsense_god_mode', 'false');
+            } catch {}
+          }}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-5 items-start">
         {/* Left Column (Desktop: 7 cols) */}
