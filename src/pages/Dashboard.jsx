@@ -97,11 +97,12 @@ const Dashboard = () => {
   const [demoData, setDemoData] = useState({
     state: /** @type {string | undefined} */ ('OCCUPIED'),
     countdown_remaining_seconds: /** @type {number | undefined} */ (undefined),
+    voltage: 220,
     settings: { night_mode_enabled: true, night_mode_start: '22:00', night_mode_end: '06:00' },
     ports: {
-      port_01: { name: 'Demo Charger', relay_status: true, power_watts: 15.5, current_amps: 0.12 },
-      port_02: { name: 'Demo Workstation', relay_status: true, power_watts: 145.2, current_amps: 1.2 },
-      port_03: { name: 'Demo Open Socket', relay_status: true, power_watts: 0, current_amps: 0 }
+      port_01: { name: 'Demo Charger', relay_status: true, power_watts: 15.5, current_amps: 0.12, voltage: 220, power_factor: 0.98 },
+      port_02: { name: 'Demo Workstation', relay_status: true, power_watts: 145.2, current_amps: 1.2, voltage: 220, power_factor: 0.95 },
+      port_03: { name: 'Demo Open Socket', relay_status: false, power_watts: 0, current_amps: 0, voltage: 220, power_factor: 1.0 }
     }
   });
 
@@ -150,6 +151,15 @@ const Dashboard = () => {
   const computedTotalWatts = Number(
     data.total_power_watts || Object.values(ports).reduce((acc, curr) => acc + (Number(curr.power_watts) || 0), 0)
   ) || 0;
+
+  const computedTotalAmps = Object.values(ports).reduce(
+    (acc, curr) => acc + (Number(curr.current_amps) || 0),
+    0
+  );
+
+  const systemVoltage = Number(
+    Object.values(ports).find(p => Number(p.voltage) > 0)?.voltage || data.voltage || 220
+  );
 
   // Does this device MEASURE voltage, or assume it?
   //
@@ -413,6 +423,30 @@ const Dashboard = () => {
                 {powerIsMeasured ? 'W' : 'VA'}
               </span>
             </div>
+
+            {/* Mains Voltage (V) & Total Current (A) */}
+            <div className="flex flex-wrap items-center gap-2 mt-3 relative z-10">
+              <div className="flex items-center gap-1.5 bg-black/25 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
+                <span className="text-[10px] uppercase font-bold text-maroon-200/80 tracking-wider">Voltage (V)</span>
+                <span className="font-bold text-white text-xs md:text-sm">{systemVoltage.toFixed(0)} V</span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-black/25 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
+                <span className="text-[10px] uppercase font-bold text-maroon-200/80 tracking-wider">Current (A)</span>
+                <span className="font-bold text-white text-xs md:text-sm">{computedTotalAmps.toFixed(2)} A</span>
+              </div>
+            </div>
+
+            {/* Power Computation Breakdown */}
+            <div className="mt-3 relative z-10 bg-black/30 backdrop-blur-md rounded-2xl p-2.5 md:p-3 border border-white/15">
+              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-maroon-200/90 mb-1">
+                <span>Power Computation</span>
+                <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded font-mono">P = V × I</span>
+              </div>
+              <div className="font-mono text-xs md:text-[13px] text-white flex items-center justify-between flex-wrap gap-1 font-semibold">
+                <span>{systemVoltage.toFixed(0)} V × {computedTotalAmps.toFixed(2)} A</span>
+                <span className="text-maroon-200">= {(systemVoltage * computedTotalAmps).toFixed(1)} W</span>
+              </div>
+            </div>
           </div>
 
           {!activeDeviceId ? (
@@ -605,66 +639,59 @@ const Dashboard = () => {
                 
                 {(() => {
                   const conn = getPortConnectionState(portData);
+                  const portVolts = Number(portData.voltage) > 0 ? Number(portData.voltage) : systemVoltage;
+                  const portAmps = Number(portData.current_amps) || 0;
+                  const portWatts = Number(portData.power_watts) || 0;
+                  const calculatedWatts = (portVolts * portAmps).toFixed(1);
+                  const displayWatts = portWatts > 0 ? portWatts.toFixed(1) : calculatedWatts;
+
                   return (
-                    <div className="flex items-center flex-wrap gap-x-2 gap-y-1 mt-0.5">
-                      <div className="flex items-center gap-1.5" title={conn.loadCategory}>
-                        <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${conn.dotColor}`} />
-                        <span className={`text-[9px] md:text-[10px] font-bold uppercase tracking-wider transition-colors duration-500 ${
-                          conn.isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
-                        }`}>
-                          {conn.statusLabel}
-                        </span>
+                    <div className="flex flex-col mt-0.5 gap-1.5">
+                      <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
+                        <div className="flex items-center gap-1.5" title={conn.loadCategory}>
+                          <div className={`w-1.5 h-1.5 rounded-full transition-colors duration-500 ${conn.dotColor}`} />
+                          <span className={`text-[9px] md:text-[10px] font-bold uppercase tracking-wider transition-colors duration-500 ${
+                            conn.isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
+                          }`}>
+                            {conn.statusLabel}
+                          </span>
+                        </div>
+                        <span className="text-gray-300 text-[10px] hidden sm:inline">•</span>
+                        <div className="flex items-center gap-1.5">
+                          {/* Voltage (V) - Always displayed */}
+                          <span
+                            className="text-[10px] md:text-[11px] font-bold text-gray-700 tracking-tight bg-gray-100/80 px-1.5 py-0.5 rounded"
+                            title="Mains AC Voltage"
+                          >
+                            {portVolts.toFixed(0)} V
+                          </span>
+                          {/* Current (A) - Always displayed */}
+                          <span
+                            className="text-[10px] md:text-[11px] font-bold text-gray-700 tracking-tight bg-gray-100/80 px-1.5 py-0.5 rounded"
+                            title="Load Current in Amperes"
+                          >
+                            {portAmps.toFixed(2)} A
+                          </span>
+                          {/* Intelligent load tag: Charging, Workstation, or Empty */}
+                          <span className={`hidden sm:inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded border ${
+                            conn.isDrawing 
+                              ? 'text-emerald-800 bg-emerald-50 border-emerald-200' 
+                              : conn.isEnergized 
+                              ? 'text-amber-800 bg-amber-50 border-amber-200'
+                              : 'text-gray-400 bg-gray-50 border-gray-100'
+                          }`}>
+                            {conn.loadCategory}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-gray-300 text-[10px] hidden sm:inline">•</span>
-                      <div className="flex items-center gap-2">
-                        {/* W with a voltage sensor, VA without. The difference is not cosmetic: the
-                            ACS712 measures current only, so without voltage sensing this is V x A with
-                            no power-factor correction, and a switch-mode load at PF 0.6 draws ~40% less
-                            real power than it shows. The unit must follow the hardware. */}
-                        <span
-                          className="text-[10px] md:text-[11px] font-bold text-gray-600 tracking-tight"
-                          title={
-                            powerIsMeasured
-                              ? 'Real power (W), measured from the voltage and current waveforms.'
-                              : 'Apparent power (VA). No voltage sensing, so this is not real power in watts.'
-                          }
-                        >
-                          {(Number(portData.power_watts) || 0).toFixed(1)} {powerIsMeasured ? 'W' : 'VA'}
-                        </span>
-                        <span className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight">
-                          {(Number(portData.current_amps) || 0).toFixed(2)} A
-                        </span>
-                        {/* Intelligent load tag: Charging, Workstation, or Empty */}
-                        <span className={`hidden sm:inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded border ${
-                          conn.isDrawing 
-                            ? 'text-emerald-800 bg-emerald-50 border-emerald-200' 
-                            : conn.isEnergized 
-                            ? 'text-amber-800 bg-amber-50 border-amber-200'
-                            : 'text-gray-400 bg-gray-50 border-gray-100'
-                        }`}>
-                          {conn.loadCategory}
-                        </span>
-                        {/* Measured mains voltage at the socket. Only shown when a voltage sensor is
-                            actually fitted (powerIsMeasured), because otherwise it is just the configured
-                            assumption. This was one of the firmware's published-but-ignored fields. */}
-                        {powerIsMeasured && Number(portData.voltage) > 0 && (
-                          <span
-                            className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight"
-                            title="Measured mains voltage at this socket."
-                          >
-                            {Number(portData.voltage).toFixed(0)} V
-                          </span>
-                        )}
-                        {/* Power factor, shown only when it was actually measured. A hard-coded or
-                            assumed PF would be worse than showing nothing — it is a property of the
-                            load, not of the device. */}
-                        {powerIsMeasured && Number(portData.power_factor) > 0 && (
-                          <span
-                            className="text-[10px] md:text-[11px] font-bold text-gray-400 tracking-tight"
-                            title="Measured power factor (real power / apparent power)."
-                          >
-                            PF {Number(portData.power_factor).toFixed(2)}
-                          </span>
+
+                      {/* Power Computation Formula Badge */}
+                      <div className="flex items-center gap-1 text-[9.5px] md:text-[10px] font-mono text-maroon-900 bg-maroon-50/70 border border-maroon-100/80 rounded-md px-1.5 py-0.5 w-fit flex-wrap">
+                        <span className="font-bold text-maroon-800">P = V × I:</span>
+                        <span className="text-gray-600">{portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A =</span>
+                        <span className="font-bold text-maroon-900">{portData.relay_status ? `${displayWatts} W` : '0.0 W (Off)'}</span>
+                        {Number(portData.power_factor) > 0 && Number(portData.power_factor) < 1 && (
+                          <span className="text-gray-400 text-[9px] font-sans ml-0.5">(PF {Number(portData.power_factor).toFixed(2)})</span>
                         )}
                       </div>
                     </div>
