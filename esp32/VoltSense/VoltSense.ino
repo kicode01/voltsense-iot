@@ -1359,8 +1359,8 @@ void setAllRelays(bool state) {
 
 // Below this the sensor is reading its own noise floor, not load current. THIS IS A DISPLAY
 // THRESHOLD ONLY — it is applied by the telemetry/history path, NOT inside the sensor read, so it
-// can never influence a control decision. See currentIsFlowing() for the shutdown threshold.
-#define CURRENT_NOISE_FLOOR_A 0.06f
+// can never influence a control decision. Clamps ambient ADC/Hall noise below 120 mA (approx 26 W) to clean 0.00 A.
+#define CURRENT_NOISE_FLOOR_A 0.12f
 
 float readACS712RMS(int pin) {
   uint32_t start = millis();
@@ -1643,7 +1643,7 @@ float currentAmpsFor(int port, unsigned long staleAfterMs = 5000) {
  * accumulate the streak on behalf of an active one, so a port with genuine load could be shut down
  * because its neighbours were quiet.
  */
-#define CURRENT_ACTIVE_THRESHOLD_A 0.10f // ~23 W at 230 V
+#define CURRENT_ACTIVE_THRESHOLD_A 0.15f // ~33 W at 220 V - shutdown decision threshold
 #define CURRENT_IDLE_SAMPLES        3    // consecutive low readings before "really idle"
 int currentIdleStreak[NUM_PORTS] = {0, 0, 0};
 
@@ -1759,7 +1759,10 @@ float wattsFor(int port) {
   if (port < 0 || port >= NUM_PORTS) return 0.0f;
   currentAmpsFor(port); // ensure the cache is populated
   const CurrentReading& c = currentCache[port];
-  if (c.powerValid) return c.watts;
+  if (c.powerValid) {
+    if (c.amps < CURRENT_NOISE_FLOOR_A) return 0.0f;
+    return c.watts;
+  }
   // Sensing compiled in but this port was not sampled (relay off) — no power by definition.
   return 0.0f;
 }
@@ -1769,7 +1772,11 @@ float vaFor(int port) {
   if (port < 0 || port >= NUM_PORTS) return 0.0f;
   currentAmpsFor(port);
   const CurrentReading& c = currentCache[port];
-  return c.powerValid ? c.va : 0.0f;
+  if (c.powerValid) {
+    if (c.amps < CURRENT_NOISE_FLOOR_A) return 0.0f;
+    return c.va;
+  }
+  return 0.0f;
 }
 
 /** Measured power factor for a port, or 0 when nothing was measured. */
@@ -1777,7 +1784,11 @@ float powerFactorFor(int port) {
   if (port < 0 || port >= NUM_PORTS) return 0.0f;
   currentAmpsFor(port);
   const CurrentReading& c = currentCache[port];
-  return c.powerValid ? c.pf : 0.0f;
+  if (c.powerValid) {
+    if (c.amps < CURRENT_NOISE_FLOOR_A) return 0.0f;
+    return c.pf;
+  }
+  return 0.0f;
 }
 #endif
 
