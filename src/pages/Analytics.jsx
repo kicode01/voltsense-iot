@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from 'recharts';
-import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity, Layers, Smartphone, Lightbulb, Fan, Laptop, DollarSign } from 'lucide-react';
+import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity, Layers, DollarSign, Plug } from 'lucide-react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useHistoryData, generateMockData } from '../hooks/useHistoryData';
 import { useRoomData } from '../hooks/useRoomData';
@@ -100,9 +100,9 @@ const Analytics = () => {
   const MERALCO_RATE_PHP = 12.00; // Standard Philippine residential kWh rate
 
   const defaultPortShare = {
-    port_01: { name: 'Study Desk Lamp', icon: 'lightbulb', share: 0.58, volts: 220, amps: 0.25, watts: 55.0, pf: 0.98 },
-    port_02: { name: 'Electric Stand Fan', icon: 'fan', share: 0.11, volts: 220, amps: 0.05, watts: 12.0, pf: 0.95 },
-    port_03: { name: 'Laptop & Charger', icon: 'laptop', share: 0.31, volts: 220, amps: 0.20, watts: 44.0, pf: 0.92 },
+    port_01: { name: 'Port 1', icon: 'plug', share: 0.58, volts: 220, amps: 0.25, watts: 55.0, pf: 0.98 },
+    port_02: { name: 'Port 2', icon: 'plug', share: 0.11, volts: 220, amps: 0.05, watts: 12.0, pf: 0.95 },
+    port_03: { name: 'Port 3', icon: 'plug', share: 0.31, volts: 220, amps: 0.20, watts: 44.0, pf: 0.92 },
   };
 
   const colors = ['#852636', '#d97706', '#2563eb'];
@@ -110,7 +110,8 @@ const Analytics = () => {
   const outletList = ['port_01', 'port_02', 'port_03'].map((portKey, idx) => {
     const rawPort = roomData?.ports?.[portKey] || {};
     const fallback = defaultPortShare[portKey];
-    const name = rawPort.name || fallback.name;
+    const portNumber = idx + 1;
+    const name = `Port ${portNumber}`;
     const isRelayOn = rawPort.relay_status !== undefined ? Boolean(rawPort.relay_status) : true;
     
     // Energy in kWh for this outlet
@@ -133,8 +134,8 @@ const Analytics = () => {
     return {
       id: portKey,
       name,
-      label: `Port ${idx + 1}`,
-      icon: rawPort.icon || fallback.icon,
+      label: `Port ${portNumber}`,
+      icon: 'plug',
       isRelayOn,
       energyKwh,
       percentage,
@@ -148,18 +149,14 @@ const Analytics = () => {
   });
 
   const outletChartData = outletList.map(o => ({
-    name: o.name.length > 15 ? o.name.slice(0, 15) + '…' : o.name,
+    name: o.name,
     fullName: o.name,
     kwh: Number(o.energyKwh.toFixed(2)),
     color: o.color
   }));
 
   const renderOutletIcon = (iconName, colorClass) => {
-    if (iconName === 'lightbulb' || iconName === 'lamp') return <Lightbulb className={colorClass} />;
-    if (iconName === 'fan') return <Fan className={colorClass} />;
-    if (iconName === 'laptop') return <Laptop className={colorClass} />;
-    if (iconName === 'smartphone') return <Smartphone className={colorClass} />;
-    return <Zap className={colorClass} />;
+    return <Plug className={colorClass} strokeWidth={1.5} />;
   };
 
   return (
@@ -528,8 +525,7 @@ const Analytics = () => {
                       {renderOutletIcon(outlet.icon, "w-4 h-4")}
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">{outlet.label}</span>
-                      <h4 className="text-sm font-bold text-gray-900 leading-tight truncate max-w-[130px] sm:max-w-[160px]">{outlet.name}</h4>
+                      <h4 className="text-base font-bold text-gray-900 leading-tight">{outlet.name}</h4>
                     </div>
                   </div>
                   <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
