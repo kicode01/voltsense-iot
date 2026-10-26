@@ -24,7 +24,7 @@ const getPortConnectionState = (portData) => {
   const watts = Number(portData?.power_watts) || 0;
   const amps = Number(portData?.current_amps) || 0;
 
-  if (watts > 3 || amps > 0.03) {
+  if (watts > 6 || amps > 0.08) {
     let category = 'Active Load';
     if (watts <= 30) {
       category = 'Charging / Low Power';
@@ -130,7 +130,7 @@ const Dashboard = () => {
   const mmwaveActive = data.mmwave_detected !== undefined ? Boolean(data.mmwave_detected) : occupied;
   const allOn = Object.values(ports).every(p => p.relay_status);
   const activeCount = Object.values(ports).filter(p => p.relay_status).length;
-  const drawingCount = Object.values(ports).filter(p => p.relay_status && (Number(p.power_watts) > 3 || Number(p.current_amps) > 0.03)).length;
+  const drawingCount = Object.values(ports).filter(p => p.relay_status && (Number(p.power_watts) > 6 || Number(p.current_amps) > 0.08)).length;
   
   // `|| 0` guards a null node, but RTDB can also hand back a numeric STRING ("301.5") — coerce
   // before any .toFixed() or the whole page throws a TypeError and unmounts.
@@ -509,8 +509,8 @@ const Dashboard = () => {
                 {(() => {
                   const conn = getPortConnectionState(portData);
                   const portVolts = Number(portData.voltage) > 0 ? Number(portData.voltage) : systemVoltage;
-                  const portAmps = Number(portData.current_amps) || 0;
-                  const portWatts = Number(portData.power_watts) || 0;
+                  const portAmps = conn.isDrawing ? (Number(portData.current_amps) || 0) : 0;
+                  const portWatts = conn.isDrawing ? (Number(portData.power_watts) || 0) : 0;
                   const calculatedWatts = (portVolts * portAmps).toFixed(1);
                   const displayWatts = portWatts > 0 ? portWatts.toFixed(1) : calculatedWatts;
 
@@ -558,7 +558,7 @@ const Dashboard = () => {
                       <div className="flex items-center gap-1 text-[9.5px] md:text-[10px] font-mono text-maroon-900 bg-maroon-50/70 border border-maroon-100/80 rounded-md px-1.5 py-0.5 w-fit flex-wrap">
                         <span className="font-bold text-maroon-800">P = V × I:</span>
                         <span className="text-gray-600">{portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A =</span>
-                        <span className="font-bold text-maroon-900">{portData.relay_status ? `${displayWatts} W` : '0.0 W (Off)'}</span>
+                        <span className="font-bold text-maroon-900">{portData.relay_status ? (conn.isDrawing ? `${displayWatts} W` : '0.0 W (Idle)') : '0.0 W (Off)'}</span>
                         {Number(portData.power_factor) > 0 && Number(portData.power_factor) < 1 && (
                           <span className="text-gray-400 text-[9px] font-sans ml-0.5">(PF {Number(portData.power_factor).toFixed(2)})</span>
                         )}

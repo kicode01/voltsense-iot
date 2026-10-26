@@ -1360,7 +1360,7 @@ void setAllRelays(bool state) {
 // Below this the sensor is reading its own noise floor, not load current. THIS IS A DISPLAY
 // THRESHOLD ONLY — it is applied by the telemetry/history path, NOT inside the sensor read, so it
 // can never influence a control decision. Clamps ambient ADC/Hall noise below 50 mA (approx 11 W) to clean 0.00 A.
-#define CURRENT_NOISE_FLOOR_A 0.05f
+#define CURRENT_NOISE_FLOOR_A 0.10f
 
 float readACS712RMS(int pin) {
   uint32_t start = millis();
@@ -1378,12 +1378,13 @@ float readACS712RMS(int pin) {
 
   int deltaMv = maxMv - minMv;
   // If peak-to-peak swing is within the resting ADC/Hall noise floor (~20-22 mV), treat as 0 A.
-  if (deltaMv < 24) return 0.0f;
+  if (deltaMv < 55) return 0.0f;
 
   // millivolts peak-to-peak -> volts RMS of a sine: Vpp/2 = Vpeak, Vpeak * 0.7071 = Vrms
   float vppVolts = (deltaMv) / 1000.0f;
   float vRms = (vppVolts / 2.0f) * 0.70710678f;
-  return vRms / (ACS712_MV_PER_AMP / 1000.0f);
+  float amps = vRms / (ACS712_MV_PER_AMP / 1000.0f);
+  return (amps < CURRENT_NOISE_FLOOR_A) ? 0.0f : amps;
 }
 
 #ifdef HAS_VOLTAGE_SENSE
@@ -1438,11 +1439,15 @@ PowerReading readPowerPort(int currentPin) {
   PowerReading out = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false};
 
   int n = 0;
+  int minI = INT32_MAX;
+  int maxI = INT32_MIN;
   uint32_t start = millis();
   while ((millis() - start) < CURRENT_SAMPLE_MS && n < POWER_SAMPLE_MAX) {
     // Adjacent reads: minimal skew between the two channels.
     int mvV = analogReadMilliVolts(VOLTAGE_SENSE_PIN);
     int mvI = analogReadMilliVolts(currentPin);
+    if (mvI < minI) minI = mvI;
+    if (mvI > maxI) maxI = mvI;
     powerSampV[n] = (int16_t)mvV;
     powerSampI[n] = (int16_t)mvI;
     n++;
@@ -1485,19 +1490,32 @@ PowerReading readPowerPort(int currentPin) {
   // ---- scale to engineering units -----------------------------------------
   // voltageCalMvPerV is the sensor's mV-per-mains-volt transfer, so it DIVIDES.
   const float volts = adcVrms_mV / voltageCalMvPerV;
-  const float amps = adcIrms_mV / ACS712_MV_PER_AMP;
-  // v_V * i_A = (v_mV * i_mV) / (1000 * mV_per_A)
-  const float watts = product_mVmV / (1000.0f * ACS712_MV_PER_AMP);
+  const int deltaI = (maxI > minI) ? (maxI - minI) : 0;
+
+  // Noise floor suppression: when no appliance is plugged in, the Hall element and ADC pick up
+  // ~35-50 mV peak-to-peak ambient noise and ~12-18 mV RMS. If below threshold, clamp to clean 0.
+  if (deltaI < 55 || adcIrms_mV < 20.0f) {
+    out.volts = volts;
+    out.amps = 0.0f;
+    out.watts = 0.0f;
+    out.va = 0.0f;
+    out.pf = 0.0f;
+    out.valid = true;
+    return out;
+  }
+
+  float amps = adcIrms_mV / ACS712_MV_PER_AMP;
+  if (amps < CURRENT_NOISE_FLOOR_A) amps = 0.0f;
+
+  float watts = product_mVmV / (1000.0f * ACS712_MV_PER_AMP);
+  if (watts < 0.0f || amps == 0.0f) watts = 0.0f;
+
   const float va = volts * amps;
 
   out.volts = volts;
   out.amps = amps;
-  // Real power cannot be negative for a load. A small negative here is noise around zero, so clamp
-  // rather than reporting a load that generates power.
-  out.watts = watts > 0.0f ? watts : 0.0f;
+  out.watts = watts;
   out.va = va;
-  // PF is a ratio of two noisy quantities; bound it to the physical range so a near-zero VA cannot
-  // produce a meaningless value (or a divide-by-zero).
   out.pf = (va > 0.01f) ? (out.watts / va) : 0.0f;
   if (out.pf > 1.0f) out.pf = 1.0f;
   out.valid = true;
@@ -1557,10 +1575,17 @@ void samplePortIntoCache(int i) {
   if (relayOn) {
     PowerReading p = readPowerPort(CURRENT_SENSOR_PINS[i]);
     if (p.valid && p.volts >= 50.0f && p.volts <= 300.0f) {
-      c.amps = p.amps;
-      c.watts = p.watts;
-      c.va = p.va;
-      c.pf = p.pf;
+      if (p.amps < CURRENT_NOISE_FLOOR_A) {
+        c.amps = 0.0f;
+        c.watts = 0.0f;
+        c.va = 0.0f;
+        c.pf = 0.0f;
+      } else {
+        c.amps = p.amps;
+        c.watts = p.watts;
+        c.va = p.va;
+        c.pf = p.pf;
+      }
       c.volts = p.volts;
       c.powerValid = true;
       measuredVoltageRms = p.volts;
@@ -1569,11 +1594,12 @@ void samplePortIntoCache(int i) {
       // Voltage sensor waveform unavailable or uncalibrated.
       // Gracefully fall back to direct ACS712 current sensing so load is NEVER zeroed out!
       float rawAmps = readACS712RMS(CURRENT_SENSOR_PINS[i]);
+      if (rawAmps < CURRENT_NOISE_FLOOR_A) rawAmps = 0.0f;
       c.amps = rawAmps;
       c.volts = supplyVoltage();
       c.watts = rawAmps * c.volts;
       c.va = c.watts;
-      c.pf = 1.0f;
+      c.pf = (rawAmps > 0.0f) ? 1.0f : 0.0f;
       c.powerValid = false;
     }
   } else {
@@ -1636,7 +1662,7 @@ float currentAmpsFor(int port, unsigned long staleAfterMs = 5000) {
  * accumulate the streak on behalf of an active one, so a port with genuine load could be shut down
  * because its neighbours were quiet.
  */
-#define CURRENT_ACTIVE_THRESHOLD_A 0.08f // ~18 W at 230 V - shutdown decision threshold
+#define CURRENT_ACTIVE_THRESHOLD_A 0.12f // ~18 W at 230 V - shutdown decision threshold
 #define CURRENT_IDLE_SAMPLES        3    // consecutive low readings before "really idle"
 int currentIdleStreak[NUM_PORTS] = {0, 0, 0};
 
@@ -3190,8 +3216,8 @@ void setup() {
   // Checked before anything touches the network, so a reset is fast and predictable.
   factoryResetIfRequested();
 
-  pinMode(PIR_PIN, INPUT);
-  pinMode(MMWAVE_PIN, INPUT);
+  pinMode(PIR_PIN, INPUT_PULLDOWN);
+  pinMode(MMWAVE_PIN, INPUT_PULLDOWN);
 
   // Initialize Front Panel Status LEDs (Green, Blue, Yellow)
   pinMode(LED_STATUS_PIN, OUTPUT);
@@ -3541,8 +3567,25 @@ void loop() {
 
   // Occupancy = PIR OR mmWave radar (dual-sensor fusion). Both sensors are physically fitted
   // and fused in hardware/firmware: PIR detects gross movements, mmWave detects micro-motion (breathing/stillness).
-  bool pirActive = (digitalRead(PIR_PIN) == HIGH);
-  bool mmwaveActive = (digitalRead(MMWAVE_PIN) == HIGH);
+  bool pirRaw = (digitalRead(PIR_PIN) == HIGH);
+  bool mmwaveRaw = (digitalRead(MMWAVE_PIN) == HIGH);
+
+  // Smooth Presence Hold-off Filters (PIR & mmWave):
+  // Human motion and breathing naturally have 1-2s pauses. Hold both signals HIGH for 6 seconds
+  // after any raw trigger to bridge pauses and eliminate rapid on/off cycling or chattering.
+  static unsigned long lastPirHighMillis = 0;
+  static unsigned long lastMmwaveHighMillis = 0;
+  const unsigned long OCCUPANCY_HOLD_MS = 6000UL;
+
+  if (pirRaw) {
+    lastPirHighMillis = millis();
+  }
+  if (mmwaveRaw) {
+    lastMmwaveHighMillis = millis();
+  }
+
+  bool pirActive = pirRaw || (lastPirHighMillis > 0 && (millis() - lastPirHighMillis < OCCUPANCY_HOLD_MS));
+  bool mmwaveActive = mmwaveRaw || (lastMmwaveHighMillis > 0 && (millis() - lastMmwaveHighMillis < OCCUPANCY_HOLD_MS));
   bool motionDetected = pirActive || mmwaveActive;
   bool nightMode = isNightModeActive();
 

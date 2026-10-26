@@ -122,13 +122,11 @@ const Analytics = () => {
     const percentage = totalEnergy > 0 ? Math.min(100, Math.round((energyKwh / totalEnergy) * 100)) : 0;
     
     const volts = Number(rawPort.voltage) > 0 ? Number(rawPort.voltage) : fallback.volts;
-    const amps = isRelayOn 
-      ? (Number(rawPort.current_amps) > 0 ? Number(rawPort.current_amps) : fallback.amps) 
-      : 0;
-    const pf = Number(rawPort.power_factor) > 0 ? Number(rawPort.power_factor) : fallback.pf;
-    const watts = isRelayOn 
-      ? (Number(rawPort.power_watts) > 0 ? Number(rawPort.power_watts) : Number((volts * amps * (pf || 1)).toFixed(1))) 
-      : 0;
+    const rawAmps = rawPort.current_amps !== undefined ? Number(rawPort.current_amps) : (isDemo ? fallback.amps : 0);
+    const amps = isRelayOn ? (rawAmps > 0.08 ? rawAmps : 0) : 0;
+    const pf = Number(rawPort.power_factor) > 0 ? Number(rawPort.power_factor) : (amps > 0 ? fallback.pf : 0);
+    const rawWatts = rawPort.power_watts !== undefined ? Number(rawPort.power_watts) : (isDemo ? fallback.watts : Number((volts * amps * (pf || 1)).toFixed(1)));
+    const watts = isRelayOn ? (amps > 0 ? rawWatts : 0) : 0;
     const costPhp = (energyKwh * MERALCO_RATE_PHP).toFixed(2);
 
     return {
