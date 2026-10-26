@@ -165,7 +165,7 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
     }
   };
 
-  // Reset all settings to factory production defaults and turn off God Mode
+  // Reset all simulation settings to factory production defaults and turn off God Mode
   const handleDisableAndRestore = async () => {
     setSavingKey('restore_defaults');
     const productionDefaults = {
@@ -177,11 +177,7 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
       mmwave_enabled: true,
       mmwave_inverted: false,
       force_mmwave: -1,
-      force_pir: -1,
-      acs712_mv_per_amp: 123.33,
-      current_noise_floor_a: 0.03,
-      current_cal_multiplier: 1.00,
-      sensor_fusion_mode: 'OR'
+      force_pir: -1
     };
 
     try {
@@ -498,7 +494,7 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
                 <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
                   PIR Hold Delay
                 </span>
-                {successKey === 'pirDelay' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                {successKey === 'pir_delay_seconds' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
               </div>
               <p className="text-[10px] text-gray-400 mb-2">
                 Motion smoothing bridge time
@@ -545,7 +541,7 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
                 <span className="text-[11px] font-bold text-gray-300 uppercase tracking-wider">
                   mmWave Hold Delay
                 </span>
-                {successKey === 'mmwaveDelay' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                {successKey === 'mmwave_delay_seconds' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
               </div>
               <p className="text-[10px] text-gray-400 mb-2">
                 Micro-radar stillness bridge time
@@ -854,6 +850,22 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
                     }}
                     className="w-full bg-black/40 border border-white/20 rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-white focus:outline-none focus:border-amber-400"
                   />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[0.02, 0.03, 0.05, 0.10].map((nf) => (
+                      <button
+                        key={nf}
+                        type="button"
+                        onClick={() => handleSaveSetting('current_noise_floor_a', nf)}
+                        className={`text-[9px] font-mono px-1.5 py-0.5 rounded-lg border transition-colors ${
+                          Math.abs(currentNoiseFloorA - nf) < 0.003
+                            ? 'bg-amber-400 text-black border-amber-400 font-bold'
+                            : 'bg-white/5 text-gray-300 border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        {nf.toFixed(2)}A
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div>
                   <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">

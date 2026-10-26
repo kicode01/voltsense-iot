@@ -318,6 +318,11 @@ const float VOLTAGE = 220.0;
 // path reads it every 2 s and NVS reads are slow.
 float nominalVoltage = VOLTAGE;
 
+// Voltage-sense calibration factor (mV/V). Bounded so a typo cannot scale every reading into nonsense:
+// a real ZMPT101B module lands somewhere in 1-20 mV/V (default ~4.60 mV/V).
+const float VOLTAGE_CAL_MV_PER_V = 4.60f;
+float voltageCalMvPerV = VOLTAGE_CAL_MV_PER_V;
+
 #ifdef HAS_VOLTAGE_SENSE
 // ---------------------------------------------------------------------------
 // Voltage-sense calibration
@@ -335,11 +340,6 @@ float nominalVoltage = VOLTAGE;
 // The default below is a plausible starting point for a module trimmed to swing ~1.06 V RMS at
 // 230 V (which keeps the peak inside the ESP32's 3.3 V range with headroom). It is a GUESS until
 // calibrated, and an uncalibrated scale makes every wattage wrong by that same factor.
-const float VOLTAGE_CAL_MV_PER_V = 4.60f;
-
-// Runtime-overridable, NVS-backed, same shape as nominalVoltage. Bounded so a typo cannot scale
-// every reading into nonsense: a real module lands somewhere in 1-20 mV/V.
-float voltageCalMvPerV = VOLTAGE_CAL_MV_PER_V;
 
 // Most recent measured mains RMS. Written by every sampling pass that touches the voltage channel;
 // read by supplyVoltage() and by the telemetry. Zero means "no valid reading yet".
@@ -2416,7 +2416,6 @@ void sendAlert(const String& title, const String& body, const String& tag = "vol
 // `struct RemoteChange` is declared in VoltSenseTypes.h — it appears in a function signature, so it
 // must be visible above the prototypes the Arduino build generates. See that file for the details.
 
-#ifdef HAS_VOLTAGE_SENSE
 void performVoltageAutoCalibration(float targetGridV = 220.0f) {
   if (targetGridV < 50.0f || targetGridV > 300.0f) targetGridV = 220.0f;
   Serial.printf("[AUTO-CAL] Sampling AC voltage waveform against target %.1f V grid baseline...\n", targetGridV);
@@ -2435,8 +2434,12 @@ void performVoltageAutoCalibration(float targetGridV = 220.0f) {
     delayMicroseconds(CURRENT_SAMPLE_US);
   }
 
+  FirebaseJson calUpdate;
+  calUpdate.set("settings/auto_calibrate_voltage", false);
+
   if (n < 32) {
     Serial.println("[AUTO-CAL] Error: Too few ADC samples.");
+    rtdbPatchJson(roomPath, calUpdate);
     return;
   }
 
@@ -2452,6 +2455,7 @@ void performVoltageAutoCalibration(float targetGridV = 220.0f) {
 
   if (adcVrms_mV < 10.0f) {
     Serial.println("[AUTO-CAL] Warning: Voltage signal too low or unpowered.");
+    rtdbPatchJson(roomPath, calUpdate);
     return;
   }
 
@@ -2460,14 +2464,12 @@ void performVoltageAutoCalibration(float targetGridV = 220.0f) {
     voltageCalMvPerV = calculatedCal;
     setNvsString("voltage_cal", String(calculatedCal, 3));
     Serial.printf("[AUTO-CAL] SUCCESS! New factor: %.3f mV/V\n", calculatedCal);
-
-    FirebaseJson calUpdate;
     calUpdate.set("settings/voltage_cal_mv_per_v", voltageCalMvPerV);
-    calUpdate.set("settings/auto_calibrate_voltage", false);
-    rtdbPatchJson(roomPath, calUpdate);
+  } else {
+    Serial.printf("[AUTO-CAL] Calculated factor %.3f mV/V out of bounds (1.0-20.0)\n", calculatedCal);
   }
+  rtdbPatchJson(roomPath, calUpdate);
 }
-#endif
 
 void performCurrentZeroTare() {
   Serial.println("[ZERO-TARE] ACS712 zero tare triggered. Resetting offsets.");
@@ -2587,9 +2589,7 @@ void applyRemoteChange(const RemoteChangeT& data) {
     }
   } else if (path == "/settings/auto_calibrate_voltage") {
     if (data.boolData()) {
-#ifdef HAS_VOLTAGE_SENSE
       performVoltageAutoCalibration(nominalVoltage >= 50.0f ? nominalVoltage : 220.0f);
-#endif
     }
   } else if (path == "/settings/calibrate_current_zero") {
     if (data.boolData()) {
@@ -2606,7 +2606,6 @@ void applyRemoteChange(const RemoteChangeT& data) {
     } else {
       Serial.printf("Ignoring overcurrent_limit_a %.2f (outside 0.5-5.0 A)\n", a);
     }
-#ifdef HAS_VOLTAGE_SENSE
   } else if (path == "/settings/voltage_cal_mv_per_v") {
     // The voltage sensor's transfer function. Adjustable at runtime so a unit can be CALIBRATED
     // without a reflash: measure the socket with a multimeter, compare against the reported
@@ -2624,7 +2623,6 @@ void applyRemoteChange(const RemoteChangeT& data) {
     } else {
       Serial.printf("Ignoring voltage_cal_mv_per_v %.3f (outside 1-20 mV/V)\n", cal);
     }
-#endif
   } else if (path == "/") {
     // Handle full object initialization
     FirebaseJson json;
@@ -2689,6 +2687,18 @@ void applyRemoteChange(const RemoteChangeT& data) {
     if (result.success) forceMmwave = result.intValue;
     json.get(result, "settings/sensor_fusion_mode");
     if (result.success && result.stringValue.length() > 0) sensorFusionMode = result.stringValue;
+    json.get(result, "settings/voltage_cal_mv_per_v");
+    if (result.success && result.floatValue >= 1.0f && result.floatValue <= 20.0f) {
+      voltageCalMvPerV = result.floatValue;
+    }
+    json.get(result, "settings/auto_calibrate_voltage");
+    if (result.success && result.boolValue) {
+      performVoltageAutoCalibration(nominalVoltage >= 50.0f ? nominalVoltage : 220.0f);
+    }
+    json.get(result, "settings/calibrate_current_zero");
+    if (result.success && result.boolValue) {
+      performCurrentZeroTare();
+    }
 
     static bool initialBootRelaySyncDone = false;
     if (!initialBootRelaySyncDone) {
@@ -3354,7 +3364,6 @@ void setup() {
       }
     }
 
-#ifdef HAS_VOLTAGE_SENSE
     // Voltage-sensor calibration. Restored for the same reason as the nominal: losing it on every
     // reboot would mean every wattage was wrong until someone re-entered the value, and the error
     // is a silent scale factor — the numbers stay plausible.
@@ -3395,7 +3404,6 @@ void setup() {
     if (savedMmwInv.length() > 0) mmwaveInverted = (savedMmwInv == "1");
     String savedFusion = getNvsString("fusion_mode");
     if (savedFusion.length() > 0) sensorFusionMode = savedFusion;
-#endif
   }
 
   // WiFiManager handles WiFi connection and Captive Portal

@@ -53,23 +53,15 @@ const Settings = () => {
 
   const toggleGodMode = async () => {
     if (godMode) {
-      // Exiting God Mode: automatically restore production defaults in RTDB
+      // Exiting God Mode: restore demo overrides to standard defaults while preserving hardware calibration
       try {
         if (activeDeviceId) {
           await updateDeviceSettings({
             inactivity_limit_seconds: 900,
             inactivity_limit_minutes: 15,
             response_window_seconds: 300,
-            pir_delay_seconds: 5,
-            mmwave_delay_seconds: 3,
-            mmwave_enabled: true,
-            mmwave_inverted: false,
             force_mmwave: -1,
-            force_pir: -1,
-            acs712_mv_per_amp: 123.33,
-            current_noise_floor_a: 0.03,
-            current_cal_multiplier: 1.00,
-            sensor_fusion_mode: 'OR'
+            force_pir: -1
           });
         }
       } catch (err) {
@@ -249,10 +241,12 @@ const Settings = () => {
     inactivity: 15,
     overcurrent: 4.5,
     nominal: 230,
-    voltageCal: 4.6,
+    voltageCal: 4.545,
     acsSensitivity: 123.33,
     currentNoiseFloor: 0.03,
-    currentMultiplier: 1.00
+    currentMultiplier: 1.00,
+    pirDelay: 5,
+    mmwaveDelay: 3
   });
   const [savingLimit, setSavingLimit] = useState(null);
   const [limitsError, setLimitsError] = useState(null);
@@ -270,6 +264,8 @@ const Settings = () => {
   const storedAcsSensitivity = roomData?.settings?.acs712_mv_per_amp;
   const storedCurrentNoiseFloor = roomData?.settings?.current_noise_floor_a;
   const storedCurrentMultiplier = roomData?.settings?.current_cal_multiplier;
+  const storedPirDelay = roomData?.settings?.pir_delay_seconds;
+  const storedMmwaveDelay = roomData?.settings?.mmwave_delay_seconds;
   const storedSensorFusion = roomData?.settings?.sensor_fusion_mode || 'OR';
   const isBenchMode = Boolean(roomData?.settings?.bench_mode);
 
@@ -326,10 +322,12 @@ const Settings = () => {
       inactivity: storedInactivity ?? 15,
       overcurrent: storedOvercurrent ?? 4.5,
       nominal: storedNominal ?? 230,
-      voltageCal: storedVoltageCal ?? 4.6,
+      voltageCal: storedVoltageCal ?? 4.545,
       acsSensitivity: storedAcsSensitivity ?? 123.33,
       currentNoiseFloor: storedCurrentNoiseFloor ?? 0.03,
-      currentMultiplier: storedCurrentMultiplier ?? 1.00
+      currentMultiplier: storedCurrentMultiplier ?? 1.00,
+      pirDelay: storedPirDelay ?? 5,
+      mmwaveDelay: storedMmwaveDelay ?? 3
     });
   }, [
     activeDeviceId,
@@ -340,7 +338,9 @@ const Settings = () => {
     storedVoltageCal,
     storedAcsSensitivity,
     storedCurrentNoiseFloor,
-    storedCurrentMultiplier
+    storedCurrentMultiplier,
+    storedPirDelay,
+    storedMmwaveDelay
   ]);
 
   /**
@@ -403,6 +403,22 @@ const Settings = () => {
       min: 0.5,
       max: 2.0,
       hint: 'Fine multiplier to trim current readings against a calibrated multimeter.'
+    },
+    pirDelay: {
+      key: 'pir_delay_seconds',
+      label: 'PIR hold delay',
+      unit: 's',
+      min: 1,
+      max: 60,
+      hint: 'Motion smoothing bridge time to keep occupancy active across subtle movements.'
+    },
+    mmwaveDelay: {
+      key: 'mmwave_delay_seconds',
+      label: 'mmWave hold delay',
+      unit: 's',
+      min: 0,
+      max: 60,
+      hint: 'Stillness hold bridge to prevent radar flutter while seated or resting.'
     }
   };
 
@@ -1005,6 +1021,89 @@ const Settings = () => {
                     <div className="text-[10px] text-gray-500 leading-snug font-normal">{mode.desc}</div>
                   </button>
                 ))}
+              </div>
+
+              {/* Presence Hold-Off Smoothing Filters */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-3 border-t border-gray-100">
+                <div className="p-3 bg-gray-50/80 rounded-2xl border border-gray-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-gray-800">PIR Motion Hold Delay</span>
+                    <span className="text-[10px] font-mono font-bold text-maroon-800 bg-white px-2 py-0.5 rounded border border-gray-200">
+                      {limits.pirDelay}s
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mb-2 leading-tight">
+                    Motion smoothing bridge (1–60s). Keeps room active across brief pauses.
+                  </p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="60"
+                      value={limits.pirDelay}
+                      onChange={(e) => setLimits((prev) => ({ ...prev, pirDelay: Number(e.target.value) }))}
+                      onBlur={(e) => handleLimitSave('pirDelay', e.target.value)}
+                      className="w-full bg-white border border-gray-200 rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-gray-800 focus:outline-none focus:border-maroon-800"
+                    />
+                    <span className="text-xs font-bold text-gray-500">sec</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {[1, 2, 5, 10, 15].map((sec) => (
+                      <button
+                        key={sec}
+                        type="button"
+                        onClick={() => handleLimitSave('pirDelay', sec)}
+                        className={`text-[9px] font-mono px-2 py-0.5 rounded-lg border transition-all ${
+                          Number(limits.pirDelay) === sec
+                            ? 'bg-maroon-800 text-white border-maroon-800 font-bold'
+                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        {sec}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-gray-50/80 rounded-2xl border border-gray-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-gray-800">mmWave Radar Hold Delay</span>
+                    <span className="text-[10px] font-mono font-bold text-maroon-800 bg-white px-2 py-0.5 rounded border border-gray-200">
+                      {limits.mmwaveDelay}s
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mb-2 leading-tight">
+                    Stillness bridge (0–60s). Prevents radar flicker when occupants are motionless.
+                  </p>
+                  <div className="flex items-center gap-2 mb-2">
+                    <input
+                      type="number"
+                      min="0"
+                      max="60"
+                      value={limits.mmwaveDelay}
+                      onChange={(e) => setLimits((prev) => ({ ...prev, mmwaveDelay: Number(e.target.value) }))}
+                      onBlur={(e) => handleLimitSave('mmwaveDelay', e.target.value)}
+                      className="w-full bg-white border border-gray-200 rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-gray-800 focus:outline-none focus:border-maroon-800"
+                    />
+                    <span className="text-xs font-bold text-gray-500">sec</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {[0, 1, 3, 5, 10].map((sec) => (
+                      <button
+                        key={sec}
+                        type="button"
+                        onClick={() => handleLimitSave('mmwaveDelay', sec)}
+                        className={`text-[9px] font-mono px-2 py-0.5 rounded-lg border transition-all ${
+                          Number(limits.mmwaveDelay) === sec
+                            ? 'bg-maroon-800 text-white border-maroon-800 font-bold'
+                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        {sec}s
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
