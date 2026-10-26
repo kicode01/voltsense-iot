@@ -92,6 +92,16 @@
             "icon": {
               ".write": "auth != null && root.child('users').child(auth.uid).child('owned_devices').child($mac).exists()",
               ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "power_va": {
+              ".validate": "newData.isNumber()"
+            },
+            "power_factor": {
+              ".validate": "newData.isNumber()"
+            },
+            "policy": {
+              ".write": "auth != null && (auth.token.device_mac === $mac || root.child('users').child(auth.uid).child('owned_devices').child($mac).exists())",
+              ".validate": "newData.isString() && (newData.val() === 'occupancy' || newData.val() === 'always_on' || newData.val() === 'keep_while_drawing')"
             }
           }
         },
@@ -108,6 +118,18 @@
           },
           "inactivity_limit_minutes": {
             ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1440"
+          },
+          "nominal_voltage": {
+            ".validate": "newData.isNumber() && newData.val() >= 50 && newData.val() <= 300"
+          },
+          "voltage_cal_mv_per_v": {
+            ".validate": "newData.isNumber()"
+          },
+          "auto_calibrate_voltage": {
+            ".validate": "newData.isBoolean()"
+          },
+          "overcurrent_limit_a": {
+            ".validate": "newData.isNumber() && newData.val() >= 0.5 && newData.val() <= 20"
           }
         },
         "history": {
@@ -125,6 +147,21 @@
             ".write": "auth != null && auth.uid === $uid",
             ".validate": "!newData.exists() || (newData.hasChildren(['last_seen_at']) && newData.child('last_seen_at').isNumber())"
           }
+        },
+        "pir_detected": {
+          ".validate": "newData.isBoolean()"
+        },
+        "mmwave_detected": {
+          ".validate": "newData.isBoolean()"
+        },
+        "voltage_source": {
+          ".validate": "newData.isString() && (newData.val() === 'measured' || newData.val() === 'configured')"
+        },
+        "overcurrent_limit_a": {
+          ".validate": "newData.isNumber()"
+        },
+        "last_seen": {
+          ".validate": "newData.isNumber()"
         }
       }
     }
