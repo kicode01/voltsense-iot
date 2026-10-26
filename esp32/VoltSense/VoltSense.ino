@@ -1521,7 +1521,7 @@ PowerReading readPowerPort(int currentPin) {
 
   // Noise floor suppression: when no appliance is plugged in, the Hall element and ADC pick up
   // ~35-50 mV peak-to-peak ambient noise and ~12-18 mV RMS. If below threshold, clamp to clean 0.
-  if (deltaI < 20 || adcIrms_mV < 6.0f) {
+  if (deltaI < 12 || adcIrms_mV < 3.5f) {
     out.volts = volts;
     out.amps = 0.0f;
     out.watts = 0.0f;
@@ -1534,10 +1534,18 @@ PowerReading readPowerPort(int currentPin) {
   float amps = adcIrms_mV / ACS712_MV_PER_AMP;
   if (amps < CURRENT_NOISE_FLOOR_A) amps = 0.0f;
 
-  float watts = product_mVmV / (1000.0f * ACS712_MV_PER_AMP);
-  if (watts < 0.0f || amps == 0.0f) watts = 0.0f;
-
   const float va = volts * amps;
+
+  // Real power calculation: product_mVmV / (voltageCalMvPerV * ACS712_MV_PER_AMP)
+  // Use fabsf() because AC polarity reversal between PT and CT must not produce negative watts.
+  float rawWatts = (voltageCalMvPerV > 0.0f && ACS712_MV_PER_AMP > 0.0f)
+      ? (fabsf(product_mVmV) / (voltageCalMvPerV * ACS712_MV_PER_AMP))
+      : 0.0f;
+
+  // Plausibility check: real power cannot physically exceed apparent power (P <= S).
+  // If phase product cancelled or was misaligned while current flows, fall back to va * 0.95
+  float watts = (rawWatts > 0.1f && rawWatts <= (va * 1.10f)) ? rawWatts : (va * 0.95f);
+  if (amps == 0.0f) watts = 0.0f;
 
   out.volts = volts;
   out.amps = amps;

@@ -24,7 +24,7 @@ const getPortConnectionState = (portData) => {
   const watts = Number(portData?.power_watts) || 0;
   const amps = Number(portData?.current_amps) || 0;
 
-  if (watts > 3 || amps > 0.03) {
+  if (watts > 1.5 || amps > 0.015) {
     let category = 'Active Load';
     if (watts <= 30 || amps <= 0.15) {
       category = 'Charging / Low Power';
@@ -525,16 +525,16 @@ const Dashboard = () => {
             const conn = getPortConnectionState(portData);
             const rawAmps = Number(portData.current_amps) || 0;
             const rawWatts = Number(portData.power_watts) || 0;
-            const isDrawing = conn.isDrawing || (portData.relay_status && (rawAmps > 0.02 || rawWatts > 2.0));
+            const isDrawing = portData.relay_status && (rawAmps > 0.02 || rawWatts > 2.0 || conn.isDrawing);
             const portVolts = Number(portData.voltage) > 0 ? Number(portData.voltage) : systemVoltage;
-            const portAmps = portData.relay_status ? (isDrawing ? rawAmps : 0) : 0;
-            const portWatts = portData.relay_status ? (isDrawing ? rawWatts : 0) : 0;
+            const portAmps = portData.relay_status ? (rawAmps > 0.01 ? rawAmps : 0) : 0;
             const rawPf = Number(portData.power_factor);
-            const portPf = portData.relay_status && isDrawing
+            const portPf = portData.relay_status && (isDrawing || portAmps > 0.01)
               ? (rawPf > 0 ? rawPf : 0.95)
               : 0.00;
             const calculatedWatts = (portVolts * portAmps * (portPf > 0 ? portPf : 1)).toFixed(1);
-            const displayWatts = portWatts > 0 ? portWatts.toFixed(1) : calculatedWatts;
+            const portWatts = portData.relay_status ? (rawWatts > 0.5 ? rawWatts.toFixed(1) : (portAmps > 0.01 ? calculatedWatts : '0.0')) : '0.0';
+            const displayWatts = portWatts;
 
             return (
               <div 
