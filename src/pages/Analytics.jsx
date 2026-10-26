@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from 'recharts';
-import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity, Layers, Plug, Calculator, PieChart } from 'lucide-react';
+import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity, Plug } from 'lucide-react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useHistoryData, generateMockData } from '../hooks/useHistoryData';
 import { useRoomData } from '../hooks/useRoomData';
@@ -115,39 +115,6 @@ const Analytics = () => {
     port_03: '#2563eb'
   };
 
-  const portThemes = {
-    port_01: {
-      color: '#852636',
-      gradient: 'from-[#852636] to-[#b83b52]',
-      bgLight: 'bg-[#852636]/[0.03]',
-      borderCard: 'border-[#852636]/20 hover:border-[#852636]/40',
-      textAccent: 'text-[#852636]',
-      badge: 'bg-[#852636]/10 text-[#852636] border-[#852636]/20',
-      formulaBg: 'bg-[#852636]/[0.04] border-[#852636]/15',
-      dotColor: 'bg-[#852636]',
-    },
-    port_02: {
-      color: '#d97706',
-      gradient: 'from-amber-500 to-amber-600',
-      bgLight: 'bg-amber-500/[0.03]',
-      borderCard: 'border-amber-500/20 hover:border-amber-500/40',
-      textAccent: 'text-amber-700',
-      badge: 'bg-amber-50 text-amber-700 border-amber-200',
-      formulaBg: 'bg-amber-50/60 border-amber-200/60',
-      dotColor: 'bg-amber-500',
-    },
-    port_03: {
-      color: '#2563eb',
-      gradient: 'from-blue-600 to-indigo-600',
-      bgLight: 'bg-blue-500/[0.03]',
-      borderCard: 'border-blue-500/20 hover:border-blue-500/40',
-      textAccent: 'text-blue-700',
-      badge: 'bg-blue-50 text-blue-700 border-blue-200',
-      formulaBg: 'bg-blue-50/60 border-blue-200/60',
-      dotColor: 'bg-blue-600',
-    }
-  };
-
   const outletList = ['port_01', 'port_02', 'port_03'].map((portKey) => {
     const rawPort = roomData?.ports?.[portKey] || {};
     const fallback = defaultPortShare[portKey];
@@ -183,8 +150,7 @@ const Analytics = () => {
       watts,
       pf,
       costPhp,
-      color: portColors[portKey] || '#852636',
-      theme: portThemes[portKey] || portThemes.port_01
+      color: portColors[portKey] || '#852636'
     };
   });
 
@@ -217,10 +183,6 @@ const Analytics = () => {
   const displayedOutlets = selectedOutletTab === 'all' 
     ? outletList 
     : outletList.filter(o => o.id === selectedOutletTab);
-
-  const renderOutletIcon = (iconName, colorClass) => {
-    return <Plug className={colorClass} strokeWidth={1.5} />;
-  };
 
   return (
     <>
@@ -552,35 +514,28 @@ const Analytics = () => {
 
       {/* Per-Outlet Monitoring & Energy Breakdown */}
       <div className="analytics-outlets scroll-mt-24 bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500 fill-mode-both">
-        {/* Header & Mobile Filter Tabs */}
+        {/* Header & Filter Pills */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-maroon-50 text-maroon-800 flex items-center justify-center border border-maroon-100 shrink-0">
-                <Layers className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-base md:text-lg font-bold text-gray-900 tracking-tight leading-tight">
-                  Per-Outlet Monitoring &amp; Energy Breakdown
-                </h3>
-                <p className="text-gray-500 text-[11px] md:text-xs font-medium mt-0.5">
-                  Real-time electrical telemetry and power calculations per socket
-                </p>
-              </div>
-            </div>
+          <div>
+            <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">
+              Per-Outlet Energy &amp; Telemetry
+            </h3>
+            <p className="text-[10px] text-gray-400 mt-1 font-medium">
+              Power breakdown, active load, and real-time telemetry per port.
+            </p>
           </div>
 
           {/* Segmented Filter Pills */}
-          <div className="flex items-center gap-1 bg-gray-100/90 p-1 rounded-2xl self-start sm:self-auto shrink-0 overflow-x-auto max-w-full hide-scrollbar border border-gray-200/50">
+          <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-2xl self-start sm:self-auto shrink-0 overflow-x-auto max-w-full hide-scrollbar border border-gray-100">
             <button
               onClick={() => setSelectedOutletTab('all')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
                 selectedOutletTab === 'all'
-                  ? 'bg-white text-maroon-800 shadow-2xs'
+                  ? 'bg-white text-maroon-800 shadow-2xs font-extrabold'
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              All Outlets
+              All Ports
             </button>
             {outletList.map((outlet) => (
               <button
@@ -588,10 +543,9 @@ const Analytics = () => {
                 onClick={() => setSelectedOutletTab(outlet.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
                   selectedOutletTab === outlet.id
-                    ? 'bg-white shadow-2xs font-extrabold'
+                    ? 'bg-white text-gray-900 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-900'
                 }`}
-                style={selectedOutletTab === outlet.id ? { color: outlet.color } : {}}
               >
                 <span
                   className="w-1.5 h-1.5 rounded-full"
@@ -603,7 +557,7 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* Outlet Cards Layout: Carousel on Mobile (< md), 3-col Bento Grid on Desktop */}
+        {/* Outlet Cards Layout: Carousel on Mobile (< md), 3-col Grid on Desktop */}
         <div
           ref={carouselRef}
           onScroll={handleCarouselScroll}
@@ -616,41 +570,29 @@ const Analytics = () => {
           {displayedOutlets.map((outlet) => (
             <div 
               key={outlet.id} 
-              className={`bg-white border rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 relative overflow-hidden group shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-lg ${
+              className={`bg-gray-50/50 hover:bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:border-gray-200/80 group ${
                 displayedOutlets.length > 1 ? 'w-[86vw] sm:w-[320px] md:w-auto shrink-0 snap-center' : 'w-full'
-              } ${outlet.theme.borderCard}`}
+              }`}
             >
-              {/* Top Colored Accent Stripe */}
-              <div 
-                className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${outlet.theme.gradient}`} 
-              />
-              
               <div>
                 {/* Header: Label, Icon, Status */}
-                <div className="flex items-start justify-between gap-2 mb-3.5 pt-1">
+                <div className="flex items-center justify-between gap-2 mb-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div 
-                      className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105 border shadow-2xs"
-                      style={{ 
-                        backgroundColor: `${outlet.color}12`, 
-                        borderColor: `${outlet.color}25`,
-                        color: outlet.color 
-                      }}
-                    >
-                      {renderOutletIcon(outlet.icon, "w-5 h-5")}
+                    <div className="w-9 h-9 rounded-xl bg-maroon-50 text-maroon-800 flex items-center justify-center shrink-0 border border-maroon-100/60">
+                      <Plug strokeWidth={1.5} className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
-                      <h4 className="text-base font-bold text-gray-900 leading-tight truncate">
+                      <h4 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
                         {outlet.name}
                       </h4>
                       <span className="text-[10px] font-semibold text-gray-400 block mt-0.5 uppercase tracking-wider">
-                        Socket {outlet.label.replace('Port ', '')} • 220V AC
+                        Port {outlet.label.replace('Port ', '')} • 220V AC
                       </span>
                     </div>
                   </div>
 
-                  {/* Live Status Pill */}
-                  <span className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border shadow-2xs transition-all ${
+                  {/* Live Status Pill matching Dashboard */}
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all ${
                     !outlet.isRelayOn 
                       ? 'bg-gray-100 text-gray-400 border-gray-200' 
                       : (outlet.watts > 6 || outlet.amps > 0.08)
@@ -664,128 +606,83 @@ const Analytics = () => {
                         ? 'bg-emerald-500 animate-pulse'
                         : 'bg-amber-500'
                     }`} />
-                    {!outlet.isRelayOn 
-                      ? 'Relay Off' 
-                      : (outlet.watts > 6 || outlet.amps > 0.08)
-                      ? 'Active'
-                      : 'Standby'}
+                    {!outlet.isRelayOn ? 'Off' : (outlet.watts > 6 || outlet.amps > 0.08) ? 'Active' : 'Standby'}
                   </span>
                 </div>
 
-                {/* Energy & Consumption Bento Card */}
-                <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-3 sm:p-3.5 mb-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                      Energy Consumed
-                    </span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${outlet.theme.badge}`}>
-                      {outlet.percentage}% Share
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-baseline justify-between mb-2.5">
+                {/* Energy & Consumption Hero Metric */}
+                <div className="my-3">
+                  <div className="flex items-baseline justify-between mb-1">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                      <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
                         {outlet.energyKwh.toFixed(2)}
                       </span>
                       <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
                     </div>
-                    <div className="text-right">
-                      <span className="text-xs font-bold text-gray-800">₱{outlet.costPhp}</span>
-                      <span className="text-[9px] text-gray-400 font-semibold block uppercase tracking-wider">est. cost</span>
-                    </div>
+                    <span className="text-xs font-semibold text-gray-600">
+                      ₱{outlet.costPhp} <span className="text-[10px] text-gray-400 font-normal">est.</span>
+                    </span>
                   </div>
 
-                  {/* Dual-Tone Gradient Progress Bar */}
-                  <div className="w-full bg-gray-200/80 rounded-full h-2 overflow-hidden p-0.5">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r ${outlet.theme.gradient}`} 
-                      style={{ width: `${Math.max(5, outlet.percentage)}%` }}
-                    />
+                  {/* Sleek Progress Bar for % Share */}
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="flex-1 bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-700 ease-out" 
+                        style={{ 
+                          width: `${Math.max(4, outlet.percentage)}%`,
+                          backgroundColor: outlet.color || '#852636'
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] font-bold text-gray-500 tabular-nums">
+                      {outlet.percentage}% share
+                    </span>
                   </div>
                 </div>
 
-                {/* Live Electrical Telemetry: 2x2 Bento Tiles */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
-                      Voltage (RMS)
+                {/* Live Electrical Telemetry: 3-column stats row */}
+                <div className="grid grid-cols-3 gap-2 py-3 border-t border-gray-100">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                      Voltage
                     </span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm sm:text-base font-extrabold text-gray-900">
-                        {outlet.volts.toFixed(0)}
-                      </span>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase">V</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
-                      Current (RMS)
+                    <span className="text-sm font-semibold text-gray-800">
+                      {outlet.volts.toFixed(0)} V
                     </span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm sm:text-base font-extrabold text-gray-900">
-                        {outlet.amps.toFixed(2)}
-                      </span>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase">A</span>
-                    </div>
                   </div>
-
-                  <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
-                      Active Power
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                      Current
                     </span>
-                    <div className="flex items-baseline gap-1">
-                      <span className={`text-sm sm:text-base font-extrabold ${outlet.watts > 0 ? outlet.theme.textAccent : 'text-gray-900'}`}>
-                        {outlet.watts.toFixed(1)}
-                      </span>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase">W</span>
-                    </div>
+                    <span className="text-sm font-semibold text-gray-800">
+                      {outlet.amps.toFixed(2)} A
+                    </span>
                   </div>
-
-                  <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
                       Power Factor
                     </span>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-sm sm:text-base font-extrabold text-gray-900">
-                        {outlet.pf.toFixed(2)}
-                      </span>
-                      <span className="text-[9px] font-bold text-gray-400 uppercase">PF</span>
-                    </div>
+                    <span className="text-sm font-semibold text-gray-800">
+                      {outlet.pf.toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Mathematical Telemetry Formula Chip */}
-              <div className={`rounded-xl p-2.5 border ${outlet.theme.formulaBg} transition-all duration-300`}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5">
-                    <Calculator className={`w-3 h-3 ${outlet.theme.textAccent}`} />
-                    <span className={`text-[9px] font-bold uppercase tracking-wider ${outlet.theme.textAccent}`}>
-                      Formula (P = V × I × PF)
-                    </span>
-                  </div>
-                  <span className={`text-[10px] font-black ${outlet.theme.textAccent} font-mono`}>
-                    {outlet.watts.toFixed(1)} W
+              {/* Active Power Footnote with Formula */}
+              <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-[10px] text-gray-400">P = V × I × PF</span>
+                  <span className="font-mono text-[10px] text-gray-400 hidden sm:inline">
+                    ({outlet.volts.toFixed(0)}V × {outlet.amps.toFixed(2)}A × {outlet.pf.toFixed(2)})
                   </span>
                 </div>
-                <div className="flex items-center gap-1 text-[10px] font-mono text-gray-600 overflow-x-auto hide-scrollbar py-0.5">
-                  <span className="bg-white border border-gray-200/70 px-1.5 py-0.5 rounded font-bold shadow-2xs whitespace-nowrap">
-                    {outlet.volts.toFixed(0)}V
+                <div className="flex items-baseline gap-1">
+                  <span className={`text-xs font-bold ${outlet.watts > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+                    {outlet.watts.toFixed(1)}
                   </span>
-                  <span className="text-gray-400 font-bold">×</span>
-                  <span className="bg-white border border-gray-200/70 px-1.5 py-0.5 rounded font-bold shadow-2xs whitespace-nowrap">
-                    {outlet.amps.toFixed(2)}A
-                  </span>
-                  <span className="text-gray-400 font-bold">×</span>
-                  <span className="bg-white border border-gray-200/70 px-1.5 py-0.5 rounded font-bold shadow-2xs whitespace-nowrap">
-                    {outlet.pf.toFixed(2)}
-                  </span>
-                  <span className="text-gray-400 font-bold">=</span>
-                  <span className={`px-1.5 py-0.5 rounded font-bold ${outlet.theme.badge} whitespace-nowrap`}>
-                    {outlet.watts.toFixed(1)}W
-                  </span>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase">W</span>
                 </div>
               </div>
             </div>
@@ -802,7 +699,7 @@ const Analytics = () => {
                 aria-label={`Jump to ${outlet.name}`}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   activeOutletIndex === idx 
-                    ? `w-6 ${outlet.theme.dotColor}` 
+                    ? 'w-6 bg-maroon-800' 
                     : 'w-1.5 bg-gray-200'
                 }`}
               />
@@ -811,38 +708,35 @@ const Analytics = () => {
         )}
 
         {/* Outlet Consumption Comparison Section */}
-        <div className="mt-7 pt-6 border-t border-gray-100">
+        <div className="mt-6 pt-5 border-t border-gray-100">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <div className="flex items-center gap-2">
-                <PieChart className="w-4 h-4 text-maroon-800" />
-                <h4 className="text-xs md:text-sm font-bold uppercase tracking-wider text-gray-700">
-                  Outlet Energy Share Comparison
-                </h4>
-              </div>
-              <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+              <h4 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">
+                Energy Share Comparison
+              </h4>
+              <p className="text-[10px] text-gray-400 mt-1 font-medium">
                 Total aggregate consumption: <span className="font-bold text-gray-700">{totalEnergy.toFixed(2)} kWh</span> (~₱{(totalEnergy * MERALCO_RATE_PHP).toFixed(2)})
               </p>
             </div>
 
-            {/* View Mode Switcher: Ribbon Bar vs Recharts Bar */}
-            <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-xl self-start sm:self-auto border border-gray-200/40">
+            {/* View Mode Switcher */}
+            <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl self-start sm:self-auto border border-gray-100">
               <button
                 onClick={() => setShareViewMode('ribbon')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                   shareViewMode === 'ribbon'
                     ? 'bg-white text-gray-900 shadow-2xs font-extrabold'
-                    : 'text-gray-500 hover:text-gray-900'
+                    : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
                 Distribution Bar
               </button>
               <button
                 onClick={() => setShareViewMode('chart')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
                   shareViewMode === 'chart'
                     ? 'bg-white text-gray-900 shadow-2xs font-extrabold'
-                    : 'text-gray-500 hover:text-gray-900'
+                    : 'text-gray-500 hover:text-gray-800'
                 }`}
               >
                 Bar Chart
@@ -852,18 +746,18 @@ const Analytics = () => {
 
           {shareViewMode === 'ribbon' ? (
             <div>
-              {/* Proportional Multi-Segment Ribbon Bar */}
-              <div className="w-full bg-gray-100 p-1 rounded-2xl flex items-center gap-1 shadow-inner overflow-hidden mb-3.5">
+              {/* Proportional Multi-Segment Distribution Bar */}
+              <div className="w-full bg-gray-100 p-1 rounded-2xl flex items-center gap-1 overflow-hidden mb-3.5">
                 {outletList.map((outlet) => {
                   const widthPct = totalEnergy > 0 ? Math.max(8, outlet.percentage) : 33.3;
                   return (
                     <div
                       key={`ribbon-${outlet.id}`}
-                      style={{ width: `${widthPct}%` }}
-                      className={`h-5 sm:h-6 rounded-xl bg-gradient-to-r ${outlet.theme.gradient} transition-all duration-700 ease-out relative flex items-center justify-center text-[10px] font-bold text-white shadow-2xs px-1`}
+                      style={{ width: `${widthPct}%`, backgroundColor: outlet.color }}
+                      className="h-5 sm:h-6 rounded-xl transition-all duration-500 ease-apple-spring relative flex items-center justify-center text-[10px] font-bold text-white shadow-2xs px-1"
                       title={`${outlet.name}: ${outlet.energyKwh.toFixed(2)} kWh (${outlet.percentage}%)`}
                     >
-                      <span className="truncate drop-shadow-xs font-mono">
+                      <span className="truncate font-mono">
                         {outlet.percentage}%
                       </span>
                     </div>
@@ -871,49 +765,37 @@ const Analytics = () => {
                 })}
               </div>
 
-              {/* 3 Metric Summary Cards - Single compact row on mobile, full bento on desktop */}
-              <div className="grid grid-cols-3 gap-1.5 sm:gap-3.5">
+              {/* 3 Metric Summary Cards */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
                 {outletList.map((outlet) => (
                   <div
                     key={`summary-${outlet.id}`}
                     onClick={() => setSelectedOutletTab(selectedOutletTab === outlet.id ? 'all' : outlet.id)}
-                    className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl border transition-all duration-300 cursor-pointer ${
+                    className={`p-2.5 sm:p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
                       selectedOutletTab === outlet.id 
-                        ? `${outlet.theme.borderCard} ${outlet.theme.bgLight} shadow-sm ring-1 ring-current`
-                        : 'bg-gray-50/70 border-gray-100 hover:bg-white hover:shadow-2xs'
+                        ? 'bg-maroon-50/50 border-maroon-200/80 shadow-2xs'
+                        : 'bg-gray-50/60 border-gray-100/90 hover:bg-white hover:border-gray-200/80'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-1 sm:mb-2">
-                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-                        <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0 ${outlet.theme.dotColor}`} />
+                    <div className="flex items-center justify-between mb-1 sm:mb-1.5">
+                      <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: outlet.color }} />
                         <span className="text-[11px] sm:text-xs font-bold text-gray-800 truncate">{outlet.name}</span>
                       </div>
-                      <span className={`text-[8px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full border shrink-0 ${outlet.theme.badge}`}>
+                      <span className="text-[9px] sm:text-[10px] font-bold text-gray-500">
                         {outlet.percentage}%
                       </span>
                     </div>
 
                     <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
                       <div className="flex items-baseline gap-0.5 sm:gap-1">
-                        <span className="text-xs sm:text-base font-extrabold text-gray-900">
+                        <span className="text-xs sm:text-sm font-extrabold text-gray-900">
                           {outlet.energyKwh.toFixed(2)}
                         </span>
                         <span className="text-[9px] sm:text-[10px] font-bold text-gray-400">kWh</span>
                       </div>
-                      <span className="text-[10px] sm:text-xs font-semibold text-gray-600">
+                      <span className="text-[10px] sm:text-xs font-semibold text-gray-500">
                         ₱{outlet.costPhp}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between mt-1 sm:mt-2 pt-1 sm:pt-2 border-t border-gray-100/80 text-[8px] sm:text-[10px] text-gray-500 font-medium">
-                      <span className="hidden sm:inline">Live draw</span>
-                      <span className={`font-bold ${outlet.watts > 0 ? outlet.theme.textAccent : 'text-gray-600'}`}>
-                        {outlet.watts.toFixed(1)}W
-                      </span>
-                      <span className={`text-[8px] sm:text-[9px] font-semibold uppercase ${
-                        outlet.watts > 6 ? 'text-emerald-600' : 'text-gray-400'
-                      }`}>
-                        {outlet.watts > 6 ? 'Active' : 'Idle'}
                       </span>
                     </div>
                   </div>
