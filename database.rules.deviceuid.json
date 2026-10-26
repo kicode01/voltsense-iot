@@ -130,6 +130,9 @@
           },
           "overcurrent_limit_a": {
             ".validate": "newData.isNumber() && newData.val() >= 0.5 && newData.val() <= 20"
+          },
+          "bench_mode": {
+            ".validate": "newData.isBoolean()"
           }
         },
         "history": {

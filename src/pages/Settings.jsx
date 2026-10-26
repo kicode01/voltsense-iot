@@ -13,7 +13,8 @@ import {
   KeyRound,
   AlertCircle,
   Sliders,
-  TriangleAlert
+  TriangleAlert,
+  Zap
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { enablePushForUser, clearPushToken } from '../lib/pushNotifications';
@@ -21,6 +22,8 @@ import { claimDevice, unpairDevice, formatPairingCodeInput } from '../lib/device
 import { errorMessage } from '../lib/errors';
 import { signOut } from 'firebase/auth';
 import { TimePicker } from '../components/TimePicker';
+import GodModePanel from '../components/GodModePanel';
+import { playEmergencyAlarm } from '../lib/soundAlert';
 
 const Settings = () => {
   const { devices, activeDeviceId, devicesLoading, userId } = useDeviceContext();
@@ -33,6 +36,24 @@ const Settings = () => {
     updatePortPolicy
   } = useRoomData(activeDeviceId);
   
+  const [godMode, setGodMode] = useState(() => {
+    try {
+      return localStorage.getItem('voltsense_god_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleGodMode = () => {
+    setGodMode(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('voltsense_god_mode', next ? 'true' : 'false');
+      } catch {}
+      return next;
+    });
+  };
+
   const [nightMode, setNightMode] = useState({
     enabled: true,
     start_time: '22:00',
@@ -130,33 +151,40 @@ const Settings = () => {
   }, [modalConfig.isOpen]);
 
   const handleTestNotification = async () => {
-    // A local notification, so the user can see what an alert will look like without waiting for
-    // the room to actually go quiet. This is a rendering check, not a delivery check — the
-    // end-to-end path is exercised by the device.
     try {
       if (typeof Notification === 'undefined') {
         showModal('Not Supported', 'This browser cannot show notifications.', 'alert');
         return;
       }
-      if (Notification.permission !== 'granted') {
+      let perm = Notification.permission;
+      if (perm === 'default') {
+        perm = await Notification.requestPermission();
+        setPushPermission(perm);
+      }
+      if (perm !== 'granted') {
         showModal(
           'Notifications Blocked',
-          'Notifications are blocked for this site, so alerts cannot be delivered. Enable them in your browser settings and try again.',
+          'Notifications are blocked for this site. Enable them in your browser settings and try again.',
           'alert'
         );
         return;
       }
 
+      // Play synthesized emergency buzzer + haptic vibration
+      playEmergencyAlarm();
+
       const registration = await navigator.serviceWorker?.getRegistration();
       const payload = {
-        body: 'PC will shut down in 60 seconds due to inactivity. Open the app to keep power on.',
-        icon: '/logo.svg'
+        body: 'VoltSense Alert: Inactivity warning countdown started. Open the app to keep power on.',
+        icon: '/logo.svg',
+        vibrate: [200, 100, 200]
       };
-      if (registration) {
+      if (registration && registration.showNotification) {
         await registration.showNotification('VoltSense Warning', payload);
       } else {
         new Notification('VoltSense Warning', payload);
       }
+      showModal('Alert Dispatched', 'Test warning notification and audio alarm were triggered.', 'alert');
     } catch (error) {
       console.error('Browser notification test failed:', error);
       showModal('Test Failed', 'Could not display the test notification.', 'alert');
@@ -202,6 +230,18 @@ const Settings = () => {
   const storedOvercurrent = roomData?.settings?.overcurrent_limit_a ?? roomData?.overcurrent_limit_a;
   const storedNominal = roomData?.settings?.nominal_voltage;
   const storedVoltageCal = roomData?.settings?.voltage_cal_mv_per_v;
+  const isBenchMode = Boolean(roomData?.settings?.bench_mode);
+
+  const handleBenchModeToggle = async () => {
+    setSavingLimit('bench_mode');
+    setLimitsError(null);
+    const nextVal = !isBenchMode;
+    const ok = await updateDeviceSetting('bench_mode', nextVal);
+    setSavingLimit(null);
+    if (!ok) {
+      setLimitsError('Could not update Bench Test Mode. Check connection and try again.');
+    }
+  };
   // Port policies are NOT mirrored into local state. The <select> is controlled straight from
   // roomData, so the device's copy is the single source of truth and a failed write simply snaps
   // back rather than showing a value the device never accepted.
@@ -369,13 +409,14 @@ const Settings = () => {
   };
 
   const handleToggleNotifications = async () => {
-    if (!userId) return;
+    if (typeof Notification === 'undefined') {
+      showModal('Not Supported', 'This browser cannot show notifications.', 'alert');
+      return;
+    }
 
-    // Turning off removes the token from the database, which is what actually stops delivery.
-    // Clearing localStorage alone would hide the toggle while the server kept sending.
     if (pushPermission === 'granted') {
       setLoadingPush(true);
-      await clearPushToken(userId);
+      if (userId) await clearPushToken(userId);
       localStorage.setItem('voltsenseNotificationsEnabled', 'false');
       setPushPermission(
         typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
@@ -384,33 +425,36 @@ const Settings = () => {
       return;
     }
 
-    if (typeof Notification === 'undefined') {
-      showModal('Not Supported', 'This browser cannot show notifications.', 'alert');
-      return;
-    }
-
     try {
       setLoadingPush(true);
-
-      // Requests permission and persists the resulting FCM token in one step, so a granted
-      // permission can never end up with no token on the server (the bug this replaces).
-      const token = await enablePushForUser(userId);
-
-      if (!token) {
-        setPushPermission(Notification.permission);
-        showModal(
-          'Could Not Enable',
-          Notification.permission === 'denied'
-            ? 'Notifications are blocked for this site. Enable them in your browser settings and try again.'
-            : 'This device cannot receive push notifications. On iPhone, add VoltSense to your Home Screen first.',
-          'alert'
-        );
-        return;
+      let perm = Notification.permission;
+      if (perm === 'default') {
+        perm = await Notification.requestPermission();
+        setPushPermission(perm);
       }
 
-      setPushPermission('granted');
-      localStorage.setItem('voltsenseNotificationsEnabled', 'true');
-      showModal('Enabled', 'This device will now receive alerts.', 'alert');
+      if (userId) {
+        const token = await enablePushForUser(userId);
+        if (!token && perm !== 'granted') {
+          setPushPermission(Notification.permission);
+          showModal(
+            'Could Not Enable',
+            Notification.permission === 'denied'
+              ? 'Notifications are blocked for this site. Enable them in your browser settings and try again.'
+              : 'This device cannot receive push notifications. On iPhone, add VoltSense to your Home Screen first.',
+            'alert'
+          );
+          return;
+        }
+      }
+
+      if (perm === 'granted') {
+        setPushPermission('granted');
+        localStorage.setItem('voltsenseNotificationsEnabled', 'true');
+        showModal('Enabled', 'This device will now receive alerts.', 'alert');
+      } else {
+        showModal('Permission Denied', 'Please allow notifications in your browser settings to receive alerts.', 'alert');
+      }
     } catch (error) {
       console.error('Error enabling notifications:', error);
       showModal('Notification Error', 'Could not enable notifications. Please try again.', 'alert');
@@ -434,14 +478,30 @@ const Settings = () => {
           <h2 className="text-lg md:text-xl font-bold text-gray-900 tracking-tight leading-tight truncate">Settings</h2>
           <p className="text-gray-500 text-[10px] md:text-sm font-medium mt-0.5 leading-tight truncate">Preferences & system config</p>
         </div>
-        <button 
-          onClick={handleSignOut}
-          className="shrink-0 flex items-center gap-1.5 bg-red-50 text-red-600 px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border border-red-100 text-[10px] md:text-sm font-bold uppercase tracking-wider hover:bg-red-100 transition-all duration-300 ease-out"
-        >
-          <LogOut className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
-          <span>Sign Out</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={toggleGodMode}
+            className={`shrink-0 flex items-center gap-1.5 px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border text-[10px] md:text-sm font-bold uppercase tracking-wider transition-all duration-300 ease-apple-spring ${
+              godMode
+                ? 'bg-amber-400 text-black border-amber-500 shadow-md shadow-amber-400/20'
+                : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+            }`}
+          >
+            <Zap className={`w-3.5 h-3.5 md:w-4 md:h-4 shrink-0 ${godMode ? 'fill-current animate-pulse' : ''}`} />
+            <span>{godMode ? 'God Mode ON' : 'God Mode'}</span>
+          </button>
+          <button 
+            onClick={handleSignOut}
+            className="shrink-0 flex items-center gap-1.5 bg-red-50 text-red-600 px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border border-red-100 text-[10px] md:text-sm font-bold uppercase tracking-wider hover:bg-red-100 transition-all duration-300 ease-out"
+          >
+            <LogOut className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
+            <span>Sign Out</span>
+          </button>
+        </div>
       </div>
+
+      {/* God Mode / Demonstration Control Suite Panel */}
+      {godMode && <GodModePanel activeDeviceId={activeDeviceId} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-5 items-start">
         {/* Left Column (Desktop: 7 cols) */}
@@ -611,6 +671,47 @@ const Settings = () => {
                   <span className="block text-[10px] text-gray-400 mt-1 leading-snug">{meta.hint}</span>
                 </label>
               ))}
+            </div>
+
+            {/* Bench Test Mode Toggle */}
+            <div className="mt-5 pt-4 border-t border-gray-100 flex items-center justify-between gap-3">
+              <div className="min-w-0 pr-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] md:text-xs font-bold uppercase tracking-wider text-gray-800">
+                    Bench Test Mode (USB Desk Testing)
+                  </span>
+                  {isBenchMode && (
+                    <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
+                      Active
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400 mt-0.5 leading-snug">
+                  {isBenchMode
+                    ? 'Bypasses 220V mains detection. Uses supply voltage so you can test ACS712 current sensors over USB.'
+                    : 'Strict AC mains monitoring. Requires live 220V on ZMPT101B sensor. Clamps to 0 if unplugged.'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleBenchModeToggle}
+                disabled={savingLimit === 'bench_mode'}
+                aria-label={`Toggle Bench Test Mode ${isBenchMode ? 'Off' : 'On'}`}
+                className={`relative w-12 h-7 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 ease-apple-spring focus:outline-none focus:ring-2 focus:ring-maroon-500/30 ${
+                  isBenchMode ? 'bg-amber-600' : 'bg-gray-200'
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 bg-white rounded-full shadow-md flex items-center justify-center transform transition-transform duration-300 ease-apple-spring ${
+                    isBenchMode ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                >
+                  {savingLimit === 'bench_mode' && (
+                    <Loader2 className="w-3 h-3 animate-spin text-amber-700" />
+                  )}
+                </div>
+              </button>
             </div>
 
             {/* Per-port shutdown policy */}
