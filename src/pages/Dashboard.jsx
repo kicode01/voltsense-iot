@@ -142,6 +142,8 @@ const Dashboard = () => {
   // different question — a room can be occupied with everything off, or idle with a charger running.
   // Fall back to the old signal only when the device does not publish the field.
   const occupied = data.is_occupied !== undefined ? Boolean(data.is_occupied) : anyOn;
+  const pirActive = data.pir_detected !== undefined ? Boolean(data.pir_detected) : occupied;
+  const mmwaveActive = data.mmwave_detected !== undefined ? Boolean(data.mmwave_detected) : occupied;
   const allOn = Object.values(ports).every(p => p.relay_status);
   const activeCount = Object.values(ports).filter(p => p.relay_status).length;
   const drawingCount = Object.values(ports).filter(p => p.relay_status && (Number(p.power_watts) > 3 || Number(p.current_amps) > 0.03)).length;
@@ -525,11 +527,12 @@ const Dashboard = () => {
               {occupied ? 'Occupant Present' : 'Room Vacant'}
             </p>
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${occupied ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${occupied ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${pirActive ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${pirActive ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
                 PIR Motion
               </span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-maroon-50 text-maroon-800 border-maroon-100">
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${mmwaveActive ? 'bg-maroon-50 text-maroon-800 border-maroon-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${mmwaveActive ? 'bg-maroon-600 animate-pulse' : 'bg-gray-400'}`}></span>
                 mmWave Radar
               </span>
             </div>
