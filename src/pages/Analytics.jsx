@@ -109,9 +109,9 @@ const Analytics = () => {
   };
 
   const portColors = {
-    port_01: '#852636',
-    port_02: '#d97706',
-    port_03: '#2563eb'
+    port_01: '#852636', // Signature VoltSense Maroon (Classic mid-tone)
+    port_02: '#b84255', // Radiant Crimson Maroon (Lighter warm tone)
+    port_03: '#54121e'  // Deep Velvet Maroon (Rich dark wine tone)
   };
 
   const outletList = ['port_01', 'port_02', 'port_03'].map((portKey) => {
