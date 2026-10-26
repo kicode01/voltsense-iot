@@ -1,22 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
-import { Zap, Moon, AlertTriangle, Pencil, Fan, Lamp, Smartphone, Loader2, Timer, Radar } from 'lucide-react';
+import { Zap, Moon, AlertTriangle, Loader2, Timer, Radar, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import MarqueeText from '../components/MarqueeText';
-
-const iconMap = {
-  lamp: Lamp,
-  fan: Fan,
-  smartphone: Smartphone,
-  zap: Zap
-};
-
-const defaultIcons = {
-  port_01: 'lamp',
-  port_02: 'fan',
-  port_03: 'smartphone'
-};
 
 /**
  * Evaluates whether an outlet is in use, energized without a load, or switched off.
@@ -68,11 +55,8 @@ const getPortConnectionState = (portData) => {
 const Dashboard = () => {
   const { activeDeviceId, devicesLoading } = useDeviceContext();
 
-  const { roomData, loading: roomLoading, toggleMasterRelay, togglePortRelay, updatePortName, setOverride, updatePortIcon } = useRoomData(activeDeviceId);
+  const { roomData, loading: roomLoading, toggleMasterRelay, togglePortRelay, setOverride } = useRoomData(activeDeviceId);
   
-  const [editingPort, setEditingPort] = useState(null);
-  const [editName, setEditName] = useState('');
-  const [isRenameMode, setIsRenameMode] = useState(false);
   const [turningOn, setTurningOn] = useState(false);
   const [turningOff, setTurningOff] = useState(false);
   // Which ports have a toggle in flight, so the switch can show a spinner instead of looking
@@ -260,54 +244,6 @@ const Dashboard = () => {
     }
     clearTimeout(masterTimerRef.current);
     masterTimerRef.current = setTimeout(() => setTurningOff(false), 500);
-  };
-
-  const handleNameEdit = (portId, currentName) => {
-    setEditingPort(portId);
-    setEditName(currentName);
-  };
-
-  const handleNameSave = (portId) => {
-    if (editName.trim()) {
-      if (isDemo) {
-        setDemoData(prev => ({
-          ...prev,
-          ports: {
-            ...prev.ports,
-            [portId]: {
-              ...prev.ports[portId],
-              name: editName.trim()
-            }
-          }
-        }));
-      } else {
-        updatePortName(portId, editName.trim());
-      }
-    }
-    setEditingPort(null);
-  };
-
-  const handleIconCycle = async (portId, currentIconName) => {
-    if (!isRenameMode) return;
-    const icons = ['lamp', 'fan', 'smartphone'];
-    let currentIndex = icons.indexOf(currentIconName);
-    if (currentIndex === -1) currentIndex = 0;
-    const nextIconName = icons[(currentIndex + 1) % icons.length];
-    
-    if (isDemo) {
-      setDemoData(prev => ({
-        ...prev,
-        ports: {
-          ...prev.ports,
-          [portId]: {
-            ...prev.ports[portId],
-            icon: nextIconName
-          }
-        }
-      }));
-    } else {
-      await updatePortIcon(portId, nextIconName);
-    }
   };
 
   return (
@@ -542,79 +478,33 @@ const Dashboard = () => {
 
       <div className="joyride-ports-list animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 fill-mode-both">
         <div className="flex items-center justify-between mb-3 gap-2 flex-wrap sm:flex-nowrap">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Port / Device Management</h2>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => {
-                if (isRenameMode && editingPort) {
-                  handleNameSave(editingPort);
-                }
-                setIsRenameMode(!isRenameMode);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-colors ${isRenameMode ? 'bg-maroon-800 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
-            >
-              {isRenameMode ? 'Done' : <><Pencil strokeWidth={1.5} className="w-3 h-3" /> Edit</>}
-            </button>
-          </div>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Port Management</h2>
         </div>
         {!activeDeviceId && (
-          <p className="text-[10px] text-gray-400 mb-4 font-medium">Toggle, rename, and view power draw for each smart port.</p>
+          <p className="text-[10px] text-gray-400 mb-4 font-medium">Toggle and view power draw for each smart port.</p>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
           {Object.entries(ports).map(([portId, portData], index) => {
-            const portIconName = portData.icon || defaultIcons[portId] || 'zap';
-            const Icon = iconMap[portIconName] || Zap;
-            const displayName = portData.name || 'Unknown Device';
+            const portNumber = index + 1;
+            const displayName = `Port ${portNumber}`;
 
             return (
-            <div key={portId} className={`bg-white/70 backdrop-blur-2xl border ${isRenameMode ? 'border-maroon-300 ring-2 ring-maroon-100' : 'border-white/40'} rounded-[20px] shadow-[0_4px_20px_rgb(0,0,0,0.03)] transition-all duration-500 ease-apple-spring p-3 md:p-4 flex items-center gap-3 md:gap-4 group animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both`} style={{ animationDelay: `${400 + (index * 100)}ms` }}>
-              <button 
-                onClick={() => handleIconCycle(portId, portIconName)}
-                disabled={!isRenameMode}
-                className={`w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-2xl flex items-center justify-center transition-all duration-500 relative ${
+            <div key={portId} className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-[20px] shadow-[0_4px_20px_rgb(0,0,0,0.03)] transition-all duration-500 ease-apple-spring p-3 md:p-4 flex items-center gap-3 md:gap-4 group animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" style={{ animationDelay: `${400 + (index * 100)}ms` }}>
+              <div 
+                className={`w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-2xl flex items-center justify-center transition-all duration-500 ${
                   portData.relay_status ? 'bg-maroon-50 text-maroon-800 shadow-inner' : 'bg-gray-50 text-gray-400'
-                } ${isRenameMode ? 'cursor-pointer hover:scale-105 hover:bg-maroon-100 hover:text-maroon-900 ring-2 ring-maroon-300 ring-offset-2' : 'cursor-default'}`}
+                }`}
               >
-                <Icon strokeWidth={1.5} className="w-5 h-5 transition-transform duration-500 ease-apple-spring group-hover:scale-110" />
-                {isRenameMode && (
-                  <div className="absolute -bottom-1 -right-1 bg-maroon-500 text-white rounded-full p-0.5 shadow-sm border-2 border-white">
-                    <Pencil className="w-2.5 h-2.5" />
-                  </div>
-                )}
-              </button>
+                <Plug strokeWidth={1.5} className="w-5 h-5 transition-transform duration-500 ease-apple-spring group-hover:scale-110" />
+              </div>
               
               <div className="flex flex-col flex-1 min-w-0 pr-2">
-                {editingPort === portId ? (
-                  <div className="relative flex items-center w-full max-w-full p-1 -m-1">
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onBlur={() => handleNameSave(portId)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleNameSave(portId)}
-                      className="text-[16px] md:text-[15px] font-bold text-maroon-900 bg-maroon-50 rounded px-1 -mx-1 w-full outline-none ring-1 ring-maroon-200 focus:ring-2 focus:ring-maroon-500 transition-all leading-tight border-0 py-0"
-                      autoFocus
-                    />
-                  </div>
-                ) : isRenameMode ? (
-                  <button 
-                    onClick={() => handleNameEdit(portId, displayName)}
-                    className="relative flex items-center gap-1.5 w-full max-w-full p-1 -m-1 group/edit rounded hover:bg-black/5 transition-colors text-left outline-none focus-visible:ring-2 focus-visible:ring-maroon-500"
-                  >
-                    <span className="text-[14px] md:text-[15px] font-bold text-gray-900 leading-tight flex-1 min-w-0 truncate group-hover/edit:text-maroon-700 transition-colors">
-                      {displayName}
-                    </span>
-                    <Pencil className="w-3.5 h-3.5 text-maroon-300 opacity-50 group-hover/edit:opacity-100 shrink-0 transition-opacity" />
-                  </button>
-                ) : (
-                  <div className="relative flex items-center w-full max-w-full p-1 -m-1">
-                    <MarqueeText 
-                      text={displayName} 
-                      className="text-[14px] md:text-[15px] font-bold text-gray-900 leading-tight flex-1 min-w-0 transition-colors"
-                    />
-                  </div>
-                )}
+                <div className="relative flex items-center w-full max-w-full p-1 -m-1">
+                  <span className="text-[14px] md:text-[15px] font-bold text-gray-900 leading-tight flex-1 min-w-0 transition-colors">
+                    {displayName}
+                  </span>
+                </div>
                 
                 {(() => {
                   const conn = getPortConnectionState(portData);
