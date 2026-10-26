@@ -117,4 +117,19 @@ enum SystemState {
   STATE_SHUTDOWN
 };
 
+/**
+ * Sampled electrical readings from simultaneous voltage and current sensing.
+ *
+ * Declared here because it is the return type of readPowerPort(int) — so it must
+ * precede the auto-generated function prototypes in the Arduino build.
+ */
+struct PowerReading {
+  float volts;  // measured mains RMS
+  float amps;   // true RMS current
+  float watts;  // real power, mean(v*i) — the phase-correct figure
+  float va;     // apparent power, V_rms * I_rms
+  float pf;     // measured power factor, watts/va
+  bool valid;   // false = too few samples / flat line, caller must not trust the numbers
+};
+
 #endif // VOLTSENSE_TYPES_H

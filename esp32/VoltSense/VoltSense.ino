@@ -1415,15 +1415,7 @@ float readACS712RMS(int pin) {
 // over 512 samples the sum reaches ~5.6e9, which overflows a 32-bit int and would silently wrap.
 // Integer accumulation is also exact, so the only rounding is the final square root.
 // ---------------------------------------------------------------------------
-
-struct PowerReading {
-  float volts;  // measured mains RMS
-  float amps;   // true RMS current
-  float watts;  // real power, mean(v*i) — the phase-correct figure
-  float va;     // apparent power, V_rms * I_rms
-  float pf;     // measured power factor, watts/va
-  bool valid;   // false = too few samples / flat line, caller must not trust the numbers
-};
+// Note: struct PowerReading is declared in VoltSenseTypes.h so it precedes Arduino's auto-generated prototypes.
 
 // ~400 samples at the 250 us cadence over a 100 ms window; 512 leaves headroom for a slower loop.
 #define POWER_SAMPLE_MAX 512
