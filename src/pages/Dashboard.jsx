@@ -423,30 +423,6 @@ const Dashboard = () => {
                 {powerIsMeasured ? 'W' : 'VA'}
               </span>
             </div>
-
-            {/* Mains Voltage (V) & Total Current (A) */}
-            <div className="flex flex-wrap items-center gap-2 mt-3 relative z-10">
-              <div className="flex items-center gap-1.5 bg-black/25 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
-                <span className="text-[10px] uppercase font-bold text-maroon-200/80 tracking-wider">Voltage (V)</span>
-                <span className="font-bold text-white text-xs md:text-sm">{systemVoltage.toFixed(0)} V</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-black/25 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
-                <span className="text-[10px] uppercase font-bold text-maroon-200/80 tracking-wider">Current (A)</span>
-                <span className="font-bold text-white text-xs md:text-sm">{computedTotalAmps.toFixed(2)} A</span>
-              </div>
-            </div>
-
-            {/* Power Computation Breakdown */}
-            <div className="mt-3 relative z-10 bg-black/30 backdrop-blur-md rounded-2xl p-2.5 md:p-3 border border-white/15">
-              <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-maroon-200/90 mb-1">
-                <span>Power Computation</span>
-                <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.5 rounded font-mono">P = V × I</span>
-              </div>
-              <div className="font-mono text-xs md:text-[13px] text-white flex items-center justify-between flex-wrap gap-1 font-semibold">
-                <span>{systemVoltage.toFixed(0)} V × {computedTotalAmps.toFixed(2)} A</span>
-                <span className="text-maroon-200">= {(systemVoltage * computedTotalAmps).toFixed(1)} W</span>
-              </div>
-            </div>
           </div>
 
           {!activeDeviceId ? (
