@@ -553,7 +553,7 @@ const Dashboard = () => {
                 <span className={`w-1.5 h-1.5 rounded-full ${occupied ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
                 PIR Motion
               </span>
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${data?.settings?.mmwave_enabled !== false ? 'bg-maroon-50 text-maroon-800 border-maroon-100' : 'bg-gray-100 text-gray-400 border-gray-200'}`}>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-maroon-50 text-maroon-800 border-maroon-100">
                 mmWave Radar
               </span>
             </div>

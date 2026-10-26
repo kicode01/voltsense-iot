@@ -343,7 +343,7 @@ const TestLab = () => {
         title: 'Dual Presence Fusion (PIR HC-SR501 + mmWave LD2410)',
         desc: 'Boolean OR-fusion engine correctly evaluating gross motion and micromovements.',
         pass: occupancyPass,
-        detail: `Fused State: ${roomData?.is_occupied || (isDemo ? 'Occupied (Active)' : 'Unoccupied')} | Radar: ${roomData?.settings?.mmwave_enabled !== false ? 'Enabled' : 'Disabled'}`
+        detail: `Fused State: ${roomData?.is_occupied || (isDemo ? 'Occupied (Active)' : 'Unoccupied')} | Radar: Hardware Fused`
       },
       {
         id: 'overcurrent',
@@ -917,25 +917,17 @@ const TestLab = () => {
               <div className="p-4 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-gray-900">LD2410 mmWave (GPIO 4)</span>
-                    <button
-                      onClick={() => updateDeviceSetting('mmwave_enabled', roomData?.settings?.mmwave_enabled === false)}
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors ${
-                        roomData?.settings?.mmwave_enabled !== false
-                          ? 'bg-maroon-100 text-maroon-800 hover:bg-maroon-200'
-                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                      }`}
-                      title="Click to toggle radar software gate"
-                    >
-                      {roomData?.settings?.mmwave_enabled !== false ? 'Radar Enabled' : 'Disabled'}
-                    </button>
+                    <span className="text-xs font-bold text-gray-900">LD2410 mmWave (GPIO 14)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-maroon-100 text-maroon-800">
+                      Hardware Fused
+                    </span>
                   </div>
                   <p className="text-[11px] text-gray-500 leading-snug">
-                    Micro-motion radar detects chest breathing & motionless sitting. Prevents false shutoffs when occupants are still.
+                    Micro-motion radar detects chest breathing & motionless sitting. Permanently fused with PIR in firmware to prevent false shutoffs when occupants are still.
                   </p>
                 </div>
                 <div className="mt-3 pt-2 border-t border-gray-200/60 text-[10px] text-gray-400">
-                  Frequency: 24GHz FMCW | Range Gate: 3.5m
+                  Frequency: 24GHz FMCW | Digital Pin: GPIO 14
                 </div>
               </div>
 

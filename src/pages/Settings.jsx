@@ -13,8 +13,7 @@ import {
   KeyRound,
   AlertCircle,
   Sliders,
-  TriangleAlert,
-  Radar
+  TriangleAlert
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { enablePushForUser, clearPushToken } from '../lib/pushNotifications';
@@ -39,7 +38,6 @@ const Settings = () => {
     start_time: '22:00',
     end_time: '06:00'
   });
-  const [mmwaveEnabled, setMmwaveEnabled] = useState(false);
   const [loadingPush, setLoadingPush] = useState(false);
   // The pairing code the device prints after it provisions itself. Eight characters from an
   // unambiguous alphabet (no 0/O/1/I/L), optionally grouped as XXXX-XXXX by the formatter.
@@ -89,7 +87,6 @@ const Settings = () => {
   const storedNightModeEnabled = roomData?.settings?.night_mode_enabled;
   const storedNightModeStart = roomData?.settings?.night_mode_start;
   const storedNightModeEnd = roomData?.settings?.night_mode_end;
-  const storedMmwaveEnabled = roomData?.settings?.mmwave_enabled;
 
   useEffect(() => {
     if (!hasSettings) return;
@@ -98,14 +95,12 @@ const Settings = () => {
       start_time: storedNightModeStart || '22:00',
       end_time: storedNightModeEnd || '06:00'
     });
-    setMmwaveEnabled(storedMmwaveEnabled ?? false);
   }, [
     activeDeviceId,
     hasSettings,
     storedNightModeEnabled,
     storedNightModeStart,
-    storedNightModeEnd,
-    storedMmwaveEnabled
+    storedNightModeEnd
   ]);
 
   useEffect(() => {
@@ -180,11 +175,6 @@ const Settings = () => {
     const newConfig = { ...nightMode, [key]: value };
     setNightMode(newConfig);
     updateNightMode(newConfig);
-  };
-
-  const handleMmwaveChange = (value) => {
-    setMmwaveEnabled(value);
-    updateDeviceSetting('mmwave_enabled', value);
   };
 
   // -------------------------------------------------------------------------
@@ -698,28 +688,6 @@ const Settings = () => {
                 />
               </div>
             )}
-          </div>
-
-          {/* mmWave Radar Toggle */}
-          <div className="bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 md:gap-4">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
-                  <Radar className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
-                </div>
-                <div>
-                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">mmWave Radar</h3>
-                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">Enable secondary motion sensing for stillness detection</p>
-                </div>
-              </div>
-              
-              <button 
-                onClick={() => handleMmwaveChange(!mmwaveEnabled)}
-                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${mmwaveEnabled ? 'bg-maroon-800' : 'bg-gray-200'}`}
-              >
-                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ${mmwaveEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
           </div>
 
           {/* Notifications Section */}
