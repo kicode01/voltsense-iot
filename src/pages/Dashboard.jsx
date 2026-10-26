@@ -514,102 +514,89 @@ const Dashboard = () => {
             return (
               <div 
                 key={portId} 
-                className="bg-white/80 backdrop-blur-2xl border border-white/50 rounded-3xl shadow-[0_4px_24px_rgb(0,0,0,0.03)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between gap-3.5 group hover:shadow-lg hover:shadow-maroon-900/5 hover:-translate-y-0.5 animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both relative overflow-hidden" 
+                className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] p-4 md:p-5 flex flex-col justify-between transition-all duration-500 ease-apple-spring hover:shadow-lg hover:-translate-y-0.5 group animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" 
                 style={{ animationDelay: `${400 + (index * 100)}ms` }}
               >
-                {/* Accent Status Line */}
-                <div className={`absolute top-0 left-0 right-0 h-1 transition-colors duration-500 ${
-                  !portData.relay_status ? 'bg-gray-200' : conn.isDrawing ? 'bg-emerald-500' : 'bg-maroon-800'
-                }`} />
-
-                {/* Header: Icon + Name + Dot Status + Toggle Switch */}
-                <div className="flex items-center justify-between gap-3 pt-0.5">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div 
-                      className={`w-10 h-10 md:w-11 md:h-11 shrink-0 rounded-2xl flex items-center justify-center transition-all duration-500 ${
-                        portData.relay_status ? 'bg-maroon-50 text-maroon-800 shadow-inner' : 'bg-gray-100/90 text-gray-400'
-                      }`}
-                    >
-                      <Plug strokeWidth={1.5} className="w-5 h-5 transition-transform duration-500 ease-apple-spring group-hover:scale-110" />
-                    </div>
-                    <div className="flex flex-col min-w-0">
-                      <h3 className="text-base font-bold text-gray-900 leading-tight truncate">
-                        {displayName}
-                      </h3>
-                      <div className="flex items-center gap-1.5 mt-0.5" title={conn.loadCategory}>
-                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-500 ${conn.dotColor}`} />
-                        <span className={`text-[10px] font-bold uppercase tracking-wider transition-colors duration-500 truncate ${
-                          conn.isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
-                        }`}>
-                          {conn.statusLabel}
-                        </span>
+                <div>
+                  {/* Header: Icon, Name + Status, Toggle Switch */}
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div 
+                        className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500 ${
+                          portData.relay_status ? 'bg-maroon-50 text-maroon-800 shadow-inner' : 'bg-gray-100 text-gray-400'
+                        }`}
+                      >
+                        <Plug strokeWidth={1.5} className="w-5 h-5 transition-transform duration-500 ease-apple-spring group-hover:scale-110" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-base font-bold text-gray-900 leading-tight">
+                          {displayName}
+                        </h3>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-500 ${conn.dotColor}`} />
+                          <span className={`text-[11px] font-semibold transition-colors duration-500 ${
+                            conn.isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
+                          }`}>
+                            {!portData.relay_status ? 'Switched Off' : conn.isDrawing ? 'In Use' : 'No Load'}
+                          </span>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Apple-style Toggle Switch */}
+                    <button
+                      onClick={() => handleTogglePort(portId, !portData.relay_status)}
+                      disabled={pendingPorts[portId]}
+                      aria-label={`Toggle ${displayName} ${portData.relay_status ? 'Off' : 'On'}`}
+                      aria-busy={pendingPorts[portId] ? 'true' : 'false'}
+                      className={`relative w-12 h-7 shrink-0 rounded-full flex items-center p-1 transition-colors duration-500 ease-apple-spring focus:outline-none focus-visible:ring-4 focus-visible:ring-maroon-500/30 disabled:cursor-progress ${
+                        portData.relay_status ? 'bg-maroon-800' : 'bg-gray-200'
+                      }`}
+                    >
+                      <div className="absolute -inset-2" aria-hidden="true"></div>
+                      <div className={`w-5 h-5 bg-white rounded-full shadow-sm flex items-center justify-center transform transition-transform duration-500 ease-apple-spring ${
+                        portData.relay_status ? 'translate-x-5' : 'translate-x-0'
+                      }`}>
+                        {pendingPorts[portId] && (
+                          <Loader2 className="w-3 h-3 animate-spin text-maroon-800" />
+                        )}
+                      </div>
+                    </button>
                   </div>
 
-                  {/* Switch Button */}
-                  <button
-                    onClick={() => handleTogglePort(portId, !portData.relay_status)}
-                    disabled={pendingPorts[portId]}
-                    aria-label={`Toggle ${displayName} ${portData.relay_status ? 'Off' : 'On'}`}
-                    aria-busy={pendingPorts[portId] ? 'true' : 'false'}
-                    className={`relative w-12 h-7 shrink-0 rounded-full flex items-center p-1 transition-colors duration-500 ease-apple-spring focus:outline-none focus-visible:ring-4 focus-visible:ring-maroon-500/30 disabled:cursor-progress ${portData.relay_status ? 'bg-maroon-800' : 'bg-gray-200'}`}
-                  >
-                    <div className="absolute -inset-2" aria-hidden="true"></div>
-                    <div className={`w-5 h-5 bg-white rounded-full shadow-md flex items-center justify-center transform transition-transform duration-500 ease-apple-spring ${portData.relay_status ? 'translate-x-5' : 'translate-x-0'}`}>
-                      {pendingPorts[portId] && (
-                        <Loader2 className="w-3 h-3 animate-spin text-maroon-800" />
-                      )}
-                    </div>
-                  </button>
-                </div>
-
-                {/* 3-Column Clean Telemetry Bar: Voltage, Current, Power */}
-                <div className="grid grid-cols-3 gap-2 bg-gray-50/70 border border-gray-100 rounded-2xl p-2.5">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Voltage</span>
-                    <span className="text-[13px] md:text-sm font-bold text-gray-900 tracking-tight mt-0.5 whitespace-nowrap">
-                      {portVolts.toFixed(0)} <span className="text-[10px] font-medium text-gray-400">V</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Current</span>
-                    <span className="text-[13px] md:text-sm font-bold text-gray-900 tracking-tight mt-0.5 whitespace-nowrap">
-                      {portAmps.toFixed(2)} <span className="text-[10px] font-medium text-gray-400">A</span>
-                    </span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400">Power</span>
-                    <span className={`text-[13px] md:text-sm font-bold tracking-tight mt-0.5 whitespace-nowrap ${conn.isDrawing ? 'text-emerald-700' : 'text-gray-900'}`}>
-                      {portData.relay_status ? displayWatts : '0.0'} <span className="text-[10px] font-medium text-gray-400">W</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Footer: Load Tag, Power Factor & Formula */}
-                <div className="flex flex-col gap-1.5 pt-0.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-[9.5px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border whitespace-nowrap ${
-                      conn.isDrawing 
-                        ? 'text-emerald-800 bg-emerald-50 border-emerald-200' 
-                        : conn.isEnergized 
-                        ? 'text-amber-800 bg-amber-50 border-amber-200'
-                        : 'text-gray-400 bg-gray-50 border-gray-100'
+                  {/* Active Power Display */}
+                  <div className="flex items-baseline gap-1.5 mb-3">
+                    <span className={`text-3xl font-bold tracking-tight transition-colors duration-500 ${
+                      conn.isDrawing ? 'text-gray-900' : 'text-gray-400'
                     }`}>
-                      {conn.loadCategory}
+                      {portData.relay_status ? displayWatts : '0.0'}
                     </span>
-                    <span className="text-[10px] font-semibold text-gray-400 whitespace-nowrap">
-                      PF: <span className="font-bold text-gray-700">{portPf.toFixed(2)}</span>
-                    </span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">W</span>
                   </div>
 
-                  {/* Clean Formula Badge */}
-                  <div className="flex items-center justify-between text-[9px] font-mono text-maroon-900 bg-maroon-50/60 border border-maroon-100/80 rounded-xl px-2.5 py-1.5 overflow-hidden">
-                    <span className="font-bold text-maroon-800 shrink-0 mr-1.5">P = V × I × PF</span>
-                    <span className="text-gray-600 truncate text-right">
-                      {portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A × {portPf.toFixed(2)} = <strong className="text-maroon-900">{portData.relay_status ? (conn.isDrawing ? `${displayWatts}W` : '0W') : '0W'}</strong>
-                    </span>
+                  {/* Clean 3-Column Metrics Row */}
+                  <div className="grid grid-cols-3 gap-2 py-2.5 border-t border-gray-100">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Voltage</span>
+                      <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portVolts.toFixed(0)} V</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Current</span>
+                      <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portAmps.toFixed(2)} A</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Power Factor</span>
+                      <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portPf.toFixed(2)}</span>
+                    </div>
                   </div>
+                </div>
+
+                {/* Formula Footnote */}
+                <div className="pt-2.5 border-t border-gray-100/70 flex items-center justify-between text-[10px] font-mono text-gray-400">
+                  <span className="font-semibold text-gray-400">P = V × I × PF</span>
+                  <span className="text-gray-500 font-medium">
+                    {portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A × {portPf.toFixed(2)} = <strong className="text-gray-900 font-bold">{portData.relay_status ? (conn.isDrawing ? `${displayWatts}W` : '0W') : '0W'}</strong>
+                  </span>
                 </div>
               </div>
             );

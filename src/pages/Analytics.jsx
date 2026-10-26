@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from 'recharts';
-import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity, Layers, Plug } from 'lucide-react';
+import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity, Layers, Plug, Calculator, PieChart } from 'lucide-react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useHistoryData, generateMockData } from '../hooks/useHistoryData';
 import { useRoomData } from '../hooks/useRoomData';
@@ -34,7 +34,11 @@ const Analytics = () => {
   const [isCustomModalVisible, setIsCustomModalVisible] = useState(false);
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
   const [isChartsReady, setIsChartsReady] = useState(false);
+  const [selectedOutletTab, setSelectedOutletTab] = useState('all');
+  const [activeOutletIndex, setActiveOutletIndex] = useState(0);
+  const [shareViewMode, setShareViewMode] = useState('ribbon');
   const dropdownRef = useRef(null);
+  const carouselRef = useRef(null);
 
   const { activeDeviceId, devicesLoading } = useDeviceContext();
 
@@ -101,7 +105,7 @@ const Analytics = () => {
 
   const defaultPortShare = {
     port_01: { name: 'Port 1', icon: 'plug', share: 0.58, volts: 220, amps: 0.25, watts: 55.0, pf: 0.98 },
-    port_02: { name: 'Port 2', icon: 'plug', share: 0.11, volts: 220, amps: 0.05, watts: 12.0, pf: 0.95 },
+    port_02: { name: 'Port 2', icon: 'plug', share: 0.11, volts: 220, amps: 0.10, watts: 21.0, pf: 0.95 },
     port_03: { name: 'Port 3', icon: 'plug', share: 0.31, volts: 220, amps: 0.20, watts: 44.0, pf: 0.92 },
   };
 
@@ -109,6 +113,39 @@ const Analytics = () => {
     port_01: '#852636',
     port_02: '#d97706',
     port_03: '#2563eb'
+  };
+
+  const portThemes = {
+    port_01: {
+      color: '#852636',
+      gradient: 'from-[#852636] to-[#b83b52]',
+      bgLight: 'bg-[#852636]/[0.03]',
+      borderCard: 'border-[#852636]/20 hover:border-[#852636]/40',
+      textAccent: 'text-[#852636]',
+      badge: 'bg-[#852636]/10 text-[#852636] border-[#852636]/20',
+      formulaBg: 'bg-[#852636]/[0.04] border-[#852636]/15',
+      dotColor: 'bg-[#852636]',
+    },
+    port_02: {
+      color: '#d97706',
+      gradient: 'from-amber-500 to-amber-600',
+      bgLight: 'bg-amber-500/[0.03]',
+      borderCard: 'border-amber-500/20 hover:border-amber-500/40',
+      textAccent: 'text-amber-700',
+      badge: 'bg-amber-50 text-amber-700 border-amber-200',
+      formulaBg: 'bg-amber-50/60 border-amber-200/60',
+      dotColor: 'bg-amber-500',
+    },
+    port_03: {
+      color: '#2563eb',
+      gradient: 'from-blue-600 to-indigo-600',
+      bgLight: 'bg-blue-500/[0.03]',
+      borderCard: 'border-blue-500/20 hover:border-blue-500/40',
+      textAccent: 'text-blue-700',
+      badge: 'bg-blue-50 text-blue-700 border-blue-200',
+      formulaBg: 'bg-blue-50/60 border-blue-200/60',
+      dotColor: 'bg-blue-600',
+    }
   };
 
   const outletList = ['port_01', 'port_02', 'port_03'].map((portKey) => {
@@ -146,9 +183,29 @@ const Analytics = () => {
       watts,
       pf,
       costPhp,
-      color: portColors[portKey] || '#852636'
+      color: portColors[portKey] || '#852636',
+      theme: portThemes[portKey] || portThemes.port_01
     };
   });
+
+  const handleCarouselScroll = (e) => {
+    const { scrollLeft, offsetWidth } = e.currentTarget;
+    if (offsetWidth > 0) {
+      const index = Math.round(scrollLeft / (offsetWidth * 0.82));
+      setActiveOutletIndex(Math.max(0, Math.min(index, 2)));
+    }
+  };
+
+  const scrollToOutletIndex = (index) => {
+    setActiveOutletIndex(index);
+    if (carouselRef.current && carouselRef.current.children[index]) {
+      carouselRef.current.children[index].scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center'
+      });
+    }
+  };
 
   const outletChartData = outletList.map(o => ({
     name: o.name,
@@ -156,6 +213,10 @@ const Analytics = () => {
     kwh: Number(o.energyKwh.toFixed(2)),
     color: o.color
   }));
+
+  const displayedOutlets = selectedOutletTab === 'all' 
+    ? outletList 
+    : outletList.filter(o => o.id === selectedOutletTab);
 
   const renderOutletIcon = (iconName, colorClass) => {
     return <Plug className={colorClass} strokeWidth={1.5} />;
@@ -490,128 +551,423 @@ const Analytics = () => {
       </div>
 
       {/* Per-Outlet Monitoring & Energy Breakdown */}
-      <div className="analytics-outlets bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500 fill-mode-both">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
-          <div>
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-maroon-800" />
-              <h3 className="text-base md:text-lg font-bold text-gray-900 tracking-tight">Per-Outlet Monitoring &amp; Energy Breakdown</h3>
+      <div className="analytics-outlets scroll-mt-24 bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500 fill-mode-both">
+        {/* Header & Mobile Filter Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-maroon-50 text-maroon-800 flex items-center justify-center border border-maroon-100 shrink-0">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-base md:text-lg font-bold text-gray-900 tracking-tight leading-tight">
+                  Per-Outlet Monitoring &amp; Energy Breakdown
+                </h3>
+                <p className="text-gray-500 text-[11px] md:text-xs font-medium mt-0.5">
+                  Real-time electrical telemetry and power calculations per socket
+                </p>
+              </div>
             </div>
-            <p className="text-gray-500 text-xs font-medium mt-1">Real-time electrical telemetry and power calculations per socket</p>
+          </div>
+
+          {/* Segmented Filter Pills */}
+          <div className="flex items-center gap-1 bg-gray-100/90 p-1 rounded-2xl self-start sm:self-auto shrink-0 overflow-x-auto max-w-full hide-scrollbar border border-gray-200/50">
+            <button
+              onClick={() => setSelectedOutletTab('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
+                selectedOutletTab === 'all'
+                  ? 'bg-white text-maroon-800 shadow-2xs'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              All Outlets
+            </button>
+            {outletList.map((outlet) => (
+              <button
+                key={`tab-${outlet.id}`}
+                onClick={() => setSelectedOutletTab(outlet.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
+                  selectedOutletTab === outlet.id
+                    ? 'bg-white shadow-2xs font-extrabold'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+                style={selectedOutletTab === outlet.id ? { color: outlet.color } : {}}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ backgroundColor: outlet.color }}
+                />
+                {outlet.name}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* 3 Outlet Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
-          {outletList.map((outlet) => (
+        {/* Outlet Cards Layout: Carousel on Mobile (< md), 3-col Bento Grid on Desktop */}
+        <div
+          ref={carouselRef}
+          onScroll={handleCarouselScroll}
+          className={`${
+            displayedOutlets.length > 1
+              ? 'flex md:grid md:grid-cols-3 overflow-x-auto snap-x snap-mandatory gap-3.5 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 hide-scrollbar'
+              : 'grid grid-cols-1 max-w-xl mx-auto'
+          }`}
+        >
+          {displayedOutlets.map((outlet) => (
             <div 
               key={outlet.id} 
-              className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 md:p-5 flex flex-col justify-between hover:bg-white hover:shadow-lg transition-all duration-300 group relative overflow-hidden"
+              className={`bg-white border rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 relative overflow-hidden group shadow-[0_4px_20px_rgb(0,0,0,0.03)] hover:shadow-lg ${
+                displayedOutlets.length > 1 ? 'w-[86vw] sm:w-[320px] md:w-auto shrink-0 snap-center' : 'w-full'
+              } ${outlet.theme.borderCard}`}
             >
-              <div className="absolute top-0 left-0 h-1 w-full" style={{ backgroundColor: outlet.color }} />
+              {/* Top Colored Accent Stripe */}
+              <div 
+                className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${outlet.theme.gradient}`} 
+              />
               
               <div>
                 {/* Header: Label, Icon, Status */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2.5">
+                <div className="flex items-start justify-between gap-2 mb-3.5 pt-1">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <div 
-                      className="w-9 h-9 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105"
-                      style={{ backgroundColor: `${outlet.color}15`, color: outlet.color }}
+                      className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 transition-transform duration-300 group-hover:scale-105 border shadow-2xs"
+                      style={{ 
+                        backgroundColor: `${outlet.color}12`, 
+                        borderColor: `${outlet.color}25`,
+                        color: outlet.color 
+                      }}
                     >
-                      {renderOutletIcon(outlet.icon, "w-4 h-4")}
+                      {renderOutletIcon(outlet.icon, "w-5 h-5")}
                     </div>
-                    <div>
-                      <h4 className="text-base font-bold text-gray-900 leading-tight">{outlet.name}</h4>
+                    <div className="min-w-0">
+                      <h4 className="text-base font-bold text-gray-900 leading-tight truncate">
+                        {outlet.name}
+                      </h4>
+                      <span className="text-[10px] font-semibold text-gray-400 block mt-0.5 uppercase tracking-wider">
+                        Socket {outlet.label.replace('Port ', '')} • 220V AC
+                      </span>
                     </div>
                   </div>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                    outlet.isRelayOn 
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                      : 'bg-gray-100 text-gray-400 border-gray-200'
+
+                  {/* Live Status Pill */}
+                  <span className={`shrink-0 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full border shadow-2xs transition-all ${
+                    !outlet.isRelayOn 
+                      ? 'bg-gray-100 text-gray-400 border-gray-200' 
+                      : (outlet.watts > 6 || outlet.amps > 0.08)
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
                   }`}>
-                    {outlet.isRelayOn ? 'Active' : 'Off'}
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      !outlet.isRelayOn 
+                        ? 'bg-gray-400' 
+                        : (outlet.watts > 6 || outlet.amps > 0.08)
+                        ? 'bg-emerald-500 animate-pulse'
+                        : 'bg-amber-500'
+                    }`} />
+                    {!outlet.isRelayOn 
+                      ? 'Relay Off' 
+                      : (outlet.watts > 6 || outlet.amps > 0.08)
+                      ? 'Active'
+                      : 'Standby'}
                   </span>
                 </div>
 
-                {/* Energy & Consumption */}
-                <div className="bg-white border border-gray-100 rounded-xl p-3 mb-3 shadow-xs">
-                  <div className="flex items-baseline justify-between mb-1.5">
-                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Consumption</span>
+                {/* Energy & Consumption Bento Card */}
+                <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-3 sm:p-3.5 mb-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Energy Consumed
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${outlet.theme.badge}`}>
+                      {outlet.percentage}% Share
+                    </span>
                   </div>
-                  <div className="flex items-baseline gap-1.5 mb-2">
-                    <span className="text-2xl font-black text-gray-900 tracking-tight">{outlet.energyKwh.toFixed(2)}</span>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
+                  
+                  <div className="flex items-baseline justify-between mb-2.5">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+                        {outlet.energyKwh.toFixed(2)}
+                      </span>
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-gray-800">₱{outlet.costPhp}</span>
+                      <span className="text-[9px] text-gray-400 font-semibold block uppercase tracking-wider">est. cost</span>
+                    </div>
                   </div>
-                  {/* Progress Bar */}
-                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+
+                  {/* Dual-Tone Gradient Progress Bar */}
+                  <div className="w-full bg-gray-200/80 rounded-full h-2 overflow-hidden p-0.5">
                     <div 
-                      className="h-full rounded-full transition-all duration-700 ease-out" 
-                      style={{ width: `${Math.max(4, outlet.percentage)}%`, backgroundColor: outlet.color }}
+                      className={`h-full rounded-full transition-all duration-700 ease-out bg-gradient-to-r ${outlet.theme.gradient}`} 
+                      style={{ width: `${Math.max(5, outlet.percentage)}%` }}
                     />
                   </div>
                 </div>
 
-                {/* Live Electrical Telemetry: V, A, W, PF */}
+                {/* Live Electrical Telemetry: 2x2 Bento Tiles */}
                 <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div className="bg-white border border-gray-100 rounded-xl p-2.5">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">Voltage (V)</span>
-                    <span className="text-sm font-bold text-gray-900">{outlet.volts.toFixed(0)} V</span>
+                  <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                      Voltage (RMS)
+                    </span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm sm:text-base font-extrabold text-gray-900">
+                        {outlet.volts.toFixed(0)}
+                      </span>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">V</span>
+                    </div>
                   </div>
-                  <div className="bg-white border border-gray-100 rounded-xl p-2.5">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">Current (A)</span>
-                    <span className="text-sm font-bold text-gray-900">{outlet.amps.toFixed(2)} A</span>
+
+                  <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                      Current (RMS)
+                    </span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm sm:text-base font-extrabold text-gray-900">
+                        {outlet.amps.toFixed(2)}
+                      </span>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">A</span>
+                    </div>
                   </div>
-                  <div className="bg-white border border-gray-100 rounded-xl p-2.5">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">Active Power</span>
-                    <span className="text-sm font-bold text-gray-900">{outlet.watts.toFixed(1)} W</span>
+
+                  <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                      Active Power
+                    </span>
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-sm sm:text-base font-extrabold ${outlet.watts > 0 ? outlet.theme.textAccent : 'text-gray-900'}`}>
+                        {outlet.watts.toFixed(1)}
+                      </span>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">W</span>
+                    </div>
                   </div>
-                  <div className="bg-white border border-gray-100 rounded-xl p-2.5">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">Power Factor</span>
-                    <span className="text-sm font-bold text-gray-900">{outlet.pf.toFixed(2)}</span>
+
+                  <div className="bg-white border border-gray-100 rounded-xl p-2.5 shadow-2xs">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 block mb-0.5">
+                      Power Factor
+                    </span>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm sm:text-base font-extrabold text-gray-900">
+                        {outlet.pf.toFixed(2)}
+                      </span>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase">PF</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Power Computation Formula Badge */}
-              <div className="bg-maroon-50/60 border border-maroon-100/80 rounded-xl p-2.5 text-[10px] font-mono">
-                <div className="flex items-center justify-between text-maroon-900 font-bold mb-0.5">
-                  <span className="text-[9px] uppercase tracking-wider text-maroon-700">Formula (P = V × I × PF)</span>
-                  <span className="text-maroon-800 font-bold">{outlet.watts.toFixed(1)} W</span>
+              {/* Mathematical Telemetry Formula Chip */}
+              <div className={`rounded-xl p-2.5 border ${outlet.theme.formulaBg} transition-all duration-300`}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Calculator className={`w-3 h-3 ${outlet.theme.textAccent}`} />
+                    <span className={`text-[9px] font-bold uppercase tracking-wider ${outlet.theme.textAccent}`}>
+                      Formula (P = V × I × PF)
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-black ${outlet.theme.textAccent} font-mono`}>
+                    {outlet.watts.toFixed(1)} W
+                  </span>
                 </div>
-                <div className="text-gray-600 truncate">
-                  {outlet.volts.toFixed(0)}V × {outlet.amps.toFixed(2)}A × {outlet.pf.toFixed(2)} = {outlet.watts.toFixed(1)}W
+                <div className="flex items-center gap-1 text-[10px] font-mono text-gray-600 overflow-x-auto hide-scrollbar py-0.5">
+                  <span className="bg-white border border-gray-200/70 px-1.5 py-0.5 rounded font-bold shadow-2xs whitespace-nowrap">
+                    {outlet.volts.toFixed(0)}V
+                  </span>
+                  <span className="text-gray-400 font-bold">×</span>
+                  <span className="bg-white border border-gray-200/70 px-1.5 py-0.5 rounded font-bold shadow-2xs whitespace-nowrap">
+                    {outlet.amps.toFixed(2)}A
+                  </span>
+                  <span className="text-gray-400 font-bold">×</span>
+                  <span className="bg-white border border-gray-200/70 px-1.5 py-0.5 rounded font-bold shadow-2xs whitespace-nowrap">
+                    {outlet.pf.toFixed(2)}
+                  </span>
+                  <span className="text-gray-400 font-bold">=</span>
+                  <span className={`px-1.5 py-0.5 rounded font-bold ${outlet.theme.badge} whitespace-nowrap`}>
+                    {outlet.watts.toFixed(1)}W
+                  </span>
                 </div>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Outlet Consumption Comparison Bar Chart */}
-        <div className="mt-6 pt-5 border-t border-gray-100">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">
-              Outlet Energy Share Comparison
-            </h4>
-            <span className="text-xs font-semibold text-gray-400">Total: {totalEnergy.toFixed(2)} kWh</span>
+        {/* Carousel Pagination Dots (Mobile Only when All are shown) */}
+        {displayedOutlets.length > 1 && (
+          <div className="flex items-center justify-center gap-1.5 mt-3 md:hidden">
+            {outletList.map((outlet, idx) => (
+              <button
+                key={`dot-${outlet.id}`}
+                onClick={() => scrollToOutletIndex(idx)}
+                aria-label={`Jump to ${outlet.name}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  activeOutletIndex === idx 
+                    ? `w-6 ${outlet.theme.dotColor}` 
+                    : 'w-1.5 bg-gray-200'
+                }`}
+              />
+            ))}
           </div>
-          <div className="h-44 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={outletChartData} barSize={28} layout="vertical" margin={{ top: 5, right: 30, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
-                <XAxis type="number" stroke="#9ca3af" fontSize={11} tickLine={false} axisLine={false} unit=" kWh" />
-                <YAxis type="category" dataKey="name" stroke="#4b5563" fontSize={11} tickLine={false} axisLine={false} width={120} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb', borderRadius: '12px', fontWeight: 'bold' }}
-                  formatter={(val) => [`${Number(val).toFixed(2)} kWh`, 'Energy']}
-                />
-                <Bar dataKey="kwh" radius={[0, 6, 6, 0]}>
-                  {outletChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+        )}
+
+        {/* Outlet Consumption Comparison Section */}
+        <div className="mt-7 pt-6 border-t border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <PieChart className="w-4 h-4 text-maroon-800" />
+                <h4 className="text-xs md:text-sm font-bold uppercase tracking-wider text-gray-700">
+                  Outlet Energy Share Comparison
+                </h4>
+              </div>
+              <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+                Total aggregate consumption: <span className="font-bold text-gray-700">{totalEnergy.toFixed(2)} kWh</span> (~₱{(totalEnergy * MERALCO_RATE_PHP).toFixed(2)})
+              </p>
+            </div>
+
+            {/* View Mode Switcher: Ribbon Bar vs Recharts Bar */}
+            <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-xl self-start sm:self-auto border border-gray-200/40">
+              <button
+                onClick={() => setShareViewMode('ribbon')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                  shareViewMode === 'ribbon'
+                    ? 'bg-white text-gray-900 shadow-2xs font-extrabold'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Distribution Bar
+              </button>
+              <button
+                onClick={() => setShareViewMode('chart')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-all ${
+                  shareViewMode === 'chart'
+                    ? 'bg-white text-gray-900 shadow-2xs font-extrabold'
+                    : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Bar Chart
+              </button>
+            </div>
           </div>
+
+          {shareViewMode === 'ribbon' ? (
+            <div>
+              {/* Proportional Multi-Segment Ribbon Bar */}
+              <div className="w-full bg-gray-100 p-1 rounded-2xl flex items-center gap-1 shadow-inner overflow-hidden mb-3.5">
+                {outletList.map((outlet) => {
+                  const widthPct = totalEnergy > 0 ? Math.max(8, outlet.percentage) : 33.3;
+                  return (
+                    <div
+                      key={`ribbon-${outlet.id}`}
+                      style={{ width: `${widthPct}%` }}
+                      className={`h-5 sm:h-6 rounded-xl bg-gradient-to-r ${outlet.theme.gradient} transition-all duration-700 ease-out relative flex items-center justify-center text-[10px] font-bold text-white shadow-2xs px-1`}
+                      title={`${outlet.name}: ${outlet.energyKwh.toFixed(2)} kWh (${outlet.percentage}%)`}
+                    >
+                      <span className="truncate drop-shadow-xs font-mono">
+                        {outlet.percentage}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 3 Metric Summary Cards - Single compact row on mobile, full bento on desktop */}
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-3.5">
+                {outletList.map((outlet) => (
+                  <div
+                    key={`summary-${outlet.id}`}
+                    onClick={() => setSelectedOutletTab(selectedOutletTab === outlet.id ? 'all' : outlet.id)}
+                    className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl border transition-all duration-300 cursor-pointer ${
+                      selectedOutletTab === outlet.id 
+                        ? `${outlet.theme.borderCard} ${outlet.theme.bgLight} shadow-sm ring-1 ring-current`
+                        : 'bg-gray-50/70 border-gray-100 hover:bg-white hover:shadow-2xs'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1 sm:mb-2">
+                      <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+                        <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0 ${outlet.theme.dotColor}`} />
+                        <span className="text-[11px] sm:text-xs font-bold text-gray-800 truncate">{outlet.name}</span>
+                      </div>
+                      <span className={`text-[8px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full border shrink-0 ${outlet.theme.badge}`}>
+                        {outlet.percentage}%
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between">
+                      <div className="flex items-baseline gap-0.5 sm:gap-1">
+                        <span className="text-xs sm:text-base font-extrabold text-gray-900">
+                          {outlet.energyKwh.toFixed(2)}
+                        </span>
+                        <span className="text-[9px] sm:text-[10px] font-bold text-gray-400">kWh</span>
+                      </div>
+                      <span className="text-[10px] sm:text-xs font-semibold text-gray-600">
+                        ₱{outlet.costPhp}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-1 sm:mt-2 pt-1 sm:pt-2 border-t border-gray-100/80 text-[8px] sm:text-[10px] text-gray-500 font-medium">
+                      <span className="hidden sm:inline">Live draw</span>
+                      <span className={`font-bold ${outlet.watts > 0 ? outlet.theme.textAccent : 'text-gray-600'}`}>
+                        {outlet.watts.toFixed(1)}W
+                      </span>
+                      <span className={`text-[8px] sm:text-[9px] font-semibold uppercase ${
+                        outlet.watts > 6 ? 'text-emerald-600' : 'text-gray-400'
+                      }`}>
+                        {outlet.watts > 6 ? 'Active' : 'Idle'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Responsive Recharts Bar Chart */
+            <div className="h-44 sm:h-48 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={outletChartData} 
+                  barSize={24} 
+                  layout="vertical" 
+                  margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
+                  <XAxis 
+                    type="number" 
+                    stroke="#9ca3af" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    unit=" kWh" 
+                  />
+                  <YAxis 
+                    type="category" 
+                    dataKey="name" 
+                    stroke="#4b5563" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    width={70} 
+                  />
+                  <Tooltip
+                    contentStyle={{ 
+                      backgroundColor: '#ffffff', 
+                      borderColor: '#e5e7eb', 
+                      borderRadius: '16px', 
+                      boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
+                      fontWeight: 'bold',
+                      fontSize: '12px'
+                    }}
+                    formatter={(val) => [`${Number(val).toFixed(2)} kWh`, 'Energy']}
+                  />
+                  <Bar dataKey="kwh" radius={[0, 8, 8, 0]}>
+                    {outletChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </div>
 
