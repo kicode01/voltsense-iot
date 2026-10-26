@@ -225,7 +225,7 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
 //
 // Until step 3, every code path behaves exactly as it did before this section existed.
 // ---------------------------------------------------------------------------
-#define HAS_VOLTAGE_SENSE       // Enabled: ZMPT101B AC voltage sensing on GPIO 33 with Method A Auto-Calibration
+// #define HAS_VOLTAGE_SENSE       // uncomment ONLY when the sensor is physically wired AND calibrated
 #ifdef HAS_VOLTAGE_SENSE
   // The pin itself is defined at file scope above; nothing to redeclare here.
 #endif
@@ -278,22 +278,12 @@ unsigned long lastHistoryPublishMillis = 0;
 unsigned long lastEnergyPersistMillis = 0;
 unsigned long lastHourSeen = 0;
 
-// Timers (idleTimeoutMs is overridable at runtime from settings/inactivity_limit_seconds or inactivity_limit_minutes)
+// Timers (idleTimeoutMs is overridable at runtime from settings/inactivity_limit_minutes)
 const unsigned long DEFAULT_IDLE_TIMEOUT_MS = 15 * 60 * 1000UL; // 15 minutes
 unsigned long idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS;
-const unsigned long DEFAULT_RESPONSE_WINDOW_MS = 300 * 1000UL; // 5 minutes
-unsigned long responseWindowMs = DEFAULT_RESPONSE_WINDOW_MS;
+const unsigned long RESPONSE_WINDOW_MS = 300 * 1000UL; // 5 minutes
 const unsigned long HISTORY_PUBLISH_MS = 5 * 60 * 1000UL;
 const unsigned long ENERGY_PERSIST_MS = 5 * 60 * 1000UL;
-
-// Dynamic Sensor Hold-off / Delay Filters (Item 3: overridable per sensor)
-unsigned long pirHoldMs = 5000UL;      // default 5s
-unsigned long mmwaveHoldMs = 3000UL;   // default 3s
-
-// mmWave & PIR configuration / overrides (Item 5: fixes mmwave not turning false)
-bool mmwaveInverted = false; // true if radar pin polarity is active-low
-int forcePir = -1;           // -1 = Auto (live pin), 0 = Force False, 1 = Force True
-int forceMmwave = -1;        // -1 = Auto (live pin), 0 = Force False, 1 = Force True
 // ---------------------------------------------------------------------------
 // Voltage — CONFIGURED, or MEASURED when a sensor is fitted
 // ---------------------------------------------------------------------------
@@ -321,17 +311,12 @@ int forceMmwave = -1;        // -1 = Auto (live pin), 0 = Force False, 1 = Force
 // P2-7: even in mode A the nominal is a *fallback*, not a hardcoded pretence. A user who measures
 // their supply can set `settings/nominal_voltage`, which takes precedence and is persisted to NVS
 // so it survives a reboot. The pushed `voltage` field is then the value the device actually used.
-const float VOLTAGE = 230.0;
+const float VOLTAGE = 220.0;
 
 // Runtime-overridable supply voltage. Written by streamCallback when the app changes
 // `settings/nominal_voltage` (or restored from NVS at boot). Kept in RAM because the telemetry
 // path reads it every 2 s and NVS reads are slow.
 float nominalVoltage = VOLTAGE;
-
-// Bench Test Mode: When enabled, allows desktop testing of ACS712 current sensors over USB
-// power without requiring live 220V AC mains to be plugged into the ZMPT101B voltage transformer.
-// When false (default), enforces strict mains monitoring and clamps to 0 when unplugged.
-bool benchMode = false;
 
 #ifdef HAS_VOLTAGE_SENSE
 // ---------------------------------------------------------------------------
@@ -382,8 +367,7 @@ bool measuredVoltageIsUsable() {
  */
 float supplyVoltage() {
 #ifdef HAS_VOLTAGE_SENSE
-  if (!benchMode && measuredVoltageIsUsable()) return measuredVoltageRms;
-  if (!benchMode && lastVoltageSampleMs > 0 && measuredVoltageRms < 50.0f) return 0.0f;
+  if (measuredVoltageIsUsable()) return measuredVoltageRms;
 #endif
   if (nominalVoltage >= 50.0f && nominalVoltage <= 300.0f) return nominalVoltage;
   return VOLTAGE;
@@ -398,7 +382,6 @@ float supplyVoltage() {
  */
 bool voltageIsMeasured() {
 #ifdef HAS_VOLTAGE_SENSE
-  if (benchMode) return false;
   return measuredVoltageIsUsable();
 #else
   return false;
@@ -434,7 +417,7 @@ String historyDayDate = ""; // which day the hourly buckets belong to
 // Database Settings
 bool overrideActive = false;
 bool nightModeEnabled = true;
-bool mmwaveEnabled = true;
+bool mmwaveEnabled = false;
 String nightModeStart = "22:00";
 String nightModeEnd = "06:00";
 
@@ -1376,42 +1359,27 @@ void setAllRelays(bool state) {
 
 // Below this the sensor is reading its own noise floor, not load current. THIS IS A DISPLAY
 // THRESHOLD ONLY — it is applied by the telemetry/history path, NOT inside the sensor read, so it
-// can never influence a control decision. Clamps ambient ADC/Hall noise below 50 mA (approx 11 W) to clean 0.00 A.
-#define CURRENT_NOISE_FLOOR_A 0.03f
+// can never influence a control decision. See currentIsFlowing() for the shutdown threshold.
+#define CURRENT_NOISE_FLOOR_A 0.04f
 
 float readACS712RMS(int pin) {
   uint32_t start = millis();
-  int n = 0;
-  static const int MAX_SAMPLES = 420;
-  static int16_t samples[MAX_SAMPLES];
+  int minMv = INT32_MAX;
+  int maxMv = INT32_MIN;
 
-  int64_t sum = 0;
-  while ((millis() - start) < CURRENT_SAMPLE_MS && n < MAX_SAMPLES) {
+  while ((millis() - start) < CURRENT_SAMPLE_MS) {
     int mv = analogReadMilliVolts(pin);
-    samples[n] = (int16_t)mv;
-    sum += mv;
-    n++;
+    if (mv < minMv) minMv = mv;
+    if (mv > maxMv) maxMv = mv;
     delayMicroseconds(CURRENT_SAMPLE_US);
   }
-  if (n < 16) return 0.0f;
 
-  int32_t bias = (int32_t)(sum / n);
-  int64_t sumSq = 0;
-  int minMv = INT32_MAX, maxMv = INT32_MIN;
-  for (int k = 0; k < n; k++) {
-    int32_t diff = (int32_t)samples[k] - bias;
-    sumSq += (int64_t)diff * diff;
-    if (samples[k] < minMv) minMv = samples[k];
-    if (samples[k] > maxMv) maxMv = samples[k];
-  }
+  if (maxMv <= minMv) return 0.0f; // flat line = definitively no signal
 
-  float vRms_mV = (float)sqrt((double)sumSq / (double)n);
-  int deltaMv = (maxMv > minMv) ? (maxMv - minMv) : 0;
-  // If peak-to-peak swing is under 50 mV or RMS is under 18 mV, it is quiescent ADC/Hall noise
-  if (vRms_mV < 5.0f || deltaMv < 18) return 0.0f;
-
-  float amps = vRms_mV / ACS712_MV_PER_AMP;
-  return (amps < CURRENT_NOISE_FLOOR_A) ? 0.0f : amps;
+  // millivolts peak-to-peak -> volts RMS of a sine: Vpp/2 = Vpeak, Vpeak * 0.7071 = Vrms
+  float vppVolts = (maxMv - minMv) / 1000.0f;
+  float vRms = (vppVolts / 2.0f) * 0.70710678f;
+  return vRms / (ACS712_MV_PER_AMP / 1000.0f);
 }
 
 #ifdef HAS_VOLTAGE_SENSE
@@ -1447,7 +1415,15 @@ float readACS712RMS(int pin) {
 // over 512 samples the sum reaches ~5.6e9, which overflows a 32-bit int and would silently wrap.
 // Integer accumulation is also exact, so the only rounding is the final square root.
 // ---------------------------------------------------------------------------
-// Note: struct PowerReading is declared in VoltSenseTypes.h so it precedes Arduino's auto-generated prototypes.
+
+struct PowerReading {
+  float volts;  // measured mains RMS
+  float amps;   // true RMS current
+  float watts;  // real power, mean(v*i) — the phase-correct figure
+  float va;     // apparent power, V_rms * I_rms
+  float pf;     // measured power factor, watts/va
+  bool valid;   // false = too few samples / flat line, caller must not trust the numbers
+};
 
 // ~400 samples at the 250 us cadence over a 100 ms window; 512 leaves headroom for a slower loop.
 #define POWER_SAMPLE_MAX 512
@@ -1466,15 +1442,11 @@ PowerReading readPowerPort(int currentPin) {
   PowerReading out = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, false};
 
   int n = 0;
-  int minI = INT32_MAX;
-  int maxI = INT32_MIN;
   uint32_t start = millis();
   while ((millis() - start) < CURRENT_SAMPLE_MS && n < POWER_SAMPLE_MAX) {
     // Adjacent reads: minimal skew between the two channels.
     int mvV = analogReadMilliVolts(VOLTAGE_SENSE_PIN);
     int mvI = analogReadMilliVolts(currentPin);
-    if (mvI < minI) minI = mvI;
-    if (mvI > maxI) maxI = mvI;
     powerSampV[n] = (int16_t)mvV;
     powerSampI[n] = (int16_t)mvI;
     n++;
@@ -1517,40 +1489,19 @@ PowerReading readPowerPort(int currentPin) {
   // ---- scale to engineering units -----------------------------------------
   // voltageCalMvPerV is the sensor's mV-per-mains-volt transfer, so it DIVIDES.
   const float volts = adcVrms_mV / voltageCalMvPerV;
-  const int deltaI = (maxI > minI) ? (maxI - minI) : 0;
-
-  // Noise floor suppression: when no appliance is plugged in, the Hall element and ADC pick up
-  // ~35-50 mV peak-to-peak ambient noise and ~12-18 mV RMS. If below threshold, clamp to clean 0.
-  if (deltaI < 12 || adcIrms_mV < 3.5f) {
-    out.volts = volts;
-    out.amps = 0.0f;
-    out.watts = 0.0f;
-    out.va = 0.0f;
-    out.pf = 0.0f;
-    out.valid = true;
-    return out;
-  }
-
-  float amps = adcIrms_mV / ACS712_MV_PER_AMP;
-  if (amps < CURRENT_NOISE_FLOOR_A) amps = 0.0f;
-
+  const float amps = adcIrms_mV / ACS712_MV_PER_AMP;
+  // v_V * i_A = (v_mV * i_mV) / (1000 * mV_per_A)
+  const float watts = product_mVmV / (1000.0f * ACS712_MV_PER_AMP);
   const float va = volts * amps;
-
-  // Real power calculation: product_mVmV / (voltageCalMvPerV * ACS712_MV_PER_AMP)
-  // Use fabsf() because AC polarity reversal between PT and CT must not produce negative watts.
-  float rawWatts = (voltageCalMvPerV > 0.0f && ACS712_MV_PER_AMP > 0.0f)
-      ? (fabsf(product_mVmV) / (voltageCalMvPerV * ACS712_MV_PER_AMP))
-      : 0.0f;
-
-  // Plausibility check: real power cannot physically exceed apparent power (P <= S).
-  // If phase product cancelled or was misaligned while current flows, fall back to va * 0.95
-  float watts = (rawWatts > 0.1f && rawWatts <= (va * 1.10f)) ? rawWatts : (va * 0.95f);
-  if (amps == 0.0f) watts = 0.0f;
 
   out.volts = volts;
   out.amps = amps;
-  out.watts = watts;
+  // Real power cannot be negative for a load. A small negative here is noise around zero, so clamp
+  // rather than reporting a load that generates power.
+  out.watts = watts > 0.0f ? watts : 0.0f;
   out.va = va;
+  // PF is a ratio of two noisy quantities; bound it to the physical range so a near-zero VA cannot
+  // produce a meaningless value (or a divide-by-zero).
   out.pf = (va > 0.01f) ? (out.watts / va) : 0.0f;
   if (out.pf > 1.0f) out.pf = 1.0f;
   out.valid = true;
@@ -1609,50 +1560,28 @@ void samplePortIntoCache(int i) {
 #ifdef HAS_VOLTAGE_SENSE
   if (relayOn) {
     PowerReading p = readPowerPort(CURRENT_SENSOR_PINS[i]);
-    if (p.valid && p.volts >= 50.0f && p.volts <= 300.0f) {
-      if (p.amps < CURRENT_NOISE_FLOOR_A) {
-        c.amps = 0.0f;
-        c.watts = 0.0f;
-        c.va = 0.0f;
-        c.pf = 0.0f;
-      } else {
-        c.amps = p.amps;
-        c.watts = p.watts;
-        c.va = p.va;
-        c.pf = p.pf;
-      }
+    if (p.valid) {
+      c.amps = p.amps;
+      c.watts = p.watts;
+      c.va = p.va;
+      c.pf = p.pf;
       c.volts = p.volts;
       c.powerValid = true;
-      measuredVoltageRms = p.volts;
-      lastVoltageSampleMs = millis();
-    } else if (benchMode) {
-      // Bench Test Mode enabled: bypass mains requirement, read ACS712 directly, and use supplyVoltage()
-      float rawAmps = readACS712RMS(CURRENT_SENSOR_PINS[i]);
-      if (rawAmps < CURRENT_NOISE_FLOOR_A) {
-        c.amps = 0.0f;
-        c.watts = 0.0f;
-        c.va = 0.0f;
-        c.pf = 0.0f;
-      } else {
-        c.amps = rawAmps;
-        c.volts = supplyVoltage();
-        c.watts = rawAmps * c.volts;
-        c.va = c.watts;
-        c.pf = 0.95f;
+      // Publish the newest plausible mains reading. supplyVoltage() and the telemetry both read
+      // this, so the two always agree about which voltage the watts were computed against.
+      if (p.volts >= 50.0f && p.volts <= 300.0f) {
+        measuredVoltageRms = p.volts;
+        lastVoltageSampleMs = millis();
       }
-      c.powerValid = false;
-      measuredVoltageRms = c.volts;
-      lastVoltageSampleMs = millis();
     } else {
-      // Live AC mains is absent (< 50V) and Bench Mode is OFF -> strict hardware clamp to 0
+      // Sampled but unusable (flat line / too few samples). Report zero and say so, rather than
+      // leaving a stale wattage on screen for a port whose sensor has failed.
       c.amps = 0.0f;
       c.watts = 0.0f;
-      c.volts = 0.0f;
       c.va = 0.0f;
       c.pf = 0.0f;
+      c.volts = 0.0f;
       c.powerValid = false;
-      measuredVoltageRms = 0.0f;
-      lastVoltageSampleMs = millis();
     }
   } else {
     c.amps = 0.0f;
@@ -1714,7 +1643,7 @@ float currentAmpsFor(int port, unsigned long staleAfterMs = 5000) {
  * accumulate the streak on behalf of an active one, so a port with genuine load could be shut down
  * because its neighbours were quiet.
  */
-#define CURRENT_ACTIVE_THRESHOLD_A 0.12f // ~18 W at 230 V - shutdown decision threshold
+#define CURRENT_ACTIVE_THRESHOLD_A 0.10f // ~23 W at 230 V
 #define CURRENT_IDLE_SAMPLES        3    // consecutive low readings before "really idle"
 int currentIdleStreak[NUM_PORTS] = {0, 0, 0};
 
@@ -1803,55 +1732,6 @@ float readVoltageOnly() {
 }
 
 /**
- * Method A: One-click / On-boot Auto-calibration against standard 220.0V grid.
- * Measures raw RMS millivolts on VOLTAGE_SENSE_PIN (GPIO 33) and sets:
- *   voltageCalMvPerV = raw_mV / targetGridV;
- * Saves permanently to NVS flash memory.
- */
-bool performVoltageAutoCalibration(float targetGridV = 220.0f) {
-  int n = 0;
-  uint32_t start = millis();
-  while ((millis() - start) < CURRENT_SAMPLE_MS && n < POWER_SAMPLE_MAX) {
-    powerSampV[n] = (int16_t)analogReadMilliVolts(VOLTAGE_SENSE_PIN);
-    n++;
-    delayMicroseconds(CURRENT_SAMPLE_US);
-  }
-  if (n < 16) {
-    Serial.println("[AUTO-CAL] Too few samples on VOLTAGE_SENSE_PIN.");
-    return false;
-  }
-
-  int64_t sum = 0;
-  for (int k = 0; k < n; k++) sum += powerSampV[k];
-  const int32_t bias = (int32_t)(sum / n);
-
-  int64_t sumSq = 0;
-  for (int k = 0; k < n; k++) {
-    const int32_t d = (int32_t)powerSampV[k] - bias;
-    sumSq += (int64_t)d * d;
-  }
-  const float adcVrms_mV = (float)sqrt((double)sumSq / (double)n);
-
-  if (adcVrms_mV < 80.0f) {
-    Serial.printf("[AUTO-CAL] Signal too weak (%.1f mV RMS) — sensor may be disconnected or unpowered.\n", adcVrms_mV);
-    return false;
-  }
-
-  float calculatedCal = adcVrms_mV / targetGridV;
-  if (calculatedCal >= 1.0f && calculatedCal <= 20.0f) {
-    voltageCalMvPerV = calculatedCal;
-    setNvsString("voltage_cal", String(calculatedCal, 3));
-    Serial.printf("[AUTO-CAL SUCCESS] Measured %.1f mV RMS at GPIO %d. Scale factor set to %.3f mV/V (ref %.1f V, saved to NVS)\n",
-                  adcVrms_mV, VOLTAGE_SENSE_PIN, calculatedCal, targetGridV);
-    return true;
-  } else {
-    Serial.printf("[AUTO-CAL WARN] Factor %.3f mV/V outside safe bounds (1.0-20.0). Retaining %.3f mV/V\n",
-                  calculatedCal, voltageCalMvPerV);
-    return false;
-  }
-}
-
-/**
  * Keep the measured voltage fresh when no port is energised.
  *
  * Called once per loop. Cheap in the normal case (a timestamp compare); only pays for a real
@@ -1871,13 +1751,7 @@ void refreshVoltageOnlyIfStale() {
 
   const float v = readVoltageOnly();
   lastVoltageSampleMs = millis();
-  if (v >= 50.0f && v <= 300.0f) {
-    measuredVoltageRms = v;
-  } else if (benchMode) {
-    measuredVoltageRms = supplyVoltage();
-  } else {
-    measuredVoltageRms = 0.0f;
-  }
+  if (v >= 50.0f && v <= 300.0f) measuredVoltageRms = v;
 }
 
 /** Real power for a port, or its apparent power when no voltage channel was compiled in. */
@@ -1885,10 +1759,7 @@ float wattsFor(int port) {
   if (port < 0 || port >= NUM_PORTS) return 0.0f;
   currentAmpsFor(port); // ensure the cache is populated
   const CurrentReading& c = currentCache[port];
-  if (c.powerValid) {
-    if (c.amps < CURRENT_NOISE_FLOOR_A) return 0.0f;
-    return c.watts;
-  }
+  if (c.powerValid) return c.watts;
   // Sensing compiled in but this port was not sampled (relay off) — no power by definition.
   return 0.0f;
 }
@@ -1898,11 +1769,7 @@ float vaFor(int port) {
   if (port < 0 || port >= NUM_PORTS) return 0.0f;
   currentAmpsFor(port);
   const CurrentReading& c = currentCache[port];
-  if (c.powerValid) {
-    if (c.amps < CURRENT_NOISE_FLOOR_A) return 0.0f;
-    return c.va;
-  }
-  return 0.0f;
+  return c.powerValid ? c.va : 0.0f;
 }
 
 /** Measured power factor for a port, or 0 when nothing was measured. */
@@ -1910,11 +1777,7 @@ float powerFactorFor(int port) {
   if (port < 0 || port >= NUM_PORTS) return 0.0f;
   currentAmpsFor(port);
   const CurrentReading& c = currentCache[port];
-  if (c.powerValid) {
-    if (c.amps < CURRENT_NOISE_FLOOR_A) return 0.0f;
-    return c.pf;
-  }
-  return 0.0f;
+  return c.powerValid ? c.pf : 0.0f;
 }
 #endif
 
@@ -2570,41 +2433,15 @@ void applyRemoteChange(const RemoteChangeT& data) {
     }
   } else if (path == "/settings/night_mode_enabled") {
     nightModeEnabled = data.boolData();
+  } else if (path == "/settings/mmwave_enabled") {
+    mmwaveEnabled = data.boolData();
   } else if (path == "/settings/night_mode_start") {
     nightModeStart = data.stringData();
   } else if (path == "/settings/night_mode_end") {
     nightModeEnd = data.stringData();
-  } else if (path == "/settings/inactivity_limit_seconds") {
-    int s = data.intData();
-    if (s > 0) idleTimeoutMs = (unsigned long)s * 1000UL;
-    Serial.printf("Idle timeout set to %d seconds (%lu ms)\n", s, idleTimeoutMs);
   } else if (path == "/settings/inactivity_limit_minutes") {
     int minutes = data.intData();
     if (minutes > 0) idleTimeoutMs = (unsigned long)minutes * 60 * 1000UL;
-  } else if (path == "/settings/response_window_seconds") {
-    int r = data.intData();
-    if (r > 0) responseWindowMs = (unsigned long)r * 1000UL;
-    Serial.printf("Response window set to %d seconds (%lu ms)\n", r, responseWindowMs);
-  } else if (path == "/settings/pir_delay_seconds") {
-    int d = data.intData();
-    if (d >= 0) pirHoldMs = (unsigned long)d * 1000UL;
-    Serial.printf("PIR hold-off delay set to %d seconds (%lu ms)\n", d, pirHoldMs);
-  } else if (path == "/settings/mmwave_delay_seconds") {
-    int d = data.intData();
-    if (d >= 0) mmwaveHoldMs = (unsigned long)d * 1000UL;
-    Serial.printf("mmWave hold-off delay set to %d seconds (%lu ms)\n", d, mmwaveHoldMs);
-  } else if (path == "/settings/mmwave_enabled") {
-    mmwaveEnabled = data.boolData();
-    Serial.printf("mmWave radar enabled -> %s\n", mmwaveEnabled ? "YES" : "NO");
-  } else if (path == "/settings/mmwave_inverted") {
-    mmwaveInverted = data.boolData();
-    Serial.printf("mmWave radar inverted polarity -> %s\n", mmwaveInverted ? "YES" : "NO");
-  } else if (path == "/settings/force_pir") {
-    forcePir = data.intData();
-    Serial.printf("PIR force override -> %d (-1=auto, 0=false, 1=true)\n", forcePir);
-  } else if (path == "/settings/force_mmwave") {
-    forceMmwave = data.intData();
-    Serial.printf("mmWave force override -> %d (-1=auto, 0=false, 1=true)\n", forceMmwave);
   } else if (path == "/settings/nominal_voltage") {
     // Optional. Only meaningful if the user has actually measured their supply; the value is
     // clamped by supplyVoltage() so a typo cannot produce absurd power numbers.
@@ -2616,10 +2453,6 @@ void applyRemoteChange(const RemoteChangeT& data) {
     } else {
       Serial.printf("Ignoring nominal_voltage %.1f (outside 50-300 V)\n", v);
     }
-  } else if (path == "/settings/bench_mode") {
-    benchMode = data.boolData();
-    setNvsString("bench_mode", benchMode ? "1" : "0");
-    Serial.printf("[SETTINGS] Bench Test Mode set to %s\n", benchMode ? "ENABLED (USB 220V Fallback)" : "DISABLED (Live Mains Sensing)");
   } else if (path == "/settings/overcurrent_limit_a") {
     // Optional. Clamped to what the fitted sensor can actually resolve — a limit above ~5 A on the
     // 5 A part would never fire and would read as protection that is not present.
@@ -2632,18 +2465,6 @@ void applyRemoteChange(const RemoteChangeT& data) {
       Serial.printf("Ignoring overcurrent_limit_a %.2f (outside 0.5-5.0 A)\n", a);
     }
 #ifdef HAS_VOLTAGE_SENSE
-  } else if (path == "/settings/auto_calibrate_voltage" && data.boolData()) {
-    Serial.println("[REMOTE] Method A auto-calibration requested from cloud (220.0V ref)...");
-    if (performVoltageAutoCalibration(220.0f)) {
-      FirebaseJson calUpdate;
-      calUpdate.set("settings/voltage_cal_mv_per_v", voltageCalMvPerV);
-      calUpdate.set("settings/auto_calibrate_voltage", false);
-      rtdbPatchJson(roomPath, calUpdate);
-    } else {
-      FirebaseJson resetTrigger;
-      resetTrigger.set("settings/auto_calibrate_voltage", false);
-      rtdbPatchJson(roomPath, resetTrigger);
-    }
   } else if (path == "/settings/voltage_cal_mv_per_v") {
     // The voltage sensor's transfer function. Adjustable at runtime so a unit can be CALIBRATED
     // without a reflash: measure the socket with a multimeter, compare against the reported
@@ -2674,74 +2495,24 @@ void applyRemoteChange(const RemoteChangeT& data) {
     json.get(result, "settings/night_mode_enabled");
     if (result.success) nightModeEnabled = result.boolValue;
 
+    json.get(result, "settings/mmwave_enabled");
+    if (result.success) mmwaveEnabled = result.boolValue;
+
     json.get(result, "settings/night_mode_start");
     if (result.success) nightModeStart = result.stringValue;
 
     json.get(result, "settings/night_mode_end");
     if (result.success) nightModeEnd = result.stringValue;
 
-    json.get(result, "settings/inactivity_limit_seconds");
+    json.get(result, "settings/inactivity_limit_minutes");
     if (result.success && result.intValue > 0) {
-      idleTimeoutMs = (unsigned long)result.intValue * 1000UL;
-    } else {
-      json.get(result, "settings/inactivity_limit_minutes");
-      if (result.success && result.intValue > 0) {
-        idleTimeoutMs = (unsigned long)result.intValue * 60 * 1000UL;
-      }
+      idleTimeoutMs = (unsigned long)result.intValue * 60 * 1000UL;
     }
-
-    json.get(result, "settings/response_window_seconds");
-    if (result.success && result.intValue > 0) {
-      responseWindowMs = (unsigned long)result.intValue * 1000UL;
-    }
-
-    json.get(result, "settings/pir_delay_seconds");
-    if (result.success && result.intValue >= 0) {
-      pirHoldMs = (unsigned long)result.intValue * 1000UL;
-    }
-
-    json.get(result, "settings/mmwave_delay_seconds");
-    if (result.success && result.intValue >= 0) {
-      mmwaveHoldMs = (unsigned long)result.intValue * 1000UL;
-    }
-
-    json.get(result, "settings/mmwave_enabled");
-    if (result.success) mmwaveEnabled = result.boolValue;
-
-    json.get(result, "settings/mmwave_inverted");
-    if (result.success) mmwaveInverted = result.boolValue;
-
-    json.get(result, "settings/force_pir");
-    if (result.success) forcePir = result.intValue;
-
-    json.get(result, "settings/force_mmwave");
-    if (result.success) forceMmwave = result.intValue;
 
     json.get(result, "settings/nominal_voltage");
     if (result.success && result.floatValue >= 50.0f && result.floatValue <= 300.0f) {
       nominalVoltage = result.floatValue;
     }
-
-    json.get(result, "settings/bench_mode");
-    if (result.success) {
-      benchMode = result.boolValue;
-    }
-
-#ifdef HAS_VOLTAGE_SENSE
-    json.get(result, "settings/auto_calibrate_voltage");
-    if (result.success && result.boolValue) {
-      if (performVoltageAutoCalibration(220.0f)) {
-        FirebaseJson calUpdate;
-        calUpdate.set("settings/voltage_cal_mv_per_v", voltageCalMvPerV);
-        calUpdate.set("settings/auto_calibrate_voltage", false);
-        rtdbPatchJson(roomPath, calUpdate);
-      } else {
-        FirebaseJson resetTrigger;
-        resetTrigger.set("settings/auto_calibrate_voltage", false);
-        rtdbPatchJson(roomPath, resetTrigger);
-      }
-    }
-#endif
 
     json.get(result, "settings/overcurrent_limit_a");
     if (result.success && overcurrentLimitIsSane(result.floatValue)) {
@@ -3343,8 +3114,8 @@ void setup() {
   // Checked before anything touches the network, so a reset is fast and predictable.
   factoryResetIfRequested();
 
-  pinMode(PIR_PIN, INPUT_PULLDOWN);
-  pinMode(MMWAVE_PIN, INPUT_PULLDOWN);
+  pinMode(PIR_PIN, INPUT);
+  pinMode(MMWAVE_PIN, INPUT);
 
   // Initialize Front Panel Status LEDs (Green, Blue, Yellow)
   pinMode(LED_STATUS_PIN, OUTPUT);
@@ -3409,12 +3180,6 @@ void setup() {
       }
     }
 
-    String savedBench = getNvsString("bench_mode");
-    if (savedBench.length() > 0) {
-      benchMode = (savedBench == "1" || savedBench == "true");
-      Serial.printf("Bench Test Mode restored from NVS: %s\n", benchMode ? "ENABLED (USB 220V Fallback)" : "DISABLED (Live Mains Sensing)");
-    }
-
 #ifdef HAS_VOLTAGE_SENSE
     // Voltage-sensor calibration. Restored for the same reason as the nominal: losing it on every
     // reboot would mean every wattage was wrong until someone re-entered the value, and the error
@@ -3427,10 +3192,9 @@ void setup() {
         Serial.printf("Voltage calibration restored from NVS: %.3f mV/V\n", cal);
       }
     } else {
-      Serial.println("[BOOT] No saved voltage calibration in NVS — executing Method A Auto-Calibration (220.0V ref)...");
-      if (!performVoltageAutoCalibration(220.0f)) {
-        Serial.printf("Auto-calibration fallback: default %.3f mV/V\n", voltageCalMvPerV);
-      }
+      Serial.printf("Voltage calibration: default %.3f mV/V — NOT CALIBRATED. Measure the supply\n",
+                    voltageCalMvPerV);
+      Serial.println("  with a multimeter and set settings/voltage_cal_mv_per_v to match.");
     }
 #endif
   }
@@ -3698,44 +3462,15 @@ void loop() {
   // internally, so calling it every iteration is free.
   pollRemoteChanges();
 
-  // Dual-technology occupancy sensing with hardware polarity & God Mode overrides (Item 5)
-  bool pirPinRead = (digitalRead(PIR_PIN) == HIGH);
-  bool mmwavePinRead = mmwaveInverted ? (digitalRead(MMWAVE_PIN) == LOW) : (digitalRead(MMWAVE_PIN) == HIGH);
-
-  bool pirRaw = (forcePir >= 0) ? (forcePir == 1) : pirPinRead;
-  bool mmwaveRaw = !mmwaveEnabled ? false : ((forceMmwave >= 0) ? (forceMmwave == 1) : mmwavePinRead);
-
-  // Smooth Presence Hold-off Filters (Independent per-sensor hold times - Item 3)
-  static unsigned long lastPirHighMillis = 0;
-  static unsigned long lastMmwaveHighMillis = 0;
-
-  if (pirRaw) {
-    lastPirHighMillis = millis();
-  } else if (forcePir == 0) {
-    lastPirHighMillis = 0; // immediate drop on forced false
-  }
-
-  if (mmwaveRaw) {
-    lastMmwaveHighMillis = millis();
-  } else if (forceMmwave == 0) {
-    lastMmwaveHighMillis = 0; // immediate drop on forced false
-  }
-
-  bool pirActive = pirRaw || (lastPirHighMillis > 0 && (millis() - lastPirHighMillis < pirHoldMs));
-  bool mmwaveActive = mmwaveRaw || (lastMmwaveHighMillis > 0 && (millis() - lastMmwaveHighMillis < mmwaveHoldMs));
-  bool motionDetected = pirActive || mmwaveActive;
+  // Occupancy = PIR OR the mmWave radar — the dual-sensor module. The radar term is compiled in with
+  // HAS_MMWAVE (see its section): reading MMWAVE_PIN while no radar is wired would leave the pin
+  // floating, and floating-input noise OR-ed into `motionDetected` would pin the room permanently
+  // "occupied" and stop the smart shutdown from ever firing. PIR alone is fail-safe, so it ships
+  // first; enable the radar when it is physically fitted.
+  bool pirActive = (digitalRead(PIR_PIN) == HIGH);
+  bool mmwaveActive = (digitalRead(MMWAVE_PIN) == HIGH);
+  bool motionDetected = pirActive || (mmwaveEnabled && mmwaveActive);
   bool nightMode = isNightModeActive();
-
-  static unsigned long lastSensorDebugMillis = 0;
-  if (millis() - lastSensorDebugMillis >= 2500) {
-    lastSensorDebugMillis = millis();
-    Serial.printf("[OCCUPANCY DEBUG] PIR: %s | mmWave(GPIO %d): %s => Overall: %s | State: %s\n",
-                  pirActive ? "HIGH" : "LOW",
-                  MMWAVE_PIN,
-                  mmwaveActive ? "HIGH" : "LOW",
-                  motionDetected ? "OCCUPIED" : "VACANT",
-                  stateToString(currentState).c_str());
-  }
 
   // One ADC sweep per port for the WHOLE iteration. Both the shutdown scan below and the telemetry
   // block at the end of this loop read from this cache, instead of each taking their own ~100 ms
@@ -3789,19 +3524,16 @@ void loop() {
       if (timeSinceLastMotion >= idleTimeoutMs) {
         currentState = STATE_RESPONSE_WINDOW;
         responseWindowStartMillis = millis();
-        Serial.printf("[STATE] Idle timeout reached (%lu ms). Entering RESPONSE_WINDOW for %lu ms\n", idleTimeoutMs, responseWindowMs);
+        Serial.println("Entering Response Window. Sending alert.");
 
-        // The window is DERIVED from responseWindowMs, cleanly formatting seconds or minutes
+        // The window is DERIVED from RESPONSE_WINDOW_MS, never written as a literal. The old text
+        // said "60 seconds" while the window was five minutes — a copy bug that survived precisely
+        // because nothing tied the two numbers together. Now the text cannot drift from the timing.
         char alertBody[112];
-        if (responseWindowMs >= 60000UL) {
-          snprintf(alertBody, sizeof(alertBody),
-                   "The room has been empty. Devices will shut down in %lu minutes unless you keep them on.",
-                   (unsigned long)(responseWindowMs / 60000UL));
-        } else {
-          snprintf(alertBody, sizeof(alertBody),
-                   "The room has been empty. Devices will shut down in %lu seconds unless you keep them on.",
-                   (unsigned long)(responseWindowMs / 1000UL));
-        }
+        snprintf(alertBody, sizeof(alertBody),
+                 "The room has been empty. Devices will shut down in %lu minutes unless you "
+                 "keep them on.",
+                 (unsigned long)(RESPONSE_WINDOW_MS / 60000UL));
 
         // Fire-and-forget: this must not block, or the response window below drifts.
         sendAlert("\xE2\x9A\xA0\xEF\xB8\x8F VoltSense Alert", String(alertBody), "volt-sense-shutdown");
@@ -3809,7 +3541,7 @@ void loop() {
     }
     else if (currentState == STATE_RESPONSE_WINDOW) {
       unsigned long timeInWindow = millis() - responseWindowStartMillis;
-      if (timeInWindow >= responseWindowMs) {
+      if (timeInWindow >= RESPONSE_WINDOW_MS) {
         currentState = STATE_SHUTDOWN;
 
         Serial.println("Response window expired. Performing Smart Selective Shutdown.");
@@ -3917,18 +3649,13 @@ void loop() {
         // Each port's pass measured its own voltage; prefer it, since the watts were computed
         // against it and reporting a different number would make the two disagree.
         const CurrentReading& c = currentCache[i];
-        if (c.powerValid && c.volts >= 50.0f && c.volts <= 300.0f) {
-          portVolts = c.volts;
-        } else if (measuredVoltageIsUsable()) {
-          portVolts = measuredVoltageRms;
-        } else {
-          portVolts = supplyVoltage();
-        }
+        if (c.powerValid && c.volts >= 50.0f && c.volts <= 300.0f) portVolts = c.volts;
 #else
         // No voltage channel: `I_rms * configured_voltage` is APPARENT power (VA), not watts. The
         // UI labels it as such. See the voltage section for why this cannot be fixed in software.
         currentWatts = currentAmps * volts;
         currentVa = currentWatts;
+        currentPf = (currentAmps > 0.0f) ? 1.0f : 0.0f;
 #endif
       }
 
@@ -3971,21 +3698,15 @@ void loop() {
     json.set("total_current_amps", totalAmps);
     json.set("total_power_watts", totalWatts);
     json.set("inactivity_limit", (int)(idleTimeoutMs / 60000UL));
-    json.set("inactivity_limit_seconds", (int)(idleTimeoutMs / 1000UL));
-    json.set("response_window_seconds", (int)(responseWindowMs / 1000UL));
-    json.set("pir_delay_seconds", (int)(pirHoldMs / 1000UL));
-    json.set("mmwave_delay_seconds", (int)(mmwaveHoldMs / 1000UL));
-    json.set("mmwave_enabled", mmwaveEnabled);
-    json.set("mmwave_inverted", mmwaveInverted);
+    // Reported so the app can show what the device is actually enforcing, rather than assuming the
+    // compiled-in default. Apparent power only — see the ACS712 note: this is VA, not W.
     json.set("overcurrent_limit_a", overcurrentLimitA);
 
     int remaining_seconds = 0;
     if (currentState == STATE_IDLE_COUNTDOWN) {
-      long rem = (long)(idleTimeoutMs - (millis() - lastMotionMillis)) / 1000;
-      remaining_seconds = rem > 0 ? rem : 0;
+      remaining_seconds = (idleTimeoutMs - (millis() - lastMotionMillis)) / 1000;
     } else if (currentState == STATE_RESPONSE_WINDOW) {
-      long rem = (long)(responseWindowMs - (millis() - responseWindowStartMillis)) / 1000;
-      remaining_seconds = rem > 0 ? rem : 0;
+      remaining_seconds = (RESPONSE_WINDOW_MS - (millis() - responseWindowStartMillis)) / 1000;
     }
     json.set("countdown_remaining_seconds", remaining_seconds);
     json.set("night_mode_active", nightMode);
