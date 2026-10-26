@@ -520,9 +520,6 @@ const Analytics = () => {
             <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">
               Per-Outlet Energy &amp; Telemetry
             </h3>
-            <p className="text-[10px] text-gray-400 mt-1 font-medium">
-              Power breakdown, active load, and real-time telemetry per port.
-            </p>
           </div>
 
           {/* Segmented Filter Pills */}
@@ -581,14 +578,9 @@ const Analytics = () => {
                     <div className="w-9 h-9 rounded-xl bg-maroon-50 text-maroon-800 flex items-center justify-center shrink-0 border border-maroon-100/60">
                       <Plug strokeWidth={1.5} className="w-4 h-4" />
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
-                        {outlet.name}
-                      </h4>
-                      <span className="text-[10px] font-semibold text-gray-400 block mt-0.5 uppercase tracking-wider">
-                        Port {outlet.label.replace('Port ', '')} • 220V AC
-                      </span>
-                    </div>
+                    <h4 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
+                      {outlet.name}
+                    </h4>
                   </div>
 
                   {/* Live Status Pill matching Dashboard */}
@@ -610,34 +602,13 @@ const Analytics = () => {
                   </span>
                 </div>
 
-                {/* Energy & Consumption Hero Metric */}
+                {/* Energy Consumption Metric */}
                 <div className="my-3">
-                  <div className="flex items-baseline justify-between mb-1">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                        {outlet.energyKwh.toFixed(2)}
-                      </span>
-                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
-                    </div>
-                    <span className="text-xs font-semibold text-gray-600">
-                      ₱{outlet.costPhp} <span className="text-[10px] text-gray-400 font-normal">est.</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                      {outlet.energyKwh.toFixed(2)}
                     </span>
-                  </div>
-
-                  {/* Sleek Progress Bar for % Share */}
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="flex-1 bg-gray-200/70 rounded-full h-1.5 overflow-hidden">
-                      <div 
-                        className="h-full rounded-full transition-all duration-700 ease-out" 
-                        style={{ 
-                          width: `${Math.max(4, outlet.percentage)}%`,
-                          backgroundColor: outlet.color || '#852636'
-                        }}
-                      />
-                    </div>
-                    <span className="text-[10px] font-bold text-gray-500 tabular-nums">
-                      {outlet.percentage}% share
-                    </span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
                   </div>
                 </div>
 
@@ -714,9 +685,6 @@ const Analytics = () => {
               <h4 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">
                 Energy Share Comparison
               </h4>
-              <p className="text-[10px] text-gray-400 mt-1 font-medium">
-                Total aggregate consumption: <span className="font-bold text-gray-700">{totalEnergy.toFixed(2)} kWh</span> (~₱{(totalEnergy * MERALCO_RATE_PHP).toFixed(2)})
-              </p>
             </div>
 
             {/* View Mode Switcher */}
