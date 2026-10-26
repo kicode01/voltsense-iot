@@ -2569,42 +2569,34 @@ void applyRemoteChange(const RemoteChangeT& data) {
   } else if (path == "/settings/inactivity_limit_seconds") {
     int s = data.intData();
     if (s > 0) idleTimeoutMs = (unsigned long)s * 1000UL;
-    Serial.printf("Idle timeout set to %d seconds (%lu ms)
-", s, idleTimeoutMs);
+    Serial.printf("Idle timeout set to %d seconds (%lu ms)\n", s, idleTimeoutMs);
   } else if (path == "/settings/inactivity_limit_minutes") {
     int minutes = data.intData();
     if (minutes > 0) idleTimeoutMs = (unsigned long)minutes * 60 * 1000UL;
   } else if (path == "/settings/response_window_seconds") {
     int r = data.intData();
     if (r > 0) responseWindowMs = (unsigned long)r * 1000UL;
-    Serial.printf("Response window set to %d seconds (%lu ms)
-", r, responseWindowMs);
+    Serial.printf("Response window set to %d seconds (%lu ms)\n", r, responseWindowMs);
   } else if (path == "/settings/pir_delay_seconds") {
     int d = data.intData();
     if (d >= 0) pirHoldMs = (unsigned long)d * 1000UL;
-    Serial.printf("PIR hold-off delay set to %d seconds (%lu ms)
-", d, pirHoldMs);
+    Serial.printf("PIR hold-off delay set to %d seconds (%lu ms)\n", d, pirHoldMs);
   } else if (path == "/settings/mmwave_delay_seconds") {
     int d = data.intData();
     if (d >= 0) mmwaveHoldMs = (unsigned long)d * 1000UL;
-    Serial.printf("mmWave hold-off delay set to %d seconds (%lu ms)
-", d, mmwaveHoldMs);
+    Serial.printf("mmWave hold-off delay set to %d seconds (%lu ms)\n", d, mmwaveHoldMs);
   } else if (path == "/settings/mmwave_enabled") {
     mmwaveEnabled = data.boolData();
-    Serial.printf("mmWave radar enabled -> %s
-", mmwaveEnabled ? "YES" : "NO");
+    Serial.printf("mmWave radar enabled -> %s\n", mmwaveEnabled ? "YES" : "NO");
   } else if (path == "/settings/mmwave_inverted") {
     mmwaveInverted = data.boolData();
-    Serial.printf("mmWave radar inverted polarity -> %s
-", mmwaveInverted ? "YES" : "NO");
+    Serial.printf("mmWave radar inverted polarity -> %s\n", mmwaveInverted ? "YES" : "NO");
   } else if (path == "/settings/force_pir") {
     forcePir = data.intData();
-    Serial.printf("PIR force override -> %d (-1=auto, 0=false, 1=true)
-", forcePir);
+    Serial.printf("PIR force override -> %d (-1=auto, 0=false, 1=true)\n", forcePir);
   } else if (path == "/settings/force_mmwave") {
     forceMmwave = data.intData();
-    Serial.printf("mmWave force override -> %d (-1=auto, 0=false, 1=true)
-", forceMmwave);
+    Serial.printf("mmWave force override -> %d (-1=auto, 0=false, 1=true)\n", forceMmwave);
   } else if (path == "/settings/nominal_voltage") {
     // Optional. Only meaningful if the user has actually measured their supply; the value is
     // clamped by supplyVoltage() so a typo cannot produce absurd power numbers.
