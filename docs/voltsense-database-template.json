@@ -1,0 +1,134 @@
+{
+  "device_uids": {
+    "58:2A:BD:D4:8F:98": "DEVICE_AUTHENTICATION_UID"
+  },
+  "devices": {
+    "58:2A:BD:D4:8F:98": {
+      "owner": "YOUR_FIREBASE_AUTH_UID",
+      "owners": {
+        "YOUR_FIREBASE_AUTH_UID": true
+      },
+      "paired_at": 1793110000000,
+      "alert_secret_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "last_seen": 1793110000000,
+      "state": "OCCUPIED",
+      "is_occupied": true,
+      "pir_detected": true,
+      "mmwave_detected": false,
+      "countdown_remaining_seconds": 60,
+      "inactivity_limit": 1,
+      "inactivity_limit_seconds": 60,
+      "response_window_seconds": 300,
+      "pir_delay_seconds": 5,
+      "mmwave_delay_seconds": 3,
+      "mmwave_enabled": true,
+      "mmwave_inverted": false,
+      "night_mode_active": false,
+      "override": false,
+      "bench_mode": false,
+      "total_current_amps": 0.0,
+      "total_power_watts": 0.0,
+      "voltage_source": "measured",
+      "overcurrent_limit_a": 4.5,
+      "radar_uart_connected": false,
+      "radar_distance_cm": 0,
+      "radar_static_energy": 0,
+      "radar_moving_energy": 0,
+      "radar_target_state": "tracking",
+      "ports": {
+        "port_01": {
+          "relay_status": false,
+          "current_amps": 0.0,
+          "power_watts": 0.0,
+          "power_va": 0.0,
+          "power_factor": 1.0,
+          "energy_kwh": 0.0,
+          "voltage": 220.0,
+          "name": "Port 1",
+          "icon": "fan",
+          "policy": "occupancy"
+        },
+        "port_02": {
+          "relay_status": false,
+          "current_amps": 0.0,
+          "power_watts": 0.0,
+          "power_va": 0.0,
+          "power_factor": 1.0,
+          "energy_kwh": 0.0,
+          "voltage": 220.0,
+          "name": "Port 2",
+          "icon": "tv",
+          "policy": "occupancy"
+        },
+        "port_03": {
+          "relay_status": false,
+          "current_amps": 0.0,
+          "power_watts": 0.0,
+          "power_va": 0.0,
+          "power_factor": 1.0,
+          "energy_kwh": 0.0,
+          "voltage": 220.0,
+          "name": "Port 3",
+          "icon": "laptop",
+          "policy": "occupancy"
+        }
+      },
+      "settings": {
+        "inactivity_limit_minutes": 1,
+        "inactivity_limit_seconds": 60,
+        "response_window_seconds": 300,
+        "pir_delay_seconds": 5,
+        "mmwave_delay_seconds": 3,
+        "mmwave_enabled": true,
+        "mmwave_inverted": false,
+        "force_pir": -1,
+        "force_mmwave": -1,
+        "sensor_fusion_mode": "OR",
+        "bench_mode": false,
+        "night_mode_enabled": false,
+        "night_mode_start": "22:00",
+        "night_mode_end": "06:00",
+        "nominal_voltage": 220.0,
+        "voltage_cal_mv_per_v": 4.545,
+        "auto_calibrate_voltage": false,
+        "acs712_mv_per_amp": 123.33,
+        "current_noise_floor_a": 0.03,
+        "current_cal_multiplier": 1.0,
+        "calibrate_current_zero": false,
+        "radar_max_gate": 3,
+        "radar_static_threshold": 20,
+        "radar_moving_threshold": 30
+      },
+      "history": {
+        "days": {
+          "2026-10-27": {
+            "e": 0.38,
+            "m": 45,
+            "p": 120.5
+          }
+        }
+      },
+      "alerts": {},
+      "alert_reads": {}
+    }
+  },
+  "users": {
+    "YOUR_FIREBASE_AUTH_UID": {
+      "owned_devices": {
+        "58:2A:BD:D4:8F:98": true
+      }
+    }
+  },
+  "pushTokens": {
+    "YOUR_FIREBASE_AUTH_UID": {
+      "devices": {
+        "device_slot_01": {
+          "token": "FCM_REGISTRATION_TOKEN_HERE",
+          "updated_at": 1793110000000,
+          "ua": "Browser User-Agent"
+        }
+      }
+    }
+  },
+  "pairingCodes": {}
+}
