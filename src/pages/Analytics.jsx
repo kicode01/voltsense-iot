@@ -522,7 +522,7 @@ const Analytics = () => {
       {/* Per-Outlet Monitoring & Energy Breakdown (Table & Logs Format) */}
       <div className="analytics-outlets scroll-mt-24 bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500 fill-mode-both">
         {/* Header & Filter Pills */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 md:mb-5">
           <div>
             <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
               <span>Per-Port Readings &amp; History</span>
@@ -530,29 +530,29 @@ const Analytics = () => {
                 {rangeLabel(timeRange)}
               </span>
             </h3>
-            <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+            <p className="hidden sm:block text-[11px] text-gray-400 font-medium mt-0.5">
               Structured telemetry summary and interval consumption logs per port.
             </p>
           </div>
 
-          {/* Segmented Filter Pills */}
-          <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-2xl self-start sm:self-auto shrink-0 overflow-x-auto max-w-full hide-scrollbar border border-gray-100">
+          {/* Segmented Filter Pills (Full-width 4-col grid on mobile, inline on desktop) */}
+          <div className="grid grid-cols-4 sm:flex items-center gap-1 bg-gray-50 p-1 rounded-2xl w-full sm:w-auto shrink-0 border border-gray-100">
             <button
               onClick={() => setSelectedOutletTab('all')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
+              className={`px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap text-center ${
                 selectedOutletTab === 'all'
                   ? 'bg-white text-maroon-800 shadow-2xs font-extrabold'
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              All Ports
+              All
             </button>
             {outletList.map((outlet) => (
               <button
                 key={`tab-${outlet.id}`}
                 onClick={() => setSelectedOutletTab(outlet.id)}
                 aria-label={`Filter by ${outlet.name}`}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
+                className={`px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap text-center ${
                   selectedOutletTab === outlet.id
                     ? 'bg-white text-maroon-800 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-900'
@@ -564,10 +564,109 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* 1. Port Summary & Live Telemetry Table */}
-        <div className="border border-gray-100 rounded-2xl overflow-hidden mb-5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[640px]">
+        {/* 1. Port Summary & Live Telemetry (Mobile Stacked Rows + Desktop Full Table) */}
+        <div className="border border-gray-100 rounded-2xl overflow-hidden mb-4 md:mb-5">
+          {/* Mobile View: Zero-Scroll Structured Log Rows */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {displayedOutlets.map((outlet) => {
+              const isDrawing = outlet.isRelayOn && (outlet.watts > 1.5 || outlet.amps > 0.02);
+              const isSelected = selectedOutletTab === outlet.id;
+
+              return (
+                <div
+                  key={`mob-${outlet.id}`}
+                  onClick={() => setSelectedOutletTab(isSelected ? 'all' : outlet.id)}
+                  className={`p-3.5 transition-colors cursor-pointer ${
+                    isDrawing ? 'bg-maroon-50/20 active:bg-maroon-50/40' : 'active:bg-gray-50'
+                  }`}
+                >
+                  {/* Row Top: Port Icon + Name + State Badge on Left, Energy on Right */}
+                  <div className="flex items-center justify-between gap-2 mb-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
+                          !outlet.isRelayOn
+                            ? 'bg-gray-100 text-gray-400 border-gray-200/70'
+                            : isDrawing
+                            ? 'bg-maroon-800 text-white border-maroon-900 shadow-2xs'
+                            : 'bg-maroon-50 text-maroon-800 border-maroon-200/70'
+                        }`}
+                      >
+                        <Plug strokeWidth={1.75} className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="font-bold text-sm text-gray-900 truncate">{outlet.name}</span>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                          !outlet.isRelayOn
+                            ? 'bg-gray-100 text-gray-500 border-gray-200/90'
+                            : isDrawing
+                            ? 'bg-maroon-800 text-white border-maroon-900'
+                            : 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80'
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                            !outlet.isRelayOn
+                              ? 'bg-gray-400'
+                              : isDrawing
+                              ? 'bg-emerald-400 animate-pulse'
+                              : 'bg-maroon-600'
+                          }`}
+                        />
+                        {!outlet.isRelayOn ? 'Switched Off' : isDrawing ? 'In Use' : 'Standby'}
+                      </span>
+                    </div>
+
+                    <div className="text-right shrink-0 tabular-nums">
+                      <span className="text-base font-extrabold text-gray-900">{outlet.energyKwh.toFixed(2)}</span>{' '}
+                      <span className="text-[10px] font-bold text-gray-400 uppercase">kWh</span>
+                    </div>
+                  </div>
+
+                  {/* Row Bottom: 3-Column Compact Telemetry Strip */}
+                  <div className="grid grid-cols-3 gap-2 bg-gray-50/80 rounded-xl px-2.5 py-2 border border-gray-100/80 text-[11px] tabular-nums">
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase block">Live</span>
+                      {outlet.isRelayOn ? (
+                        <span className={`font-semibold ${isDrawing ? 'text-maroon-800 font-bold' : 'text-gray-700'}`}>
+                          {outlet.volts.toFixed(0)}V · {outlet.amps.toFixed(2)}A
+                        </span>
+                      ) : (
+                        <span className="font-medium text-gray-400">0V · 0.00A</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 uppercase block">Runtime</span>
+                      <span className="font-semibold text-gray-700">{outlet.periodHours} hrs</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] font-bold text-gray-400 uppercase block">Avg Load</span>
+                      <span className="font-semibold text-gray-700">{outlet.avgWatts} {powerUnitShort}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {selectedOutletTab === 'all' && (
+              <div className="bg-gray-50/70 px-3.5 py-2.5 flex items-center justify-between text-xs border-t border-gray-100 tabular-nums">
+                <div>
+                  <span className="font-bold text-gray-600 block">Total Combined ({rangeLabel(timeRange)})</span>
+                  <span className="text-[10px] font-semibold text-gray-400">
+                    {outletList.reduce((acc, o) => acc + o.periodHours, 0).toFixed(1)} hrs ·{' '}
+                    {Math.round(outletList.reduce((acc, o) => acc + o.avgWatts, 0) / 3)} {powerUnitShort} avg
+                  </span>
+                </div>
+                <span className="text-sm font-extrabold text-gray-900">
+                  {sumAllPortsEnergy.toFixed(2)} <span className="text-[10px] font-bold text-gray-400 uppercase">kWh</span>
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Desktop View: Full 6-Column Table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                   <th className="py-3 px-4">Port</th>
@@ -578,7 +677,7 @@ const Analytics = () => {
                   <th className="py-3 px-4 text-right">Period Energy</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 text-xs sm:text-sm">
+              <tbody className="divide-y divide-gray-100 text-sm">
                 {displayedOutlets.map((outlet) => {
                   const isDrawing = outlet.isRelayOn && (outlet.watts > 1.5 || outlet.amps > 0.02);
                   const isSelected = selectedOutletTab === outlet.id;
@@ -593,7 +692,6 @@ const Analytics = () => {
                           : 'hover:bg-gray-50/80'
                       }`}
                     >
-                      {/* Port Name & Icon */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-2.5">
                           <div
@@ -611,7 +709,6 @@ const Analytics = () => {
                         </div>
                       </td>
 
-                      {/* State Pill (Maroon Hierarchy) */}
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 ${
@@ -635,7 +732,6 @@ const Analytics = () => {
                         </span>
                       </td>
 
-                      {/* Live Telemetry (V / A / W) */}
                       <td className="py-3.5 px-4 whitespace-nowrap tabular-nums">
                         {outlet.isRelayOn ? (
                           <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
@@ -654,17 +750,14 @@ const Analytics = () => {
                         )}
                       </td>
 
-                      {/* Est. Runtime */}
                       <td className="py-3.5 px-4 whitespace-nowrap tabular-nums font-semibold text-gray-700">
                         {outlet.periodHours} <span className="text-xs font-medium text-gray-400">hrs</span>
                       </td>
 
-                      {/* Avg Active Load */}
                       <td className="py-3.5 px-4 whitespace-nowrap tabular-nums font-semibold text-gray-700">
                         {outlet.avgWatts} <span className="text-xs font-medium text-gray-400">{powerUnitShort}</span>
                       </td>
 
-                      {/* Period Energy */}
                       <td className="py-3.5 px-4 whitespace-nowrap tabular-nums text-right">
                         <span className="font-extrabold text-gray-900">{outlet.energyKwh.toFixed(2)}</span>{' '}
                         <span className="text-[10px] font-bold text-gray-400 uppercase">kWh</span>
@@ -695,44 +788,53 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* 2. Interval History Logs Table */}
+        {/* 2. Interval History Logs Table (Fits 100% on Mobile with Zero Horizontal Scroll) */}
         <div className="border border-gray-100 rounded-2xl overflow-hidden">
-          <div className="bg-gray-50/70 px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-maroon-800" />
-              <span className="text-[10px] md:text-xs font-bold text-gray-600 uppercase tracking-wider">
-                Interval Readings Log ({selectedOutletTab === 'all' ? 'All Ports' : displayedOutlets[0]?.name})
+          <div className="bg-gray-50/70 px-3.5 sm:px-4 py-2.5 border-b border-gray-100 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Clock className="w-3.5 h-3.5 text-maroon-800 shrink-0" />
+              <span className="text-[10px] md:text-xs font-bold text-gray-600 uppercase tracking-wider truncate">
+                Interval Logs ({selectedOutletTab === 'all' ? 'All Ports' : displayedOutlets[0]?.name})
               </span>
             </div>
-            <span className="text-[10px] font-semibold text-gray-400">
-              {(dataToRender?.energy || []).length} intervals recorded
+            <span className="text-[10px] font-semibold text-gray-400 shrink-0 whitespace-nowrap">
+              {(dataToRender?.energy || []).length} intervals
             </span>
           </div>
 
-          <div className="max-h-72 overflow-y-auto overflow-x-auto divide-y divide-gray-100">
+          <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
             {(dataToRender?.energy || []).length > 0 ? (
-              <table className="w-full text-left border-collapse min-w-[540px]">
-                <thead className="sticky top-0 bg-white border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider z-10">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 bg-white border-b border-gray-100 text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider z-10">
                   <tr>
-                    <th className="py-2.5 px-4">Interval</th>
+                    <th className="py-2.5 px-2.5 sm:px-4">Interval</th>
                     {selectedOutletTab === 'all' ? (
                       <>
-                        <th className="py-2.5 px-4">Port 1</th>
-                        <th className="py-2.5 px-4">Port 2</th>
-                        <th className="py-2.5 px-4">Port 3</th>
-                        <th className="py-2.5 px-4">Total Energy</th>
+                        <th className="py-2.5 px-1.5 sm:px-4">
+                          <span className="sm:hidden">P1</span>
+                          <span className="hidden sm:inline">Port 1</span>
+                        </th>
+                        <th className="py-2.5 px-1.5 sm:px-4">
+                          <span className="sm:hidden">P2</span>
+                          <span className="hidden sm:inline">Port 2</span>
+                        </th>
+                        <th className="py-2.5 px-1.5 sm:px-4">
+                          <span className="sm:hidden">P3</span>
+                          <span className="hidden sm:inline">Port 3</span>
+                        </th>
+                        <th className="py-2.5 px-2.5 sm:px-4 text-right sm:text-left">Total</th>
                       </>
                     ) : (
                       <>
-                        <th className="py-2.5 px-4">Outlet</th>
-                        <th className="py-2.5 px-4">Energy Logged</th>
-                        <th className="py-2.5 px-4">Est. Load</th>
+                        <th className="py-2.5 px-2 sm:px-4 hidden sm:table-cell">Outlet</th>
+                        <th className="py-2.5 px-2 sm:px-4">Energy</th>
+                        <th className="py-2.5 px-2 sm:px-4">Est. Load</th>
                       </>
                     )}
-                    <th className="py-2.5 px-4 text-right">Log Status</th>
+                    <th className="py-2.5 px-2.5 sm:px-4 text-right hidden sm:table-cell">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50 text-xs tabular-nums">
+                <tbody className="divide-y divide-gray-50 text-[11px] sm:text-xs tabular-nums">
                   {[...(dataToRender?.energy || [])].reverse().map((pt, idx) => {
                     const p1Kwh = Number((pt.kwh * (outletList[0].percentage / 100)).toFixed(2));
                     const p2Kwh = Number((pt.kwh * (outletList[1].percentage / 100)).toFixed(2));
@@ -744,48 +846,50 @@ const Analytics = () => {
 
                     return (
                       <tr key={`log-${pt.label}-${idx}`} className="hover:bg-gray-50/70 transition-colors">
-                        <td className="py-2.5 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                        <td className="py-2.5 px-2.5 sm:px-4 font-semibold text-gray-700 whitespace-nowrap">
                           {pt.label}
                         </td>
                         {selectedOutletTab === 'all' ? (
                           <>
-                            <td className="py-2.5 px-4 text-gray-600">
+                            <td className="py-2.5 px-1.5 sm:px-4 text-gray-600 whitespace-nowrap">
                               <span className={p1Kwh > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}>
                                 {p1Kwh.toFixed(2)}
-                              </span>{' '}
-                              <span className="text-[10px] text-gray-400">kWh</span>
+                              </span>
+                              <span className="hidden sm:inline text-[10px] text-gray-400"> kWh</span>
                             </td>
-                            <td className="py-2.5 px-4 text-gray-600">
+                            <td className="py-2.5 px-1.5 sm:px-4 text-gray-600 whitespace-nowrap">
                               <span className={p2Kwh > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}>
                                 {p2Kwh.toFixed(2)}
-                              </span>{' '}
-                              <span className="text-[10px] text-gray-400">kWh</span>
+                              </span>
+                              <span className="hidden sm:inline text-[10px] text-gray-400"> kWh</span>
                             </td>
-                            <td className="py-2.5 px-4 text-gray-600">
+                            <td className="py-2.5 px-1.5 sm:px-4 text-gray-600 whitespace-nowrap">
                               <span className={p3Kwh > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}>
                                 {p3Kwh.toFixed(2)}
-                              </span>{' '}
-                              <span className="text-[10px] text-gray-400">kWh</span>
+                              </span>
+                              <span className="hidden sm:inline text-[10px] text-gray-400"> kWh</span>
                             </td>
-                            <td className="py-2.5 px-4 font-bold text-maroon-900">
+                            <td className="py-2.5 px-2.5 sm:px-4 font-bold text-maroon-900 whitespace-nowrap text-right sm:text-left">
                               {rowTotal.toFixed(2)} <span className="text-[10px] font-semibold text-gray-400">kWh</span>
                             </td>
                           </>
                         ) : (
                           <>
-                            <td className="py-2.5 px-4 font-semibold text-gray-800">{focused.name}</td>
-                            <td className="py-2.5 px-4">
+                            <td className="py-2.5 px-2 sm:px-4 font-semibold text-gray-800 whitespace-nowrap hidden sm:table-cell">
+                              {focused.name}
+                            </td>
+                            <td className="py-2.5 px-2 sm:px-4 whitespace-nowrap">
                               <span className={singleKwh > 0 ? 'font-bold text-maroon-900' : 'text-gray-400'}>
                                 {singleKwh.toFixed(2)}
                               </span>{' '}
                               <span className="text-[10px] text-gray-400">kWh</span>
                             </td>
-                            <td className="py-2.5 px-4 text-gray-600">
+                            <td className="py-2.5 px-2 sm:px-4 text-gray-600 whitespace-nowrap">
                               {singleKwh > 0 ? `${focused.avgWatts} ${powerUnitShort}` : `0 ${powerUnitShort}`}
                             </td>
                           </>
                         )}
-                        <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                        <td className="py-2.5 px-2.5 sm:px-4 text-right whitespace-nowrap hidden sm:table-cell">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                               hasDraw
