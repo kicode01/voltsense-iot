@@ -257,14 +257,15 @@
     #viewport-container {
       position: relative;
       flex: 1;
+      min-width: 0;
       height: 100%;
       background: #dbe2ea;
       overflow: hidden;
     }
 
     #webgl-canvas {
-      width: 100%;
-      height: 100%;
+      width: 100% !important;
+      height: 100% !important;
       display: block;
     }
 
@@ -665,6 +666,8 @@
        ===================================================================== */
     #pwa-dock {
       width: 430px;
+      min-width: 430px;
+      max-width: 430px;
       height: 100%;
       background: #F4F5F7;
       border-left: 1px solid rgba(0, 0, 0, 0.08);
@@ -677,13 +680,31 @@
       font-family: 'Outfit', sans-serif;
       color: #0F172A;
       box-shadow: -8px 0 28px -6px rgba(15, 23, 42, 0.06);
-      transition: margin-right 0.38s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.38s ease;
-      will-change: margin-right;
+      transition: width 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                  min-width 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                  max-width 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                  box-shadow 0.35s ease;
+      will-change: width, min-width, max-width;
     }
 
     #pwa-dock.collapsed {
-      margin-right: -430px;
-      box-shadow: none;
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      border-left: none !important;
+      box-shadow: none !important;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    #pwa-dock-inner {
+      width: 430px;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
     }
 
     .pwa-collapse-toggle-btn {
@@ -2063,6 +2084,7 @@
          Alerts.jsx & Settings.jsx pixel-for-pixel
          =================================================================== -->
     <aside id="pwa-dock">
+      <div id="pwa-dock-inner">
       <!-- Apple-style ambient background glow (Layout.jsx lines 51-54) -->
       <div class="pwa-ambient-glow-1"></div>
       <div class="pwa-ambient-glow-2"></div>
@@ -2863,6 +2885,7 @@
           </button>
         </div>
       </div>
+      </div>
     </aside>
 
   </div>
@@ -2889,8 +2912,22 @@
     camera.position.set(3.5, 2.95, 4.1);
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    renderer.setSize(vpW(), vpH());
+    renderer.setSize(vpW(), vpH(), false);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // WebGL Context Loss Recovery
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      console.warn('VoltSense 3D Digital Twin: WebGL Context Lost. Preventing disposal and awaiting recovery...');
+    }, false);
+
+    canvas.addEventListener('webglcontextrestored', () => {
+      console.info('VoltSense 3D Digital Twin: WebGL Context Restored! Rebinding renderer...');
+      if (typeof window.onWindowResize === 'function') {
+        window.onWindowResize();
+      }
+      renderer.render(scene, camera);
+    }, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -6527,22 +6564,13 @@ function buildPhotorealisticElectronics(parent) {
         logEvent('VoltSense App expanded');
       }
 
-      // Smoothly update 3D canvas dimensions across the 380ms transition
-      const startTime = performance.now();
-      const duration = 400;
-      function stepResize(now) {
+      // Smoothly sync high-resolution canvas buffer at end of CSS transition (avoids WebGL buffer thrashing & GPU context loss)
+      clearTimeout(window._pwaResizeTimer);
+      window._pwaResizeTimer = setTimeout(() => {
         if (typeof window.onWindowResize === 'function') {
           window.onWindowResize();
         }
-        if (now - startTime < duration) {
-          requestAnimationFrame(stepResize);
-        } else {
-          if (typeof window.onWindowResize === 'function') {
-            window.onWindowResize();
-          }
-        }
-      }
-      requestAnimationFrame(stepResize);
+      }, 360);
     };
 
     window.toggleAllHud = function() {
@@ -7760,6 +7788,17 @@ function buildPhotorealisticElectronics(parent) {
       chestPulseRing.lookAt(camera.position);
       chestPulseRing.scale.setScalar(1.0 + Math.sin(elapsedTime * 3.8) * 0.12);
 
+      // Real-time aspect ratio adaptation during CSS drawer animations with zero buffer reallocation
+      const curW = vpW();
+      const curH = vpH();
+      if (curW > 10 && curH > 10) {
+        const curAspect = curW / curH;
+        if (Math.abs(camera.aspect - curAspect) > 0.0005) {
+          camera.aspect = curAspect;
+          camera.updateProjectionMatrix();
+        }
+      }
+
       const tempV = new THREE.Vector3();
       const fullW = vpW();
       const fullH = vpH();
@@ -7819,10 +7858,10 @@ function buildPhotorealisticElectronics(parent) {
     window.onWindowResize = function() {
       const w = vpW();
       const h = vpH();
-      if (camera && renderer) {
+      if (camera && renderer && w > 10 && h > 10) {
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
-        renderer.setSize(w, h);
+        renderer.setSize(w, h, false);
       }
     };
     window.addEventListener('resize', window.onWindowResize);
