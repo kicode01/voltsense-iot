@@ -417,16 +417,6 @@ const Dashboard = () => {
         </div>
       )}
 
-      {!isDemo && !deviceOnline && (
-        <div className="bg-amber-50/90 border border-amber-200/80 text-amber-900 px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-medium animate-in fade-in duration-300">
-          <div className="flex items-center gap-2.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-            <span>
-              <strong className="font-bold">Device Not Powered On:</strong> The ESP32 (<span className="font-mono font-bold">{activeDeviceId}</span>) is offline or unreachable. Telemetry values below reflect the last recorded session.
-            </span>
-          </div>
-        </div>
-      )}
       
       {data.state === 'RESPONSE_WINDOW' && (
         <div className="bg-gradient-to-r from-red-600 to-orange-500 rounded-3xl p-6 shadow-2xl flex flex-col items-center justify-center text-white relative overflow-hidden mb-2 animate-in fade-in slide-in-from-top-4">
