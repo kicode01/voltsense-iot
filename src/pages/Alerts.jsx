@@ -142,9 +142,6 @@ const Alerts = () => {
       if (filter === 'overcurrent') {
         return tag.includes('overcurrent') || title.includes('overcurrent') || body.includes('current');
       }
-      if (filter === 'system') {
-        return !tag.includes('shutdown') && !tag.includes('inactivity') && !body.includes('shut down') && !body.includes('empty') && !tag.includes('overcurrent') && !title.includes('overcurrent') && !body.includes('current');
-      }
       return true;
     });
   }, [alerts, filter]);
@@ -268,7 +265,6 @@ const Alerts = () => {
                 { id: 'all', label: `All (${alerts.length})` },
                 { id: 'shutdown', label: 'Shutdown' },
                 { id: 'overcurrent', label: 'Overcurrent' },
-                { id: 'system', label: 'System' },
               ].map((item) => (
                 <button
                   key={item.id}
