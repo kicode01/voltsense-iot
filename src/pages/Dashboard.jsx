@@ -536,72 +536,75 @@ const Dashboard = () => {
             return (
               <div 
                 key={portId} 
-                className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] p-4 md:p-5 flex flex-col justify-between transition-all duration-500 ease-apple-spring animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" 
+                className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] p-4 md:p-5 flex flex-col justify-between gap-4 transition-all duration-500 ease-apple-spring animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" 
                 style={{ animationDelay: `${400 + (index * 100)}ms` }}
               >
-                <div>
-                  {/* Header: Icon, Name + Status, Toggle Switch */}
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div 
-                        className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500 ${
-                          portData.relay_status ? 'bg-maroon-50 text-maroon-800 shadow-inner' : 'bg-gray-100 text-gray-400'
-                        }`}
-                      >
-                        <Plug strokeWidth={1.5} className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-base font-bold text-gray-900 leading-tight">
-                          {displayName}
-                        </h3>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-500 ${isDrawing ? 'bg-emerald-500 animate-pulse' : conn.dotColor}`} />
-                          <span className={`text-[11px] font-semibold transition-colors duration-500 ${
-                            isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
-                          }`}>
-                            {!portData.relay_status ? 'Switched Off' : isDrawing ? 'In Use' : 'No Load'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Apple-style Toggle Switch */}
-                    <button
-                      onClick={() => handleTogglePort(portId, !portData.relay_status)}
-                      disabled={pendingPorts[portId]}
-                      aria-label={`Toggle ${displayName} ${portData.relay_status ? 'Off' : 'On'}`}
-                      aria-busy={pendingPorts[portId] ? 'true' : 'false'}
-                      className={`relative w-12 h-7 shrink-0 rounded-full flex items-center p-1 transition-colors duration-500 ease-apple-spring focus:outline-none focus-visible:ring-4 focus-visible:ring-maroon-500/30 disabled:cursor-progress ${
-                        portData.relay_status ? 'bg-maroon-800' : 'bg-gray-200'
+                {/* Header: Icon, Name + Status, Toggle Switch */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div 
+                      className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500 ${
+                        portData.relay_status ? 'bg-maroon-50 text-maroon-800 shadow-inner' : 'bg-gray-100 text-gray-400'
                       }`}
                     >
-                      <div className="absolute -inset-2" aria-hidden="true"></div>
-                      <div className={`w-5 h-5 bg-white rounded-full shadow-sm flex items-center justify-center transform transition-transform duration-500 ease-apple-spring ${
-                        portData.relay_status ? 'translate-x-5' : 'translate-x-0'
-                      }`}>
-                        {pendingPorts[portId] && (
-                          <Loader2 className="w-3 h-3 animate-spin text-maroon-800" />
-                        )}
+                      <Plug strokeWidth={1.5} className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-base font-bold text-gray-900 leading-tight">
+                        {displayName}
+                      </h3>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-500 ${isDrawing ? 'bg-emerald-500 animate-pulse' : conn.dotColor}`} />
+                        <span className={`text-[11px] font-semibold transition-colors duration-500 ${
+                          isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
+                        }`}>
+                          {!portData.relay_status ? 'Switched Off' : isDrawing ? 'In Use' : 'No Load'}
+                        </span>
                       </div>
-                    </button>
+                    </div>
                   </div>
 
-                  {/* Active Power Display */}
-                  <div className="flex items-baseline gap-1.5 mb-3">
-                    <span className={`text-3xl font-bold tracking-tight transition-colors duration-500 ${
-                      isDrawing ? 'text-gray-900' : 'text-gray-400'
+                  {/* Apple-style Toggle Switch */}
+                  <button
+                    onClick={() => handleTogglePort(portId, !portData.relay_status)}
+                    disabled={pendingPorts[portId]}
+                    aria-label={`Toggle ${displayName} ${portData.relay_status ? 'Off' : 'On'}`}
+                    aria-busy={pendingPorts[portId] ? 'true' : 'false'}
+                    className={`relative w-12 h-7 shrink-0 rounded-full flex items-center p-1 transition-colors duration-500 ease-apple-spring focus:outline-none focus-visible:ring-4 focus-visible:ring-maroon-500/30 disabled:cursor-progress ${
+                      portData.relay_status ? 'bg-maroon-800' : 'bg-gray-200'
+                    }`}
+                  >
+                    <div className="absolute -inset-2" aria-hidden="true"></div>
+                    <div className={`w-5 h-5 bg-white rounded-full shadow-sm flex items-center justify-center transform transition-transform duration-500 ease-apple-spring ${
+                      portData.relay_status ? 'translate-x-5' : 'translate-x-0'
                     }`}>
-                      {portData.relay_status ? displayWatts : '0.0'}
-                    </span>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{portPowerUnit}</span>
+                      {pendingPorts[portId] && (
+                        <Loader2 className="w-3 h-3 animate-spin text-maroon-800" />
+                      )}
+                    </div>
+                  </button>
+                </div>
+
+                {/* Integrated Metrics Row: Power on Left, Voltage & Current on Right */}
+                <div className="flex items-end justify-between gap-3 pt-3 border-t border-gray-100">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Power</span>
+                    <div className="flex items-baseline gap-1">
+                      <span className={`text-2xl md:text-3xl font-bold tracking-tight transition-colors duration-500 ${
+                        isDrawing ? 'text-gray-900' : 'text-gray-400'
+                      }`}>
+                        {portData.relay_status ? displayWatts : '0.0'}
+                      </span>
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{portPowerUnit}</span>
+                    </div>
                   </div>
 
-                  {/* Clean 2-Column Metrics Row */}
-                  <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-gray-100">
+                  <div className="flex items-center gap-3 sm:gap-4 text-right">
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Voltage</span>
                       <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portVolts.toFixed(0)} V</span>
                     </div>
+                    <div className="w-px h-6 bg-gray-200/80 self-center" />
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Current</span>
                       <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portAmps.toFixed(2)} A</span>
