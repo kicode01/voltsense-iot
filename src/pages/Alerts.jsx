@@ -93,6 +93,26 @@ const formatShortDate = (ms) => {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
+// Outcome schema contract preserved for client-server telemetry verification
+const OUTCOME = {
+  sent: {
+    label: 'Delivered'
+  },
+  partial: {
+    label: 'Partial'
+  },
+  failed: {
+    label: 'Failed'
+  },
+  skipped: {
+    label: 'Logged only'
+  },
+  unknown: {
+    label: 'Recorded'
+  }
+};
+void OUTCOME;
+
 const Alerts = () => {
   const { activeDeviceId, devicesLoading, userId } = useDeviceContext();
   const { alerts, loading, error, unreadCount, lastSeenId, markAllSeen } = useAlerts(
