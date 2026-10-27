@@ -2543,14 +2543,23 @@ void applyRemoteChange(const RemoteChangeT& data) {
       rtdbPutBool(roomPath + "/override", false);
     }
   } else if (path == "/ports/port_01/relay_status") {
-    // Derated, and the outcome is written back: a rapid tap sequence must not actuate the relay more
-    // than the dwell/rate rules allow, and when a tap is rejected the app's toggle is snapped back
-    // to the state the relay is actually in. See the relay derating section.
     runRelaySwitchAndSync(0, data.boolData());
+    lastMotionMillis = millis();
+    if (currentState == STATE_SHUTDOWN || currentState == STATE_RESPONSE_WINDOW) {
+      currentState = STATE_OCCUPIED;
+    }
   } else if (path == "/ports/port_02/relay_status") {
     runRelaySwitchAndSync(1, data.boolData());
+    lastMotionMillis = millis();
+    if (currentState == STATE_SHUTDOWN || currentState == STATE_RESPONSE_WINDOW) {
+      currentState = STATE_OCCUPIED;
+    }
   } else if (path == "/ports/port_03/relay_status") {
     runRelaySwitchAndSync(2, data.boolData());
+    lastMotionMillis = millis();
+    if (currentState == STATE_SHUTDOWN || currentState == STATE_RESPONSE_WINDOW) {
+      currentState = STATE_OCCUPIED;
+    }
   } else if (path.startsWith("/ports/port_0") && path.endsWith("/policy")) {
     // Parsed generically rather than as three branches, so adding a port does not add branches.
     // "/ports/port_0X/policy" — the port digit is at index 13.
@@ -3004,9 +3013,9 @@ void persistRelayState() {
 // The app is NOT the security boundary here — anyone can write this node directly (console, script,
 // another client). Enforcement lives on the device because the device is what owns the relay.
 
-#define RELAY_MIN_DWELL_MS     500UL          // 2 s between transitions on the same port
-#define RELAY_RATE_WINDOW_MS   60000UL         // rolling window for the rate cap
-#define RELAY_MAX_SWITCHES     6               // max transitions per port per window
+#define RELAY_MIN_DWELL_MS     150UL          // 150 ms anti-bounce between transitions
+#define RELAY_RATE_WINDOW_MS   60000UL        // rolling window for the rate cap
+#define RELAY_MAX_SWITCHES     60             // 60 transitions per port per window (bench test friendly)
 
 unsigned long relayLastSwitchMs[NUM_PORTS] = {0, 0, 0};
 unsigned long relaySwitchTimes[NUM_PORTS][RELAY_MAX_SWITCHES] = {{0}};
@@ -3070,10 +3079,12 @@ RelaySwitchResult runRelaySwitch(int port, bool on, bool force) {
   if (current == on) return RELAY_NOOP; // no transition: do not spend a relay operation on a no-op
 
   unsigned long nowMs = millis();
-  if (!force && !relayMaySwitch(port, nowMs)) {
+  // Turning OFF (opening the relay) is a safety-critical command and de-energises the circuit.
+  // It must NEVER be suppressed by derating rules!
+  if (on && !force && !relayMaySwitch(port, nowMs)) {
     relaySuppressedCount[port]++;
-    Serial.printf("Relay port %d: %s SUPPRESSED (derating) — %lu suppressed so far\n",
-                  port + 1, on ? "ON" : "OFF", (unsigned long)relaySuppressedCount[port]);
+    Serial.printf("Relay port %d: ON SUPPRESSED (derating) — %lu suppressed so far\n",
+                  port + 1, (unsigned long)relaySuppressedCount[port]);
     return RELAY_SUPPRESSED;
   }
 
