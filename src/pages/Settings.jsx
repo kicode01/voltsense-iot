@@ -785,7 +785,6 @@ const Settings = () => {
                 <div key={mac} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
                   <div className="flex items-center justify-between p-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
                       <span className="font-mono text-sm font-bold text-gray-700">{mac}</span>
                     </div>
                     <button 
