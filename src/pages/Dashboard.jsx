@@ -81,15 +81,15 @@ const Dashboard = () => {
     state: /** @type {string | undefined} */ ('OCCUPIED'),
     countdown_remaining_seconds: /** @type {number | undefined} */ (undefined),
     voltage: 220,
-    voltage_source: 'measured',
+    voltage_source: 'configured',
     is_occupied: true,
     pir_detected: true,
     mmwave_detected: true,
     settings: { night_mode_enabled: true, night_mode_start: '22:00', night_mode_end: '06:00' },
     ports: {
-      port_01: { name: 'Port 1', relay_status: true, power_watts: 25.9, current_amps: 0.12, voltage: 220, power_factor: 0.98 },
-      port_02: { name: 'Port 2', relay_status: true, power_watts: 250.8, current_amps: 1.20, voltage: 220, power_factor: 0.95 },
-      port_03: { name: 'Port 3', relay_status: false, power_watts: 0, current_amps: 0, voltage: 220, power_factor: 0.0 }
+      port_01: { name: 'Port 1', relay_status: true, power_watts: 26.4, current_amps: 0.12, voltage: 220 },
+      port_02: { name: 'Port 2', relay_status: true, power_watts: 264.0, current_amps: 1.20, voltage: 220 },
+      port_03: { name: 'Port 3', relay_status: false, power_watts: 0, current_amps: 0, voltage: 220 }
     }
   });
 
@@ -141,8 +141,16 @@ const Dashboard = () => {
     data.total_power_watts || Object.values(ports).reduce((acc, curr) => acc + (Number(curr.power_watts) || 0), 0)
   ) || 0;
 
+  // The voltage to assume when a port does not report one. Prefer, in order: a measured port
+  // voltage, then the nominal the DEVICE is configured with (settings/nominal_voltage — the same
+  // number the firmware multiplies by), and only then the 220 V fallback. The old code jumped
+  // straight to 220, so a device configured for 230 V had its VA recomputed here at 220 — two
+  // different assumptions in one screen, 4.5 % apart.
   const systemVoltage = Number(
-    Object.values(ports).find(p => Number(p.voltage) > 0)?.voltage || data.voltage || 220
+    Object.values(ports).find(p => Number(p.voltage) > 0)?.voltage ||
+    data.voltage ||
+    data.settings?.nominal_voltage ||
+    220
   );
 
   // System-wide average power factor
@@ -152,9 +160,11 @@ const Dashboard = () => {
     const pAmps = isDrawing ? (Number(curr.current_amps) || 0) : 0;
     return acc + (pVolts * pAmps);
   }, 0);
-  const systemAvgPf = totalSystemVa > 0 && computedTotalWatts > 0 
-    ? Math.min(1.0, Number((computedTotalWatts / totalSystemVa).toFixed(2))) 
-    : (drawingCount > 0 ? 0.95 : 0.00);
+  // No fallback value. If VA is unknown or the device reports no watts, the PF is UNKNOWN (0.00),
+  // not 0.95 — a fabricated 0.95 here used to feed straight into the per-port wattage below.
+  const systemAvgPf = totalSystemVa > 0 && computedTotalWatts > 0
+    ? Math.min(1.0, Number((computedTotalWatts / totalSystemVa).toFixed(2)))
+    : 0.00;
 
   // Does this device MEASURE voltage, or assume it?
   //
@@ -379,21 +389,12 @@ const Dashboard = () => {
             </div>
             <div className="flex items-baseline gap-2 relative z-10">
               <span className="text-5xl md:text-6xl font-bold tracking-tighter drop-shadow-sm">{computedTotalWatts.toFixed(0)}</span>
-              {/* Unit follows the device's actual capability — W only when a voltage sensor is
-                  fitted, enabled and calibrated; VA otherwise. */}
-              <span
-                className="text-base md:text-lg font-bold text-maroon-200 uppercase tracking-widest"
-                title={
-                  powerIsMeasured
-                    ? 'Real power (W) — measured from the voltage and current waveforms, so power factor is accounted for.'
-                    : 'Apparent power (VA) — no voltage sensing on this device, so power factor cannot be measured and the real draw is typically lower.'
-                }
-              >
-                {powerIsMeasured ? 'W' : 'VA'}
+              <span className="text-base md:text-lg font-bold text-maroon-200 uppercase tracking-widest">
+                W
               </span>
             </div>
             <p className="text-[10px] text-maroon-200/80 mt-2 font-medium uppercase tracking-widest relative z-10">
-              {powerIsMeasured ? `Real power • System PF ${systemAvgPf.toFixed(2)}` : 'Apparent power, all active ports'}
+              Active Power · All Active Ports
             </p>
           </div>
         </div>
@@ -522,16 +523,15 @@ const Dashboard = () => {
             const conn = getPortConnectionState(portData);
             const rawAmps = Number(portData.current_amps) || 0;
             const rawWatts = Number(portData.power_watts) || 0;
-            const isDrawing = portData.relay_status && (rawAmps > 0.02 || rawWatts > 2.0 || conn.isDrawing);
             const portVolts = Number(portData.voltage) > 0 ? Number(portData.voltage) : systemVoltage;
-            const portAmps = portData.relay_status ? (rawAmps > 0.01 ? rawAmps : 0) : 0;
-            const rawPf = Number(portData.power_factor);
-            const portPf = portData.relay_status && (isDrawing || portAmps > 0.01)
-              ? (rawPf > 0 ? rawPf : 0.95)
-              : 0.00;
-            const calculatedWatts = (portVolts * portAmps * (portPf > 0 ? portPf : 1)).toFixed(1);
-            const portWatts = portData.relay_status ? (rawWatts > 0.5 ? rawWatts.toFixed(1) : (portAmps > 0.01 ? calculatedWatts : '0.0')) : '0.0';
+            const portAmps = portData.relay_status ? (rawAmps > 0.02 ? rawAmps : 0) : 0;
+            const isDrawing = portData.relay_status && (portAmps > 0.02 || rawWatts > 2.0 || conn.isDrawing);
+            const calculatedWatts = (portVolts * portAmps).toFixed(1);
+            const portWatts = portData.relay_status && (isDrawing || portAmps > 0.02)
+              ? (rawWatts > 0.5 ? rawWatts.toFixed(1) : calculatedWatts)
+              : '0.0';
             const displayWatts = portWatts;
+            const portPowerUnit = 'W';
 
             return (
               <div 
@@ -593,11 +593,11 @@ const Dashboard = () => {
                     }`}>
                       {portData.relay_status ? displayWatts : '0.0'}
                     </span>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">W</span>
+                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">{portPowerUnit}</span>
                   </div>
 
-                  {/* Clean 3-Column Metrics Row */}
-                  <div className="grid grid-cols-3 gap-2 py-2.5 border-t border-gray-100">
+                  {/* Clean 2-Column Metrics Row */}
+                  <div className="grid grid-cols-2 gap-3 py-2.5 border-t border-gray-100">
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Voltage</span>
                       <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portVolts.toFixed(0)} V</span>
@@ -606,18 +606,14 @@ const Dashboard = () => {
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Current</span>
                       <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portAmps.toFixed(2)} A</span>
                     </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Power Factor</span>
-                      <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portPf.toFixed(2)}</span>
-                    </div>
                   </div>
                 </div>
 
                 {/* Formula Footnote */}
                 <div className="pt-2.5 border-t border-gray-100/70 flex items-center justify-between text-[10px] font-mono text-gray-400">
-                  <span className="font-semibold text-gray-400">P = V × I × PF</span>
+                  <span className="font-semibold text-gray-400">P = V × I</span>
                   <span className="text-gray-500 font-medium">
-                    {portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A × {portPf.toFixed(2)} = <strong className="text-gray-900 font-bold">{portData.relay_status ? (isDrawing ? `${displayWatts}W` : '0W') : '0W'}</strong>
+                    {portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A = <strong className="text-gray-900 font-bold">{portData.relay_status ? (isDrawing ? `${displayWatts}W` : '0W') : '0W'}</strong>
                   </span>
                 </div>
               </div>

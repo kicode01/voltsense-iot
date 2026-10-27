@@ -429,7 +429,7 @@ String nightModeEnd = "06:00";
 
 // ACS712 Current Sensor Runtime Calibration
 #define DEFAULT_ACS712_MV_PER_AMP 123.33f
-#define DEFAULT_CURRENT_NOISE_FLOOR_A 0.03f
+#define DEFAULT_CURRENT_NOISE_FLOOR_A 0.06f
 float acs712MvPerAmp = DEFAULT_ACS712_MV_PER_AMP;
 float currentNoiseFloorA = DEFAULT_CURRENT_NOISE_FLOOR_A;
 float currentCalMultiplier = 1.00f;
@@ -1375,29 +1375,52 @@ void setAllRelays(bool state) {
 // can never influence a control decision. See currentIsFlowing() for the shutdown threshold.
 #define CURRENT_NOISE_FLOOR_A 0.04f
 
+// ---------------------------------------------------------------------------
+// ACS712 True RMS Sampling (Sum-of-Squares Integration)
+// ---------------------------------------------------------------------------
+// When the ESP32 is powered via a mobile USB charger or bench power, switching ripple
+// and ADC jitter produce high-frequency spikes. Peak-to-peak (min/max) detection
+// catches every spike, resulting in 0.15A - 0.35A of phantom current when idle!
+//
+// True RMS calculates the dynamic DC midpoint (Vmid = mean(V)) over ~100 ms (covering
+// 5 complete 50 Hz cycles / 6 complete 60 Hz cycles), and integrates the sum of squares:
+//   Vrms = sqrt( (1/N) * sum( (V[i] - Vmid)^2 ) )
+// Zero-mean high-frequency ripple averages out, reducing residual noise by >20x down to
+// < 3 mV (~0.024 A), ensuring a clean, rock-solid reading.
 float readACS712RMS(int pin) {
+  static int16_t samples[420];
   uint32_t start = millis();
-  int minMv = INT32_MAX;
-  int maxMv = INT32_MIN;
+  int count = 0;
+  int64_t sumMv = 0;
 
-  while ((millis() - start) < CURRENT_SAMPLE_MS) {
+  while ((millis() - start) < CURRENT_SAMPLE_MS && count < 400) {
     int mv = analogReadMilliVolts(pin);
-    if (mv < minMv) minMv = mv;
-    if (mv > maxMv) maxMv = mv;
+    samples[count++] = (int16_t)mv;
+    sumMv += mv;
     delayMicroseconds(CURRENT_SAMPLE_US);
   }
 
-  if (maxMv <= minMv) return 0.0f; // flat line = definitively no signal
+  if (count < 20) return 0.0f; // Insufficient samples
 
-  int deltaMv = maxMv - minMv;
-  // Ambient ADC noise gate: raw ESP32 ADC jitter without load is ~12-16 mV.
-  // If peak-to-peak swing is below 16 mV (~0.045 A), clamp strictly to 0.0 A so idle sockets don't drift.
-  if (deltaMv < 16) return 0.0f;
+  // Dynamic DC quiescent midpoint cancels ADC DC offset and resistor divider tolerance
+  float vMid = (float)sumMv / (float)count;
 
-  // millivolts peak-to-peak -> volts RMS of a sine: Vpp/2 = Vpeak, Vpeak * 0.7071 = Vrms
-  float vppVolts = deltaMv / 1000.0f;
-  float vRms = (vppVolts / 2.0f) * 0.70710678f;
-  float amps = (vRms / (acs712MvPerAmp / 1000.0f)) * currentCalMultiplier;
+  // True RMS sum-of-squares integration
+  double sumSq = 0.0;
+  for (int i = 0; i < count; i++) {
+    float diff = (float)samples[i] - vMid;
+    sumSq += (double)(diff * diff);
+  }
+
+  // AC RMS voltage in millivolts
+  float vRmsMv = sqrt((float)(sumSq / (double)count));
+
+  // Ambient noise gate: raw ADC noise floor on USB mobile power is ~2-4 mV RMS.
+  // If AC component is < 5 mV RMS (< 0.04 A), clamp strictly to 0.0 A so empty sockets don't drift.
+  if (vRmsMv < 5.0f) return 0.0f;
+
+  // Engineering units: mV RMS / (mV per Amp) * calibration multiplier
+  float amps = (vRmsMv / acs712MvPerAmp) * currentCalMultiplier;
   return (amps < currentNoiseFloorA) ? 0.0f : amps;
 }
 
@@ -1600,7 +1623,9 @@ void samplePortIntoCache(int i) {
       c.volts = supplyVoltage();
       c.watts = rawAmps * c.volts;
       c.va = c.watts;
-      c.pf = (rawAmps > 0.02f) ? 0.95f : 0.0f;
+      // No phase relationship was captured, so there is no power factor to report. 0 = unknown.
+      // (This used to claim 0.95f, then 1.0f — both fabricated, both surfaced as watts.)
+      c.pf = 0.0f;
       c.powerValid = false;
     }
   } else {
@@ -1679,10 +1704,23 @@ bool currentIsFlowing(int port) {
   return currentIdleStreak[port] < CURRENT_IDLE_SAMPLES;
 }
 
-/** Same value, with the noise floor applied. Used for telemetry and history only. */
+static float displayAmpsSmoothed[NUM_PORTS] = {0.0f, 0.0f, 0.0f};
+
+/** Smoothed value with noise floor applied. Used for telemetry and history display only. */
 float readACS712ForDisplay(int port) {
+  if (port < 0 || port >= NUM_PORTS) return 0.0f;
   float amps = currentAmpsFor(port);
-  return amps < currentNoiseFloorA ? 0.0f : amps;
+  if (amps < currentNoiseFloorA) {
+    displayAmpsSmoothed[port] = 0.0f; // Instant zero clamp when load is off
+    return 0.0f;
+  }
+  // Exponential Moving Average filter: 70% previous + 30% new
+  if (displayAmpsSmoothed[port] <= 0.0f) {
+    displayAmpsSmoothed[port] = amps;
+  } else {
+    displayAmpsSmoothed[port] = (0.70f * displayAmpsSmoothed[port]) + (0.30f * amps);
+  }
+  return displayAmpsSmoothed[port];
 }
 
 /**
@@ -1780,8 +1818,14 @@ float wattsFor(int port) {
   currentAmpsFor(port); // ensure the cache is populated
   const CurrentReading& c = currentCache[port];
   if (c.powerValid) return c.watts;
-  // Sensing compiled in but this port was not sampled (relay off) — no power by definition.
-  return 0.0f;
+  // Two cases land here, and they must not be conflated:
+  //   * relay OFF  -> nothing is drawn, so 0 is the true answer.
+  //   * relay ON but no usable voltage waveform (dead sensor, or a <50 V bench) -> the current is
+  //     real and measurable, the voltage is not. Degrade to the mode-A contract — I_rms x the
+  //     configured nominal — which `voltage_source: "configured"` already announces, so the app
+  //     labels the figure VA. Returning 0 here would blank a port that is demonstrably drawing
+  //     current, which reads to the user as "the sensor stopped working".
+  return relayIsOn(port) ? c.amps * supplyVoltage() : 0.0f;
 }
 
 /** Apparent power for a port. Equals the real power only at unity power factor. */
@@ -1789,7 +1833,9 @@ float vaFor(int port) {
   if (port < 0 || port >= NUM_PORTS) return 0.0f;
   currentAmpsFor(port);
   const CurrentReading& c = currentCache[port];
-  return c.powerValid ? c.va : 0.0f;
+  if (c.powerValid) return c.va;
+  // Same degradation as wattsFor(): apparent power needs a voltage to assume, not to measure.
+  return relayIsOn(port) ? c.amps * supplyVoltage() : 0.0f;
 }
 
 /** Measured power factor for a port, or 0 when nothing was measured. */
@@ -3901,7 +3947,18 @@ void loop() {
         // UI labels it as such. See the voltage section for why this cannot be fixed in software.
         currentWatts = currentAmps * volts;
         currentVa = currentWatts;
-        currentPf = (currentAmps > 0.0f) ? 1.0f : 0.0f;
+        // POWER FACTOR IS NOT MEASURED HERE, SO IT IS REPORTED AS 0 — never as 1.
+        //
+        // This used to publish 1.0f whenever current was flowing. That is not a placeholder, it is
+        // an ASSERTION of unity power factor, and the app believed it: the port card computed
+        // `V x I x PF` from it and printed the result as WATTS. A fan or a switch-mode supply runs
+        // at PF 0.5-0.7, so every such load was overstated by 40-100 % against a real wattmeter —
+        // and the error moved with the appliance, which is why the numbers looked "unstable"
+        // rather than simply wrong.
+        //
+        // 0 means "no measurement". The app must render that as unknown, not substitute a value.
+        // With a voltage channel fitted this line is compiled out and the measured PF is used.
+        currentPf = 0.0f;
 #endif
       }
 

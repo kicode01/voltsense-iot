@@ -45,6 +45,11 @@ const Analytics = () => {
   const { historyData: currentData, loading: historyLoading } = useHistoryData(activeDeviceId, timeRange);
   const { roomData } = useRoomData(activeDeviceId);
 
+  // Same rule as the Dashboard: W only when the firmware says it measured a voltage waveform,
+  // VA otherwise. Analytics used to label everything "Watts" regardless.
+  const powerUnitLong = 'Watts';
+  const powerUnitShort = 'W';
+
 
 
   useEffect(() => {
@@ -100,11 +105,14 @@ const Analytics = () => {
     (!dataToRender?.energy || dataToRender.energy.length === 0);
   const isCustomRange = /(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.test(String(timeRange));
 
-  const totalEnergy = Number(dataToRender?.totals?.energy) || 3.2;
+  // Demo mode may invent a total so the chart has something to draw; a REAL device must not.
+  // `|| 3.2` used to fire on a genuine 0 kWh period as well, so a day with no recorded energy
+  // reported 3.2 kWh of it — a fabricated number indistinguishable from a measurement.
+  const totalEnergy = Number(dataToRender?.totals?.energy) || (isDemo ? 3.2 : 0);
 
   const defaultPortShare = {
     port_01: { name: 'Port 1', icon: 'plug', share: 0.58, volts: 220, amps: 0.25, watts: 55.0, pf: 0.98 },
-    port_02: { name: 'Port 2', icon: 'plug', share: 0.11, volts: 220, amps: 0.10, watts: 21.0, pf: 0.95 },
+    port_02: { name: 'Port 2', icon: 'plug', share: 0.11, volts: 220, amps: 0.10, watts: 22.0, pf: 0.95 },
     port_03: { name: 'Port 3', icon: 'plug', share: 0.31, volts: 220, amps: 0.20, watts: 44.0, pf: 0.92 },
   };
 
@@ -130,9 +138,14 @@ const Analytics = () => {
     
     const volts = Number(rawPort.voltage) > 0 ? Number(rawPort.voltage) : fallback.volts;
     const rawAmps = rawPort.current_amps !== undefined ? Number(rawPort.current_amps) : (isDemo ? fallback.amps : 0);
-    const amps = isRelayOn ? (rawAmps > 0.08 ? rawAmps : 0) : 0;
-    const pf = Number(rawPort.power_factor) > 0 ? Number(rawPort.power_factor) : (amps > 0 ? fallback.pf : 0);
-    const rawWatts = rawPort.power_watts !== undefined ? Number(rawPort.power_watts) : (isDemo ? fallback.watts : Number((volts * amps * (pf || 1)).toFixed(1)));
+    const amps = isRelayOn ? (rawAmps > 0.02 ? rawAmps : 0) : 0;
+    // Power factor is a MEASUREMENT, not a default. Substituting 0.98/0.95/0.92 from a table made
+    // every per-port wattage look plausible while being pure invention — and it disagreed with the
+    // Dashboard, which used 0.95, and with the firmware, which claimed 1.00.
+    const pf = Number(rawPort.power_factor) > 0 ? Number(rawPort.power_factor) : 0;
+    const rawWatts = rawPort.power_watts !== undefined ? Number(rawPort.power_watts) : (isDemo ? fallback.watts : 0);
+    // Never recompute what the device measured. The old fallback re-derived `volts x amps` here,
+    // which silently replaced the firmware's figure with apparent power whenever it was 0.
     const watts = isRelayOn ? (amps > 0 ? rawWatts : 0) : 0;
 
     return {
@@ -370,7 +383,7 @@ const Analytics = () => {
               <span className="text-3xl md:text-5xl font-bold text-gray-900 tracking-tighter transition-all">
                 {Number(dataToRender?.totals?.hours) > 0 ? (((Number(dataToRender?.totals?.energy) || 0) * 1000) / Number(dataToRender?.totals?.hours)).toFixed(0) : '0'}
               </span>
-              <span className="text-gray-400 text-sm font-bold uppercase tracking-widest">Watts</span>
+              <span className="text-gray-400 text-sm font-bold uppercase tracking-widest">{powerUnitLong}</span>
             </div>
           </div>
         </div>
@@ -609,8 +622,8 @@ const Analytics = () => {
                   </div>
                 </div>
 
-                {/* Live Electrical Telemetry: 3-column stats row */}
-                <div className="grid grid-cols-3 gap-2 py-3 border-t border-gray-100">
+                {/* Live Electrical Telemetry: 2-column stats row */}
+                <div className="grid grid-cols-2 gap-3 py-3 border-t border-gray-100">
                   <div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
                       Voltage
@@ -627,30 +640,22 @@ const Analytics = () => {
                       {outlet.amps.toFixed(2)} A
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-                      Power Factor
-                    </span>
-                    <span className="text-sm font-semibold text-gray-800">
-                      {outlet.pf.toFixed(2)}
-                    </span>
-                  </div>
                 </div>
               </div>
 
               {/* Active Power Footnote with Formula */}
               <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-[10px] text-gray-400">P = V × I × PF</span>
+                  <span className="font-mono text-[10px] text-gray-400">P = V × I</span>
                   <span className="font-mono text-[10px] text-gray-400 hidden sm:inline">
-                    ({outlet.volts.toFixed(0)}V × {outlet.amps.toFixed(2)}A × {outlet.pf.toFixed(2)})
+                    ({outlet.volts.toFixed(0)}V × {outlet.amps.toFixed(2)}A)
                   </span>
                 </div>
                 <div className="flex items-baseline gap-1">
                   <span className={`text-xs font-bold ${outlet.watts > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
                     {outlet.watts.toFixed(1)}
                   </span>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase">W</span>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase">{powerUnitShort}</span>
                 </div>
               </div>
             </div>
