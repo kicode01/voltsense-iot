@@ -126,13 +126,7 @@ const Dashboard = () => {
     }
   });
 
-  if (devicesLoading || roomLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center min-h-[50vh]">
-        <div className="w-10 h-10 border-4 border-maroon-100 border-t-maroon-800 rounded-full animate-spin" />
-      </div>
-    );
-  }
+
 
   const isDemo = !activeDeviceId;
   const deviceOnline = isDemo ? true : (isOnline || activeIsOnline);
@@ -402,6 +396,14 @@ const Dashboard = () => {
     clearTimeout(masterTimerRef.current);
     masterTimerRef.current = setTimeout(() => setTurningOff(false), 300);
   };
+
+  if (devicesLoading || roomLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-[50vh]">
+        <div className="w-10 h-10 border-4 border-maroon-100 border-t-maroon-800 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 md:gap-5 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10">
