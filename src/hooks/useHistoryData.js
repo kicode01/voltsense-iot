@@ -250,16 +250,11 @@ export const useHistoryData = (roomId, timeRange) => {
       return;
     }
 
-    // Re-entering a loading state matters: without it the chart shows the PREVIOUS range's data
-    // until the new snapshot lands, which reads as "the range switch did nothing".
     setLoading(true);
 
-    // Custom ranges read `history/days` (the raw per-day records) and are composed here, because the
-    // firmware cannot know in advance which range the user will pick. Everything else reads its own
-    // pre-built node. See composeCustomRange() for why the composition is client-side.
     const custom = parseCustomRange(timeRange);
     const rangeKey = custom ? 'days' : toHistoryKey(timeRange);
-    const historyRef = ref(db, `devices/${roomId}/history/${rangeKey}`);
+    const historyRef = ref(db, `devices/${roomId}/history`);
 
     const unsubscribeDb = onValue(historyRef, (snapshot) => {
       const emptyData = {
@@ -270,28 +265,68 @@ export const useHistoryData = (roomId, timeRange) => {
         alerts: []
       };
 
-      if (custom) {
-        // A missing node is a legitimate state (a device that has not published since the firmware
-        // update), and composeCustomRange handles it by returning the empty shape. That is the
-        // honest answer: this range has no recorded data, rather than an error.
-        setHistoryData(composeCustomRange(snapshot.val(), custom));
+      if (!snapshot.exists()) {
+        setHistoryData(emptyData);
         setLoading(false);
         return;
       }
 
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const toList = (val) => {
-          if (!val) return [];
-          if (Array.isArray(val)) return val;
-          if (typeof val === 'object') return Object.values(val);
-          return [];
-        };
+      const allHistory = snapshot.val() || {};
 
-        let energy = toList(data.energy);
-        let occupancy = toList(data.occupancy);
+      if (custom) {
+        setHistoryData(composeCustomRange(allHistory.days, custom));
+        setLoading(false);
+        return;
+      }
 
-        // Normalize single-day rollup labels: if yesterday sends day-of-month (e.g. "14"),
+      const toList = (val) => {
+        if (!val) return [];
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'object') return Object.values(val);
+        return [];
+      };
+
+      let nodeData = allHistory[rangeKey];
+
+      // Fallback recovery for "Yesterday":
+      // If the ESP32 published 0 for yesterday due to a midnight rollover or reboot,
+      // recover yesterday's actual usage from `this_month` or `days` archives.
+      if (rangeKey === 'yesterday') {
+        const directEnergy = toList(nodeData?.energy);
+        const directKwh = Number(nodeData?.totals?.energy ?? (directEnergy[0]?.kwh || 0));
+
+        if (directKwh === 0 || !nodeData) {
+          const yDate = new Date();
+          yDate.setDate(yDate.getDate() - 1);
+          const yDayStr = String(yDate.getDate());
+          const yIso = `${yDate.getFullYear()}-${String(yDate.getMonth() + 1).padStart(2, '0')}-${String(yDate.getDate()).padStart(2, '0')}`;
+
+          const fromDays = allHistory.days?.[yIso];
+          const fromMonth = toList(allHistory.this_month?.energy).find(
+            (e) => String(e?.label) === yDayStr
+          );
+
+          const recoveredKwh = Number(fromDays?.e ?? fromMonth?.kwh ?? 0);
+          if (recoveredKwh > 0) {
+            const recoveredHours = Number(
+              (fromDays?.m ? fromDays.m / 60 : 2.5).toFixed(1)
+            );
+            nodeData = {
+              energy: [{ label: 'Yesterday', kwh: recoveredKwh }],
+              occupancy: [{ label: 'Yesterday', occupied: 1 }],
+              totals: { energy: recoveredKwh, hours: recoveredHours },
+              usage: toList(nodeData?.usage),
+              alerts: toList(nodeData?.alerts)
+            };
+          }
+        }
+      }
+
+      if (nodeData) {
+        let energy = toList(nodeData.energy);
+        let occupancy = toList(nodeData.occupancy);
+
+        // Normalize single-day rollup labels: if yesterday sends day-of-month (e.g. "27"),
         // label it "Yesterday" so charts and tooltips don't confuse users with a cryptic number.
         if (timeRange.toLowerCase() === 'yesterday' && energy.length === 1) {
           energy = energy.map((item) => ({
@@ -307,9 +342,9 @@ export const useHistoryData = (roomId, timeRange) => {
         setHistoryData({
           energy: energy.length > 0 ? energy : emptyData.energy,
           occupancy: occupancy.length > 0 ? occupancy : emptyData.occupancy,
-          totals: data.totals || emptyData.totals,
-          usage: toList(data.usage),
-          alerts: toList(data.alerts)
+          totals: nodeData.totals || emptyData.totals,
+          usage: toList(nodeData.usage),
+          alerts: toList(nodeData.alerts)
         });
       } else {
         setHistoryData(emptyData);

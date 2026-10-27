@@ -2037,6 +2037,8 @@ void loadHistory() {
     for (size_t i = 0; i < count && dailyCount < MAX_HISTORY_DAYS; i++) {
       int type; String key, value;
       json.iteratorGet(i, type, key, value);
+      // Only accept valid date keys in "YYYY-MM-DD" format; ignore malformed keys like "e", "m", "p"
+      if (key.length() != 10 || key.charAt(4) != '-' || key.charAt(7) != '-') continue;
       FirebaseJson entry;
       entry.setJsonData(value);
       FirebaseJsonData d;
@@ -2324,6 +2326,15 @@ void publishDailyRange(const String& key, int startDaysAgo, int endDaysAgo) {
   out.set("occupancy", occArr);
   out.set("totals/energy", totalEnergy);
   out.set("totals/hours", totalOccupiedMin / 60.0);
+  if (key == "yesterday" && totalEnergy <= 0.0001f) {
+    // Guard against overwriting historical yesterday data with flat zeros if NVS was cleared
+    String checkBody;
+    if (rtdbRequest("GET", roomPath + "/history/yesterday/totals/energy", "", &checkBody)) {
+      if (checkBody.length() > 0 && checkBody != "null" && checkBody.toFloat() > 0.001f) {
+        return;
+      }
+    }
+  }
 
   if (!rtdbPutJson(roomPath + "/history/" + key, out)) {
     Serial.printf("history/%s write failed\n", key.c_str());
