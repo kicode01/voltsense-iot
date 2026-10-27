@@ -245,13 +245,47 @@ const Dashboard = () => {
     : Math.round(inactivityLimitSeconds / 60);
   const inactivityDisplayUnit = isSubMinuteInactivity ? 'sec' : 'min';
 
-  const idleCountdownSec = !occupied && data.state !== 'RESPONSE_WINDOW'
+  // Live Smooth Countdown Interpolation
+  // Bridges the 2-second Firebase telemetry cadence by ticking down locally every second
+  const rawCountdownSec = !occupied && data.state !== 'RESPONSE_WINDOW'
     ? Math.max(0, Number(data.countdown_remaining_seconds || 0))
     : 0;
+
+  const [idleCountdownSec, setIdleCountdownSec] = useState(rawCountdownSec);
+
+  useEffect(() => {
+    setIdleCountdownSec(rawCountdownSec);
+  }, [rawCountdownSec]);
+
+  useEffect(() => {
+    if (idleCountdownSec <= 0 || occupied) return;
+    const interval = setInterval(() => {
+      setIdleCountdownSec((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [idleCountdownSec > 0, occupied]);
+
+  const rawResponseSec = data.state === 'RESPONSE_WINDOW'
+    ? (data.countdown_remaining_seconds ?? (settings.response_window_seconds || 300))
+    : 0;
+  const [smoothResponseSec, setSmoothResponseSec] = useState(rawResponseSec);
+
+  useEffect(() => {
+    setSmoothResponseSec(rawResponseSec);
+  }, [rawResponseSec]);
+
+  useEffect(() => {
+    if (data.state !== 'RESPONSE_WINDOW' || smoothResponseSec <= 0) return;
+    const interval = setInterval(() => {
+      setSmoothResponseSec((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [data.state === 'RESPONSE_WINDOW', smoothResponseSec > 0]);
+
   const formatCountdown = (totalSec) => {
     const m = Math.floor(totalSec / 60);
     const s = totalSec % 60;
-    return m > 0 ? `${m}m ${s}s (${totalSec}s)` : `${s}s`;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
 
   const formatTime = (timeStr) => {
@@ -429,7 +463,7 @@ const Dashboard = () => {
            {/* Fall back to the FIRMWARE's real response window (5 minutes), not 60 seconds — the
                alert text says "60 seconds" but RESPONSE_WINDOW_MS is 300000. Showing 60 here would
                understate the time the user actually has, and could make them rush a decision. */}
-           <div className="text-6xl sm:text-7xl font-black drop-shadow-md my-4 relative z-10">{data.countdown_remaining_seconds ?? (settings.response_window_seconds || 300)}s</div>
+           <div className="text-6xl sm:text-7xl font-black drop-shadow-md my-4 relative z-10">{smoothResponseSec}s</div>
            <button
              onClick={async () => {
                setOverridePending(true);

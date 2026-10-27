@@ -458,7 +458,20 @@ const TestLab = () => {
 
   // State Machine labels & colors
   const systemState = roomData?.state || (isDemo ? 'OCCUPIED' : 'UNKNOWN');
-  const countdownSeconds = roomData?.countdown_remaining_seconds || 0;
+  const rawCountdownSeconds = roomData?.countdown_remaining_seconds || 0;
+  const [countdownSeconds, setCountdownSeconds] = useState(rawCountdownSeconds);
+
+  useEffect(() => {
+    setCountdownSeconds(rawCountdownSeconds);
+  }, [rawCountdownSeconds]);
+
+  useEffect(() => {
+    if (countdownSeconds <= 0) return;
+    const interval = setInterval(() => {
+      setCountdownSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [countdownSeconds > 0]);
 
   const getStateBadge = (state) => {
     switch (state) {

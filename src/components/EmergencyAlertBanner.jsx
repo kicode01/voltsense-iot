@@ -114,9 +114,22 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
   const isRealResponseWindow = roomData?.state === 'RESPONSE_WINDOW';
   const isActive = (isRealResponseWindow || simulatedAlert) && !dismissed;
 
-  const remainingSeconds = simulatedAlert
-    ? simulatedCountdown
-    : (roomData?.countdown_remaining_seconds ?? (roomData?.settings?.response_window_seconds || 300));
+  const rawRemainingSeconds = roomData?.countdown_remaining_seconds ?? (roomData?.settings?.response_window_seconds || 300);
+  const [realCountdown, setRealCountdown] = useState(rawRemainingSeconds);
+
+  useEffect(() => {
+    setRealCountdown(rawRemainingSeconds);
+  }, [rawRemainingSeconds]);
+
+  useEffect(() => {
+    if (!isRealResponseWindow || realCountdown <= 0) return;
+    const interval = setInterval(() => {
+      setRealCountdown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isRealResponseWindow, realCountdown > 0]);
+
+  const remainingSeconds = simulatedAlert ? simulatedCountdown : realCountdown;
 
   // Trigger push notification, cross-device alert, and sound on REAL hardware RESPONSE_WINDOW transition
   useEffect(() => {
