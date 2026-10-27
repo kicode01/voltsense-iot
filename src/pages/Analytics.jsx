@@ -122,23 +122,28 @@ const Analytics = () => {
     port_03: '#54121e'  // Deep Velvet Maroon (Rich dark wine tone)
   };
 
-  const outletList = ['port_01', 'port_02', 'port_03'].map((portKey) => {
+  // 1. Gather raw energy for each port to calculate proper relative distribution
+  const rawPortEnergies = ['port_01', 'port_02', 'port_03'].map((portKey) => {
     const rawPort = roomData?.ports?.[portKey] || {};
     const fallback = defaultPortShare[portKey];
-    const portNumber = portKey === 'port_01' ? 1 : portKey === 'port_02' ? 2 : 3;
-    const name = `Port ${portNumber}`;
-    const isRelayOn = rawPort.relay_status !== undefined ? Boolean(rawPort.relay_status) : true;
-    
-    // Period energy in kWh for this outlet:
-    // If viewing 'Today' and the live device has recorded energy on this port, use that.
-    // For historical ranges ('Yesterday', 'Last 7 Days', 'This Month', 'Custom') or demo mode,
-    // calculate proportionally from the selected period's total energy so it connects to the time filter.
     const hasLiveTodayPortEnergy = timeRange === 'Today' && Number(rawPort.energy_kwh) > 0;
     const energyKwh = hasLiveTodayPortEnergy 
       ? Number(rawPort.energy_kwh) 
       : Number((totalEnergy * fallback.share).toFixed(2));
+    return { portKey, rawPort, fallback, energyKwh };
+  });
+
+  const sumAllPortsEnergy = rawPortEnergies.reduce((acc, p) => acc + p.energyKwh, 0);
+
+  const outletList = rawPortEnergies.map(({ portKey, rawPort, fallback, energyKwh }) => {
+    const portNumber = portKey === 'port_01' ? 1 : portKey === 'port_02' ? 2 : 3;
+    const name = `Port ${portNumber}`;
+    const isRelayOn = rawPort.relay_status !== undefined ? Boolean(rawPort.relay_status) : true;
     
-    const percentage = totalEnergy > 0 ? Math.min(100, Math.round((energyKwh / totalEnergy) * 100)) : Math.round(fallback.share * 100);
+    // Proportional percentage across all 3 ports (strictly sums to 100%)
+    const percentage = sumAllPortsEnergy > 0 
+      ? Math.max(1, Math.min(100, Math.round((energyKwh / sumAllPortsEnergy) * 100))) 
+      : Math.round(fallback.share * 100);
     
     // Period active runtime & estimated average active load
     const periodHours = Number((totalHours * fallback.share).toFixed(1));
@@ -149,7 +154,7 @@ const Analytics = () => {
     // Time-series readings for this port across the selected period
     const readings = (dataToRender?.energy || []).map((pt) => ({
       label: pt.label,
-      kwh: Number((pt.kwh * fallback.share).toFixed(2)),
+      kwh: Number((pt.kwh * (sumAllPortsEnergy > 0 ? (energyKwh / sumAllPortsEnergy) : fallback.share)).toFixed(2)),
       watts: fallback.watts
     }));
 
@@ -580,18 +585,18 @@ const Analytics = () => {
         {/* Proportional Energy Distribution Ribbon (only in 'All' overview mode) */}
         {selectedOutletTab === 'all' && (
           <div className="mb-5">
-            <div className="w-full bg-gray-100 p-1 rounded-2xl flex items-center gap-1 overflow-hidden">
+            <div className="w-full bg-gray-100/90 p-1 rounded-2xl flex items-center gap-1.5 overflow-hidden border border-gray-200/50">
               {outletList.map((outlet) => {
-                const widthPct = totalEnergy > 0 ? Math.max(8, outlet.percentage) : 33.3;
+                const widthPct = Math.max(12, outlet.percentage);
                 return (
                   <div
                     key={`ribbon-${outlet.id}`}
                     style={{ width: `${widthPct}%`, backgroundColor: outlet.color }}
-                    className="h-5 sm:h-6 rounded-xl transition-all duration-500 ease-apple-spring relative flex items-center justify-center text-[10px] font-bold text-white shadow-2xs px-1"
+                    className="h-6 sm:h-7 rounded-xl transition-all duration-500 ease-apple-spring relative flex items-center justify-center text-xs font-semibold text-white shadow-2xs px-2"
                     title={`${outlet.name}: ${outlet.energyKwh.toFixed(2)} kWh (${outlet.percentage}%)`}
                   >
-                    <span className="truncate font-mono">
-                      {outlet.name} • {outlet.percentage}%
+                    <span className="truncate tracking-tight font-sans text-[11px] sm:text-xs font-bold drop-shadow-2xs">
+                      {outlet.name} · {outlet.percentage}%
                     </span>
                   </div>
                 );
@@ -610,7 +615,6 @@ const Analytics = () => {
             >
               {outletList.map((outlet) => {
                 const isDrawing = outlet.isRelayOn && (outlet.watts > 1.5 || outlet.amps > 0.02);
-                const maxReading = Math.max(...(outlet.readings?.map(r => r.kwh) || [0]), 0.01);
 
                 return (
                   <div 
@@ -680,47 +684,6 @@ const Analytics = () => {
                         </div>
                       </div>
                     </div>
-
-                    {/* Mini History Trendline / Sparkline Strip */}
-                    {outlet.readings && outlet.readings.length > 0 && (
-                      <div className="pt-2.5 border-t border-gray-100">
-                        <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-                          <span>Readings Trend</span>
-                          <span className="text-[9px] font-medium text-gray-400 lowercase">
-                            {outlet.readings.length} {outlet.readings.length === 1 ? 'record' : 'intervals'}
-                          </span>
-                        </div>
-                        <div className="h-8 flex items-end gap-1 px-0.5">
-                          {outlet.readings.map((r, rIdx) => {
-                            const heightPct = Math.max(16, Math.min(100, Math.round((r.kwh / maxReading) * 100)));
-                            return (
-                              <div
-                                key={`bar-${outlet.id}-${rIdx}`}
-                                className="flex-1 flex flex-col items-center group/bar relative"
-                              >
-                                <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
-                                  {r.label}: {r.kwh.toFixed(2)} kWh
-                                </div>
-                                <div 
-                                  style={{ 
-                                    height: `${heightPct}%`,
-                                    backgroundColor: outlet.color
-                                  }}
-                                  className="w-full rounded-t-sm opacity-80 group-hover/bar:opacity-100 transition-all duration-300"
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="flex justify-between text-[8px] font-medium text-gray-400 mt-1 px-0.5">
-                          <span>{outlet.readings[0]?.label || ''}</span>
-                          {outlet.readings.length > 2 && (
-                            <span>{outlet.readings[Math.floor(outlet.readings.length / 2)]?.label || ''}</span>
-                          )}
-                          <span>{outlet.readings[outlet.readings.length - 1]?.label || ''}</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 );
               })}
