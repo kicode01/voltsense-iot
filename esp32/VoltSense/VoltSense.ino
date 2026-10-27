@@ -794,23 +794,31 @@ bool rtdbRequest(const char* method, const String& path, const String& body, Str
   client.setCACert(API_ROOT_CA_BUNDLE);
   HTTPClient http;
   String url = String("https://") + DATABASE_URL + path + ".json?auth=" + rtdbIdToken;
-  if (!http.begin(client, url)) return false;
   http.setTimeout(15000);
 
   // A 15 s timeout is half the watchdog budget, and these run back to back.
   watchdogFeed();
-  int code;
-  if (strcmp(method, "GET") == 0) {
-    code = http.GET();
-  } else {
-    http.addHeader("Content-Type", "application/json");
-    code = (strcmp(method, "PATCH") == 0) ? http.PATCH(body) : http.PUT(body);
+  int code = -1;
+  for (int attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0) {
+      delay(80);
+    }
+    if (!http.begin(client, url)) continue;
+    if (strcmp(method, "GET") == 0) {
+      code = http.GET();
+    } else {
+      http.addHeader("Content-Type", "application/json");
+      code = (strcmp(method, "PATCH") == 0) ? http.PATCH(body) : http.PUT(body);
+    }
+    if (out && code > 0) *out = http.getString();
+    http.end();
+    client.stop();
+    if (code > 0) break;
   }
-  if (out && code > 0) *out = http.getString();
-  http.end();
   watchdogFeed();
 
   if (code < 200 || code >= 300) {
+    if (code == 401 || code == 403) rtdbTokenDeadline = 0;
     Serial.printf("RTDB %s %s -> HTTP %d\n", method, path.c_str(), code);
     return false;
   }
@@ -2476,7 +2484,24 @@ void sendAlert(const String& title, const String& body, const String& tag = "vol
 // `struct RemoteChange` is declared in VoltSenseTypes.h — it appears in a function signature, so it
 // must be visible above the prototypes the Arduino build generates. See that file for the details.
 
-void performVoltageAutoCalibration(float targetGridV = 220.0f) {
+bool pendingAutoCal = false;
+bool pendingZeroTare = false;
+
+void performVoltageAutoCalibration(float targetGridV = 220.0f);
+void performCurrentZeroTare();
+
+void processPendingCalibrations() {
+  if (pendingAutoCal) {
+    pendingAutoCal = false;
+    performVoltageAutoCalibration(nominalVoltage >= 50.0f ? nominalVoltage : 220.0f);
+  }
+  if (pendingZeroTare) {
+    pendingZeroTare = false;
+    performCurrentZeroTare();
+  }
+}
+
+void performVoltageAutoCalibration(float targetGridV) {
   if (targetGridV < 50.0f || targetGridV > 300.0f) targetGridV = 220.0f;
   Serial.printf("[AUTO-CAL] Sampling AC voltage waveform against target %.1f V grid baseline...\n", targetGridV);
 
@@ -2495,11 +2520,12 @@ void performVoltageAutoCalibration(float targetGridV = 220.0f) {
   }
 
   FirebaseJson calUpdate;
-  calUpdate.set("settings/auto_calibrate_voltage", false);
+  calUpdate.set("auto_calibrate_voltage", false);
 
   if (n < 32) {
     Serial.println("[AUTO-CAL] Error: Too few ADC samples.");
-    rtdbPatchJson(roomPath, calUpdate);
+    delay(50);
+    rtdbPatchJson(roomPath + "/settings", calUpdate);
     return;
   }
 
@@ -2520,22 +2546,24 @@ void performVoltageAutoCalibration(float targetGridV = 220.0f) {
   }
 
   float calculatedCal = adcVrms_mV / targetGridV;
-  if (calculatedCal >= 1.0f && calculatedCal <= 20.0f) {
+  if (calculatedCal >= 0.5f && calculatedCal <= 20.0f) {
     voltageCalMvPerV = calculatedCal;
     setNvsString("voltage_cal", String(calculatedCal, 3));
     Serial.printf("[AUTO-CAL] SUCCESS! New factor: %.3f mV/V\n", calculatedCal);
-    calUpdate.set("settings/voltage_cal_mv_per_v", voltageCalMvPerV);
+    calUpdate.set("voltage_cal_mv_per_v", voltageCalMvPerV);
   } else {
-    Serial.printf("[AUTO-CAL] Calculated factor %.3f mV/V out of bounds (1.0-20.0)\n", calculatedCal);
+    Serial.printf("[AUTO-CAL] Calculated factor %.3f mV/V out of bounds (0.5-20.0)\n", calculatedCal);
   }
-  rtdbPatchJson(roomPath, calUpdate);
+  delay(50);
+  rtdbPatchJson(roomPath + "/settings", calUpdate);
 }
 
 void performCurrentZeroTare() {
   Serial.println("[ZERO-TARE] ACS712 zero tare triggered. Resetting offsets.");
   FirebaseJson tareUpdate;
-  tareUpdate.set("settings/calibrate_current_zero", false);
-  rtdbPatchJson(roomPath, tareUpdate);
+  tareUpdate.set("calibrate_current_zero", false);
+  delay(50);
+  rtdbPatchJson(roomPath + "/settings", tareUpdate);
 }
 
 template <typename RemoteChangeT>
@@ -2682,11 +2710,11 @@ void applyRemoteChange(const RemoteChangeT& data) {
     }
   } else if (path == "/settings/auto_calibrate_voltage") {
     if (data.boolData()) {
-      performVoltageAutoCalibration(nominalVoltage >= 50.0f ? nominalVoltage : 220.0f);
+      pendingAutoCal = true;
     }
   } else if (path == "/settings/calibrate_current_zero") {
     if (data.boolData()) {
-      performCurrentZeroTare();
+      pendingZeroTare = true;
     }
   } else if (path == "/settings/overcurrent_limit_a") {
     // Optional. Clamped to what the fitted sensor can actually resolve — a limit above ~5 A on the
@@ -2709,7 +2737,7 @@ void applyRemoteChange(const RemoteChangeT& data) {
     // 460 instead of 4.6 would scale the whole system down by 100x and every wattage with it —
     // producing confident, plausible, completely wrong numbers.
     float cal = data.floatData();
-    if (cal >= 1.0f && cal <= 20.0f) {
+    if (cal >= 0.5f && cal <= 20.0f) {
       voltageCalMvPerV = cal;
       setNvsString("voltage_cal", String(cal, 3));
       Serial.printf("Voltage calibration set to %.3f mV/V\n", cal);
@@ -2803,17 +2831,10 @@ void applyRemoteChange(const RemoteChangeT& data) {
     json.get(result, "settings/sensor_fusion_mode");
     if (result.success && result.stringValue.length() > 0) sensorFusionMode = result.stringValue;
     json.get(result, "settings/voltage_cal_mv_per_v");
-    if (result.success && result.floatValue >= 1.0f && result.floatValue <= 20.0f) {
+    if (result.success && result.floatValue >= 0.5f && result.floatValue <= 20.0f) {
       voltageCalMvPerV = result.floatValue;
     }
-    json.get(result, "settings/auto_calibrate_voltage");
-    if (result.success && result.boolValue) {
-      performVoltageAutoCalibration(nominalVoltage >= 50.0f ? nominalVoltage : 220.0f);
-    }
-    json.get(result, "settings/calibrate_current_zero");
-    if (result.success && result.boolValue) {
-      performCurrentZeroTare();
-    }
+    // Auto-cal and zero tare are handled exclusively via explicit dispatch below
 
     static bool initialBootRelaySyncDone = false;
     if (!initialBootRelaySyncDone) {
@@ -2914,6 +2935,169 @@ void pollRemoteChanges(bool force = false) {
       policy._str = field.stringValue;
       applyRemoteChange(policy);
     }
+  }
+
+  // Explicit settings dispatch
+  json.get(field, "settings/bench_mode");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/bench_mode";
+    c._bool = field.boolValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/nominal_voltage");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/nominal_voltage";
+    c._float = field.floatValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/acs712_mv_per_amp");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/acs712_mv_per_amp";
+    c._float = field.floatValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/current_noise_floor_a");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/current_noise_floor_a";
+    c._float = field.floatValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/current_cal_multiplier");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/current_cal_multiplier";
+    c._float = field.floatValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/voltage_cal_mv_per_v");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/voltage_cal_mv_per_v";
+    c._float = field.floatValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/mmwave_enabled");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/mmwave_enabled";
+    c._bool = field.boolValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/mmwave_inverted");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/mmwave_inverted";
+    c._bool = field.boolValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/night_mode_enabled");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/night_mode_enabled";
+    c._bool = field.boolValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/night_mode_start");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/night_mode_start";
+    c._str = field.stringValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/night_mode_end");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/night_mode_end";
+    c._str = field.stringValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/inactivity_limit_minutes");
+  if (field.success && field.intValue > 0) {
+    RemoteChange c;
+    c._path = "/settings/inactivity_limit_minutes";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/inactivity_limit_seconds");
+  if (field.success && field.intValue > 0) {
+    RemoteChange c;
+    c._path = "/settings/inactivity_limit_seconds";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/response_window_seconds");
+  if (field.success && field.intValue > 0) {
+    RemoteChange c;
+    c._path = "/settings/response_window_seconds";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/sensor_fusion_mode");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/sensor_fusion_mode";
+    c._str = field.stringValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/pir_delay_seconds");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/pir_delay_seconds";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/mmwave_delay_seconds");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/mmwave_delay_seconds";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/force_pir");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/force_pir";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/force_mmwave");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/force_mmwave";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/auto_calibrate_voltage");
+  if (field.success && field.boolValue) {
+    pendingAutoCal = true;
+  }
+
+  json.get(field, "settings/calibrate_current_zero");
+  if (field.success && field.boolValue) {
+    pendingZeroTare = true;
   }
 
   // If the user manually turned off all relays (e.g. clicking ALL OFF) while the 
@@ -3315,7 +3499,8 @@ void displayPairingPortal() {
       "<h2>VoltSense Paired!</h2>" +
       "<p>Enter this code in the VoltSense app to link this device:</p>" +
       "<div class='code'>" + provisioningCode + "</div>" +
-      "<p style='color: #6b7280; font-size: 0.875rem;'>Expires in 30 minutes.</p>" +
+      "<a href='https://voltsense-iot.vercel.app/settings?claim=" + provisioningCode + "' style='display:block;margin-bottom:0.75rem;padding:0.75rem;background:#612f2f;color:#fff;border-radius:1rem;text-decoration:none;font-weight:bold;font-size:0.9rem;'>Open App & Auto-Claim</a>" +
+      "<p style='color: #6b7280; font-size: 0.875rem; margin-bottom: 0.75rem;'>Code expires in 30 minutes.</p>" +
       "<form action='/done' method='POST'><button type='submit'>Finish Setup</button></form>" +
       "</div></body></html>";
     server.send(200, "text/html", html);
@@ -3635,13 +3820,10 @@ void setup() {
     // This loop is INTENTIONALLY infinite, so it must feed the watchdog explicitly. Without the
     // feed the 30 s timeout would reset the device every 30 s — turning "stays awake so you can
     // reach the captive portal" into the reboot loop this branch exists to avoid.
-    Serial.println("ERROR: no WiFi after 3 attempts. Staying in a safe state (ports unchanged).");
-    Serial.println("Connect to the 'VoltSense_Setup' AP to configure, then press EN to reboot.");
-    for (;;) {
-      watchdogFeed();
-      delay(10000);
-      Serial.println("Waiting for configuration...");
-    }
+    Serial.println("ERROR: no WiFi after 3 attempts. Launching persistent fallback AP 'VoltSense_Setup'...");
+    wm.setConfigPortalTimeout(0);
+    wm.startConfigPortal("VoltSense_Setup");
+    ESP.restart();
   }
   Serial.println("Connected to WiFi!");
   WiFi.setAutoReconnect(true);
@@ -3797,6 +3979,7 @@ void loop() {
   // Pick up anything the app changed (override, relay toggles, policy, settings). Rate-limited
   // internally, so calling it every iteration is free.
   pollRemoteChanges();
+  processPendingCalibrations();
 
   // Occupancy = PIR OR the mmWave radar — the dual-sensor module. The radar term is compiled in with
   // HAS_MMWAVE (see its section): reading MMWAVE_PIN while no radar is wired would leave the pin
@@ -3996,6 +4179,7 @@ void loop() {
 
     // Poll first so any user toggle in flight is applied before we publish telemetry!
     pollRemoteChanges(/*force=*/true);
+    processPendingCalibrations();
 
     float totalAmps = 0;
     float totalWatts = 0;
@@ -4083,7 +4267,7 @@ void loop() {
     json.set("state", stateToString(currentState));
     json.set("total_current_amps", totalAmps);
     json.set("total_power_watts", totalWatts);
-    json.set("inactivity_limit", (int)(idleTimeoutMs / 60000UL));
+    json.set("inactivity_limit", (int)max(1UL, idleTimeoutMs / 60000UL));
       json.set("inactivity_limit_seconds", (int)(idleTimeoutMs / 1000UL));
       json.set("bench_mode", benchMode);
     // Reported so the app can show what the device is actually enforcing, rather than assuming the

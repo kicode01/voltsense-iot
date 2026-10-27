@@ -61,7 +61,7 @@
         },
         "inactivity_limit": {
           ".write": "auth != null && (auth.uid === root.child('device_uids').child($mac).val() || root.child('users').child(auth.uid).child('owned_devices').child($mac).exists())",
-          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1440"
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1440"
         },
         "inactivity_limit_seconds": {
           ".validate": "newData.isNumber()"
@@ -112,7 +112,7 @@
           }
         },
         "settings": {
-          ".write": "auth != null && root.child('users').child(auth.uid).child('owned_devices').child($mac).exists()",
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('owned_devices').child($mac).exists() || auth.uid === root.child('device_uids').child($mac).val())",
           "night_mode_enabled": {
             ".validate": "newData.isBoolean()"
           },
@@ -123,7 +123,7 @@
             ".validate": "newData.isString() && newData.val().matches(/^([01][0-9]|2[0-3]):[0-5][0-9]$/)"
           },
           "inactivity_limit_minutes": {
-            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1440"
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1440"
           },
           "nominal_voltage": {
             ".validate": "newData.isNumber() && newData.val() >= 50 && newData.val() <= 300"

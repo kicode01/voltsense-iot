@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import {
@@ -20,7 +21,9 @@ import {
   Gauge,
   RotateCcw,
   Activity,
-  Crosshair
+  Crosshair,
+  QrCode,
+  ExternalLink
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { enablePushForUser, clearPushToken } from '../lib/pushNotifications';
@@ -29,6 +32,7 @@ import { errorMessage } from '../lib/errors';
 import { signOut } from 'firebase/auth';
 import { TimePicker } from '../components/TimePicker';
 import GodModePanel from '../components/GodModePanel';
+import DeviceSetupModal from '../components/DeviceSetupModal';
 import { playEmergencyAlarm } from '../lib/soundAlert';
 
 const Settings = () => {
@@ -87,6 +91,19 @@ const Settings = () => {
   const [loadingPush, setLoadingPush] = useState(false);
   // The pairing code the device prints after it provisions itself. Eight characters from an
   // unambiguous alphabet (no 0/O/1/I/L), optionally grouped as XXXX-XXXX by the formatter.
+  const [searchParams] = useSearchParams();
+  const [showSetupModal, setShowSetupModal] = useState(false);
+
+  useEffect(() => {
+    const claimParam = searchParams.get('claim') || searchParams.get('code');
+    if (claimParam) {
+      setPairingCodeInput(formatPairingCodeInput(claimParam));
+    }
+    if (searchParams.get('setup') === 'true' || searchParams.get('qr') === 'true') {
+      setShowSetupModal(true);
+    }
+  }, [searchParams]);
+
   const [pairingCodeInput, setPairingCodeInput] = useState('');
   const [claimError, setClaimError] = useState(null);
   const [pairing, setPairing] = useState(false);
@@ -379,7 +396,7 @@ const Settings = () => {
       key: 'voltage_cal_mv_per_v',
       label: 'Voltage calibration',
       unit: 'mV/V',
-      min: 1.0,
+      min: 0.5,
       max: 20.0,
       hint: 'ZMPT101B transformer scaling factor. Divides into raw ADC mV to derive mains RMS.'
     },
@@ -666,14 +683,26 @@ const Settings = () => {
         <div className="lg:col-span-7 flex flex-col gap-4 md:gap-5">
           {/* Paired Devices Section */}
           <div className="settings-paired-devices bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
-            <div className="flex items-center gap-3 md:gap-4 mb-4">
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
-                <Wifi className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+            <div className="flex items-center justify-between gap-3 md:gap-4 mb-4">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <Wifi className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+                </div>
+                <div>
+                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Paired Devices</h3>
+                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight">Manage your VoltSense hardware</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Paired Devices</h3>
-                <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight">Manage your VoltSense hardware</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowSetupModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-maroon-50 border border-maroon-200/60 text-maroon-800 text-xs font-bold hover:bg-maroon-100 hover:border-maroon-300 transition-all shadow-sm group shrink-0"
+                title="Scan QR Code to connect to VoltSense hotspot"
+              >
+                <QrCode className="w-3.5 h-3.5 text-maroon-700 group-hover:scale-110 transition-transform" />
+                <span className="hidden sm:inline">QR Setup</span>
+                <span className="sm:hidden">QR</span>
+              </button>
             </div>
             
             <div className="space-y-3 mb-5">
@@ -771,6 +800,18 @@ const Settings = () => {
                   {claimError}
                 </p>
               )}
+
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
+                <span className="text-[11px]">First-time hardware setup?</span>
+                <button
+                  type="button"
+                  onClick={() => setShowSetupModal(true)}
+                  className="font-bold text-maroon-800 hover:text-maroon-900 hover:underline flex items-center gap-1 text-[11px]"
+                >
+                  <QrCode className="w-3 h-3" />
+                  <span>Wi-Fi Setup Assistant</span>
+                </button>
+              </div>
 
               <p className="text-[11px] text-gray-500 mt-2 px-1 leading-relaxed">
                 The code is shown on the device after it powers on and joins Wi-Fi.
@@ -1300,6 +1341,12 @@ const Settings = () => {
         </div>,
         document.body
       )}
+
+      {/* Device Setup QR Modal */}
+      <DeviceSetupModal
+        isOpen={showSetupModal}
+        onClose={() => setShowSetupModal(false)}
+      />
 
       {/* Generic Modal */}
       {isModalRendered && createPortal(
