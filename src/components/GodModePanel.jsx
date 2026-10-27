@@ -103,7 +103,10 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
         acs712_mv_per_amp: 123.33,
         current_noise_floor_a: 0.03,
         current_cal_multiplier: 1.00,
-        sensor_fusion_mode: 'OR'
+        sensor_fusion_mode: 'OR',
+        radar_max_gate: 3,
+        radar_static_threshold: 20,
+        radar_moving_threshold: 30
       };
     }
 
@@ -131,7 +134,10 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
       mmwave_enabled: true,
       mmwave_inverted: false,
       force_mmwave: -1,
-      force_pir: -1
+      force_pir: -1,
+      radar_max_gate: 3,
+      radar_static_threshold: 20,
+      radar_moving_threshold: 30
     };
 
     try {

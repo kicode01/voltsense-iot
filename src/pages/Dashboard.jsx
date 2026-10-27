@@ -578,6 +578,14 @@ const Dashboard = () => {
                 mmWave Radar
               </span>
             </div>
+            {data.radar_uart_connected && (
+              <div className="text-[10px] font-mono text-gray-500 mt-2 flex items-center gap-1.5 truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span>
+                  {data.radar_distance_cm ? `${data.radar_distance_cm} cm` : 'Gated'} · {data.radar_static_energy ?? 0}% breathing · {data.radar_target_state || 'tracking'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

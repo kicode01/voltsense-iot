@@ -23,7 +23,7 @@ import {
   Activity,
   Crosshair,
   QrCode,
-  ExternalLink
+  Radio
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { enablePushForUser, clearPushToken } from '../lib/pushNotifications';
@@ -263,7 +263,10 @@ const Settings = () => {
     currentNoiseFloor: 0.03,
     currentMultiplier: 1.00,
     pirDelay: 5,
-    mmwaveDelay: 3
+    mmwaveDelay: 3,
+    radarMaxGate: 3,
+    radarStaticThreshold: 20,
+    radarMovingThreshold: 30
   });
   const [savingLimit, setSavingLimit] = useState(null);
   const [limitsError, setLimitsError] = useState(null);
@@ -284,6 +287,15 @@ const Settings = () => {
   const storedPirDelay = roomData?.settings?.pir_delay_seconds;
   const storedMmwaveDelay = roomData?.settings?.mmwave_delay_seconds;
   const storedSensorFusion = roomData?.settings?.sensor_fusion_mode || 'OR';
+  const storedRadarMaxGate = roomData?.settings?.radar_max_gate ?? 3;
+  const storedRadarStaticThreshold = roomData?.settings?.radar_static_threshold ?? 20;
+  const storedRadarMovingThreshold = roomData?.settings?.radar_moving_threshold ?? 30;
+
+  const isRadarUart = Boolean(roomData?.radar_uart_connected);
+  const liveRadarDistance = roomData?.radar_distance_cm ?? 0;
+  const liveRadarStaticEnergy = roomData?.radar_static_energy ?? 0;
+  const liveRadarMovingEnergy = roomData?.radar_moving_energy ?? 0;
+  const liveRadarTargetState = roomData?.radar_target_state || 'none';
   const isBenchMode = Boolean(roomData?.settings?.bench_mode);
 
   const handleBenchModeToggle = async () => {
@@ -344,7 +356,10 @@ const Settings = () => {
       currentNoiseFloor: storedCurrentNoiseFloor ?? 0.03,
       currentMultiplier: storedCurrentMultiplier ?? 1.00,
       pirDelay: storedPirDelay ?? 5,
-      mmwaveDelay: storedMmwaveDelay ?? 3
+      mmwaveDelay: storedMmwaveDelay ?? 3,
+      radarMaxGate: storedRadarMaxGate ?? 3,
+      radarStaticThreshold: storedRadarStaticThreshold ?? 20,
+      radarMovingThreshold: storedRadarMovingThreshold ?? 30
     });
   }, [
     activeDeviceId,
@@ -357,7 +372,10 @@ const Settings = () => {
     storedCurrentNoiseFloor,
     storedCurrentMultiplier,
     storedPirDelay,
-    storedMmwaveDelay
+    storedMmwaveDelay,
+    storedRadarMaxGate,
+    storedRadarStaticThreshold,
+    storedRadarMovingThreshold
   ]);
 
   /**
@@ -442,6 +460,30 @@ const Settings = () => {
       min: 0,
       max: 60,
       hint: 'Stillness hold bridge to prevent radar flutter while seated or resting.'
+    },
+    radarMaxGate: {
+      key: 'radar_max_gate',
+      label: 'Radar max distance gate',
+      unit: 'gates',
+      min: 1,
+      max: 8,
+      hint: 'Distance cutoff (1–8 gates, ~0.75m per gate). Rejects hallway traffic beyond the room.'
+    },
+    radarStaticThreshold: {
+      key: 'radar_static_threshold',
+      label: 'Stationary (breathing) threshold',
+      unit: '%',
+      min: 0,
+      max: 100,
+      hint: 'Minimum stationary radar energy required to maintain presence while sitting still.'
+    },
+    radarMovingThreshold: {
+      key: 'radar_moving_threshold',
+      label: 'Moving target threshold',
+      unit: '%',
+      min: 0,
+      max: 100,
+      hint: 'Minimum moving energy required to trigger gross motion detection.'
     }
   };
 
@@ -1307,6 +1349,169 @@ const Settings = () => {
                         {sec}s
                       </button>
                     ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Phase 1: 24GHz mmWave Radar Spatial Gating & Sensitivities (LD2410 UART) */}
+              <div className="mt-4 pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Radio className="w-4 h-4 text-maroon-800" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                      Phase 1: Radar Spatial Gating & Sensitivities
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                    isRadarUart
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}>
+                    {isRadarUart ? 'UART Active (256k)' : 'GPIO 14 Fallback'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500 mb-3 leading-snug">
+                  Configures high-frequency 24GHz FMCW distance cutoffs and energy thresholds to reject hallway movement and oscillating fan flutter.
+                </p>
+
+                {/* Live Radar Telemetry Ribbon */}
+                <div className="bg-white p-3 rounded-2xl border border-gray-200/80 mb-3 shadow-2xs">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 flex items-center justify-between">
+                    <span>Live Radar Telemetry</span>
+                    <span className="font-mono text-gray-500">{isRadarUart ? `Target: ${liveRadarTargetState}` : 'Pin mode'}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="p-2 bg-gray-50 rounded-xl">
+                      <div className="text-[9px] font-bold text-gray-400 uppercase">Detection Dist</div>
+                      <div className="text-xs sm:text-sm font-extrabold text-gray-900 font-mono">
+                        {isRadarUart && liveRadarDistance > 0 ? `${liveRadarDistance} cm` : '---'}
+                      </div>
+                    </div>
+                    <div className="p-2 bg-gray-50 rounded-xl">
+                      <div className="text-[9px] font-bold text-gray-400 uppercase">Breathing (Static)</div>
+                      <div className="text-xs sm:text-sm font-extrabold text-maroon-800 font-mono">
+                        {isRadarUart ? `${liveRadarStaticEnergy}%` : '---'}
+                      </div>
+                    </div>
+                    <div className="p-2 bg-gray-50 rounded-xl">
+                      <div className="text-[9px] font-bold text-gray-400 uppercase">Moving Energy</div>
+                      <div className="text-xs sm:text-sm font-extrabold text-blue-800 font-mono">
+                        {isRadarUart ? `${liveRadarMovingEnergy}%` : '---'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Distance Gate Selector */}
+                <div className="p-3 bg-gray-50/80 rounded-2xl border border-gray-100 mb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-gray-800">Max Distance Gate (Room Boundary Cutoff)</span>
+                    <span className="text-[10px] font-mono font-bold text-maroon-800 bg-white px-2 py-0.5 rounded border border-gray-200">
+                      Gate {limits.radarMaxGate} (~{(limits.radarMaxGate * 0.75).toFixed(2)}m)
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mb-2.5 leading-tight">
+                    Any movement beyond this distance is ignored. Eliminates through-doorway hallway false triggers.
+                  </p>
+                  <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((gate) => (
+                      <button
+                        key={gate}
+                        type="button"
+                        onClick={() => handleLimitSave('radarMaxGate', gate)}
+                        className={`py-1.5 px-1 rounded-xl border text-center transition-all ${
+                          Number(limits.radarMaxGate) === gate
+                            ? 'bg-maroon-800 text-white border-maroon-800 font-bold shadow-xs'
+                            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div className="text-[10px] font-bold">G{gate}</div>
+                        <div className="text-[8px] opacity-75 font-mono">{(gate * 0.75).toFixed(1)}m</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Energy Threshold Sliders */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-gray-50/80 rounded-2xl border border-gray-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-gray-800">Breathing Sensitivity (Static)</span>
+                      <span className="text-[10px] font-mono font-bold text-maroon-800 bg-white px-2 py-0.5 rounded border border-gray-200">
+                        {limits.radarStaticThreshold}%
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mb-2 leading-tight">
+                      Micromovement threshold (0–100%). Lower = more sensitive to breathing.
+                    </p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={limits.radarStaticThreshold}
+                        onChange={(e) => setLimits((prev) => ({ ...prev, radarStaticThreshold: Number(e.target.value) }))}
+                        onBlur={(e) => handleLimitSave('radarStaticThreshold', e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-gray-800 focus:outline-none focus:border-maroon-800"
+                      />
+                      <span className="text-xs font-bold text-gray-500">%</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {[10, 20, 30, 40, 50].map((th) => (
+                        <button
+                          key={th}
+                          type="button"
+                          onClick={() => handleLimitSave('radarStaticThreshold', th)}
+                          className={`text-[9px] font-mono px-2 py-0.5 rounded-lg border transition-all ${
+                            Number(limits.radarStaticThreshold) === th
+                              ? 'bg-maroon-800 text-white border-maroon-800 font-bold'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                          }`}
+                        >
+                          {th}%
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-gray-50/80 rounded-2xl border border-gray-100">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-gray-800">Gross Motion Threshold (Moving)</span>
+                      <span className="text-[10px] font-mono font-bold text-maroon-800 bg-white px-2 py-0.5 rounded border border-gray-200">
+                        {limits.radarMovingThreshold}%
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-gray-500 mb-2 leading-tight">
+                      Moving target energy threshold (0–100%). Higher rejects fan/curtain oscillation.
+                    </p>
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={limits.radarMovingThreshold}
+                        onChange={(e) => setLimits((prev) => ({ ...prev, radarMovingThreshold: Number(e.target.value) }))}
+                        onBlur={(e) => handleLimitSave('radarMovingThreshold', e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-gray-800 focus:outline-none focus:border-maroon-800"
+                      />
+                      <span className="text-xs font-bold text-gray-500">%</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {[15, 25, 30, 50, 70].map((th) => (
+                        <button
+                          key={th}
+                          type="button"
+                          onClick={() => handleLimitSave('radarMovingThreshold', th)}
+                          className={`text-[9px] font-mono px-2 py-0.5 rounded-lg border transition-all ${
+                            Number(limits.radarMovingThreshold) === th
+                              ? 'bg-maroon-800 text-white border-maroon-800 font-bold'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-100'
+                          }`}
+                        >
+                          {th}%
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

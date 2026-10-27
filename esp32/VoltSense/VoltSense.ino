@@ -3980,7 +3980,11 @@ void setup() {
     Serial.println("ERROR: no WiFi after 3 attempts. Launching persistent fallback AP 'VoltSense_Setup'...");
     wm.setConfigPortalTimeout(0);
     wm.startConfigPortal("VoltSense_Setup");
-    ESP.restart();
+    for (;;) {
+      watchdogFeed();
+      delay(10000);
+      Serial.println("Waiting for configuration...");
+    }
   }
   Serial.println("Connected to WiFi!");
   WiFi.setAutoReconnect(true);

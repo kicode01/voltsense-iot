@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { QrCode, Wifi, ExternalLink, Download, Copy, Check, X, Smartphone, ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
+import { QrCode, ExternalLink, Download, Copy, Check, X, Sparkles } from 'lucide-react';
 import QRCode from 'qrcode';
 
 export const DeviceSetupModal = ({ isOpen, onClose }) => {
