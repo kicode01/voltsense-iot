@@ -494,33 +494,37 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className={`grid gap-3 md:gap-5 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both ${
-        nightMode.enabled ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2'
-      }`}>
-        {nightMode.enabled && (
-          <div className="joyride-night-mode relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden">
-            <Moon strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
-            <div className="relative z-10">
-              <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Night Mode</h3>
-              <p className="text-sm md:text-lg font-bold text-gray-900 leading-tight">
-                {formatTime(nightMode.start_time)}<br className="md:hidden" /> - {formatTime(nightMode.end_time)}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200 fill-mode-both">
+        <div className="joyride-night-mode relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden col-span-1">
+          <Moon strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
+          <div className="relative z-10">
+            <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Night Mode</h3>
+            <p className={`text-sm md:text-lg font-bold leading-tight ${
+              nightMode.enabled ? 'text-gray-900' : 'text-gray-400'
+            }`}>
+              {formatTime(nightMode.start_time || '22:00')}<br className="md:hidden" /> - {formatTime(nightMode.end_time || '06:00')}
+            </p>
+            {/* Whether the schedule is in effect RIGHT NOW, not just what it is set to. The device
+                publishes `night_mode_active` every cycle; showing it means the user can tell that
+                the room is currently being held occupied rather than guessing from the clock. */}
+            {activeDeviceId && (
+              <p className={`text-[10px] font-bold uppercase tracking-widest mt-1.5 ${
+                !nightMode.enabled
+                  ? 'text-gray-400'
+                  : data.night_mode_active
+                  ? 'text-maroon-700'
+                  : 'text-gray-400'
+              }`}>
+                {!nightMode.enabled ? 'Disabled' : data.night_mode_active ? 'Active now' : 'Scheduled'}
               </p>
-              {/* Whether the schedule is in effect RIGHT NOW, not just what it is set to. The device
-                  publishes `night_mode_active` every cycle; showing it means the user can tell that
-                  the room is currently being held occupied rather than guessing from the clock. */}
-              {activeDeviceId && (
-                <p className={`text-[10px] font-bold uppercase tracking-widest mt-1.5 ${
-                  data.night_mode_active ? 'text-maroon-700' : 'text-gray-300'
-                }`}>
-                  {data.night_mode_active ? 'Active now' : 'Not active'}
-                </p>
-              )}
-              {!activeDeviceId && (
-                <p className="hidden md:block text-[10px] text-gray-400 mt-1.5 font-medium">Schedule auto-shutoff while you sleep.</p>
-              )}
-            </div>
+            )}
+            {!activeDeviceId && (
+              <p className="hidden md:block text-[10px] text-gray-400 mt-1.5 font-medium">
+                {nightMode.enabled ? 'Schedule auto-shutoff while you sleep.' : 'Disabled in Settings.'}
+              </p>
+            )}
           </div>
-        )}
+        </div>
 
         <div className="joyride-inactivity-limit relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden col-span-1">
           <Timer strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:rotate-12 pointer-events-none" />
@@ -540,9 +544,7 @@ const Dashboard = () => {
         </div>
 
         {/* Bento Card 3: Dual Presence Sensing Indicator */}
-        <div className={`joyride-dual-presence relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between overflow-hidden ${
-          nightMode.enabled ? 'col-span-2 lg:col-span-1' : 'col-span-1'
-        }`}>
+        <div className="joyride-dual-presence relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between overflow-hidden col-span-2 lg:col-span-1">
           <Radar strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] pointer-events-none" />
           <div className="relative z-10">
             <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Dual Presence</h3>
