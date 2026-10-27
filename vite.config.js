@@ -13,7 +13,7 @@ const devAuthPlugin = () => ({
         req.on('end', async () => {
           try {
             const { email, password } = JSON.parse(body || '{}');
-            if (email === 'admin@voltsense.local' && (password === '123456' || password === 'voltsense123')) {
+            if ((email === 'admin@voltsense.local' || email === 'admin@voltsense.com') && (password === '123456' || password === 'voltsense123')) {
               const { default: admin } = await import('firebase-admin');
               const { default: dotenv } = await import('dotenv');
               dotenv.config();
