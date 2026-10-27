@@ -484,24 +484,42 @@ const Dashboard = () => {
         </div>
 
         {/* Bento Card 3: Dual Presence Sensing Indicator */}
-        <div className={`joyride-dual-presence relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between group overflow-hidden ${
+        <div className={`joyride-dual-presence relative bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-500 ease-apple-spring p-4 md:p-5 flex flex-col justify-between overflow-hidden ${
           nightMode.enabled ? 'col-span-2 lg:col-span-1' : 'col-span-1'
         }`}>
-          <Radar strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] transform transition-transform duration-700 group-hover:scale-110 group-hover:-rotate-12 pointer-events-none" />
+          <Radar strokeWidth={1.5} className="absolute -right-3 -bottom-3 w-20 h-20 md:w-24 md:h-24 text-maroon-900/[0.03] pointer-events-none" />
           <div className="relative z-10">
             <h3 className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Dual Presence</h3>
             <p className="text-sm md:text-base font-bold text-gray-900 leading-tight">
               {occupied ? 'Occupant Present' : 'Room Vacant'}
             </p>
-            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${pirActive ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${pirActive ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
-                PIR Motion
-              </span>
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${mmwaveActive ? 'bg-maroon-50 text-maroon-800 border-maroon-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${mmwaveActive ? 'bg-maroon-600 animate-pulse' : 'bg-gray-400'}`}></span>
-                mmWave Radar
-              </span>
+            <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-gray-100/80">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full transition-colors duration-300 shrink-0 ${
+                  pirActive ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]' : 'bg-gray-300'
+                }`} />
+                <div className="min-w-0">
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block leading-none mb-0.5">PIR Motion</span>
+                  <span className={`text-xs font-semibold leading-tight block truncate ${
+                    pirActive ? 'text-gray-900 font-bold' : 'text-gray-400'
+                  }`}>
+                    {pirActive ? 'Detected' : 'Clear'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 border-l border-gray-100 pl-2">
+                <span className={`w-2 h-2 rounded-full transition-colors duration-300 shrink-0 ${
+                  mmwaveActive ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]' : 'bg-gray-300'
+                }`} />
+                <div className="min-w-0">
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block leading-none mb-0.5">mmWave</span>
+                  <span className={`text-xs font-semibold leading-tight block truncate ${
+                    mmwaveActive ? 'text-gray-900 font-bold' : 'text-gray-400'
+                  }`}>
+                    {mmwaveActive ? 'Detected' : 'Clear'}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
