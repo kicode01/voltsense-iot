@@ -216,17 +216,41 @@ const Dashboard = () => {
   // the one that matches a device with no sensor at all.
   const powerIsMeasured = data.voltage_source === 'measured';
 
-  // Inactivity limit in seconds or minutes, synced from firmware / RTDB settings
-  const inactivityLimitSeconds = Number(
+  // Inactivity limit in seconds or minutes, synced from firmware / RTDB settings.
+  // Prefer the hardware-enforced top-level telemetry (`inactivity_limit` / `inactivity_limit_seconds`)
+  // published by the ESP32 so a stale `settings/inactivity_limit_seconds` value in RTDB never
+  // causes the dashboard to disagree with the device's actual countdown timer.
+  const enforcedMinutes = data.inactivity_limit != null ? Number(data.inactivity_limit) : null;
+  const enforcedSecondsRaw = data.inactivity_limit_seconds != null ? Number(data.inactivity_limit_seconds) : null;
+  const enforcedInactivitySeconds =
+    enforcedSecondsRaw != null && enforcedSecondsRaw > 0 && (enforcedSecondsRaw < 60 || enforcedMinutes == null)
+      ? enforcedSecondsRaw
+      : enforcedMinutes != null && enforcedMinutes > 0
+        ? enforcedMinutes * 60
+        : enforcedSecondsRaw;
+  const settingsInactivitySeconds = Number(
     data.settings?.inactivity_limit_seconds ??
-    data.inactivity_limit_seconds ??
-    ((data.inactivity_limit || 15) * 60)
+    ((data.settings?.inactivity_limit_minutes || 15) * 60)
+  );
+  const inactivityLimitSeconds = Number(
+    (enforcedInactivitySeconds && enforcedInactivitySeconds > 0
+      ? enforcedInactivitySeconds
+      : settingsInactivitySeconds) || 900
   );
   const isSubMinuteInactivity = inactivityLimitSeconds < 60;
   const inactivityDisplayVal = isSubMinuteInactivity
     ? inactivityLimitSeconds
     : Math.round(inactivityLimitSeconds / 60);
   const inactivityDisplayUnit = isSubMinuteInactivity ? 'sec' : 'min';
+
+  const idleCountdownSec = !occupied && data.state !== 'RESPONSE_WINDOW'
+    ? Math.max(0, Number(data.countdown_remaining_seconds || 0))
+    : 0;
+  const formatCountdown = (totalSec) => {
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return m > 0 ? `${m}m ${s}s (${totalSec}s)` : `${s}s`;
+  };
 
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
@@ -538,7 +562,11 @@ const Dashboard = () => {
               <p className="hidden md:block text-[10px] text-gray-400 mt-1 font-medium">Auto-shutdown when room is empty.</p>
             )}
             {activeDeviceId && (
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mt-1.5">Countdown threshold</p>
+              <p className={`text-[10px] font-bold uppercase tracking-widest mt-1.5 ${
+                idleCountdownSec > 0 ? 'text-maroon-700' : 'text-gray-400'
+              }`}>
+                {idleCountdownSec > 0 ? `Idle timer: ${formatCountdown(idleCountdownSec)}` : 'Countdown threshold'}
+              </p>
             )}
           </div>
         </div>
