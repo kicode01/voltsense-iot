@@ -493,21 +493,19 @@ const Dashboard = () => {
             <p className="text-sm md:text-base font-bold text-gray-900 leading-tight">
               {occupied ? 'Occupant Present' : 'Room Vacant'}
             </p>
-            <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] md:text-[11px] font-medium border transition-colors duration-300 ${
+            <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs transition-all duration-300 border ${
                 pirActive 
-                  ? 'bg-maroon-50 text-maroon-900 border-maroon-200/80 font-semibold' 
-                  : 'bg-white/50 text-gray-400 border-gray-200/60'
+                  ? 'bg-maroon-800 text-white border-maroon-800 font-bold shadow-sm shadow-maroon-900/20' 
+                  : 'bg-gray-100 text-gray-400 border-transparent font-medium'
               }`}>
-                <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${pirActive ? 'bg-maroon-700' : 'bg-gray-300'}`} />
                 PIR Motion
               </span>
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] md:text-[11px] font-medium border transition-colors duration-300 ${
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs transition-all duration-300 border ${
                 mmwaveActive 
-                  ? 'bg-maroon-50 text-maroon-900 border-maroon-200/80 font-semibold' 
-                  : 'bg-white/50 text-gray-400 border-gray-200/60'
+                  ? 'bg-maroon-800 text-white border-maroon-800 font-bold shadow-sm shadow-maroon-900/20' 
+                  : 'bg-gray-100 text-gray-400 border-transparent font-medium'
               }`}>
-                <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${mmwaveActive ? 'bg-maroon-700' : 'bg-gray-300'}`} />
                 mmWave Radar
               </span>
             </div>
