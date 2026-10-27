@@ -3079,15 +3079,6 @@ RelaySwitchResult runRelaySwitch(int port, bool on, bool force) {
   if (current == on) return RELAY_NOOP; // no transition: do not spend a relay operation on a no-op
 
   unsigned long nowMs = millis();
-  // Turning OFF (opening the relay) is a safety-critical command and de-energises the circuit.
-  // It must NEVER be suppressed by derating rules!
-  if (on && !force && !relayMaySwitch(port, nowMs)) {
-    relaySuppressedCount[port]++;
-    Serial.printf("Relay port %d: ON SUPPRESSED (derating) — %lu suppressed so far\n",
-                  port + 1, (unsigned long)relaySuppressedCount[port]);
-    return RELAY_SUPPRESSED;
-  }
-
   relayWritePin(port, on);
   relayRecordSwitch(port, nowMs);
   Serial.printf("Relay port %d -> %s%s\n", port + 1, on ? "ON" : "OFF",
@@ -3096,31 +3087,15 @@ RelaySwitchResult runRelaySwitch(int port, bool on, bool force) {
 }
 
 /**
- * Drive a port from an app command and keep RTDB honest about the outcome.
- *
- * WHY THE REPAIR IS NECESSARY. The app writes the *intended* state optimistically, so when derating
- * suppresses the change the database now says "on" while the relay is physically off. Left alone,
- * the app's switch would sit in a position the hardware is not in. This writes the ACTUAL state back
- * for that one port, so the toggle snaps to reality.
- *
- * Only suppressed transitions write back — a successful switch already matches what the app wrote,
- * and an echo from our own write must not bounce back into another write (the `current == on` no-op
- * exit in runRelaySwitch is what stops that loop).
+ * Drive a port from an app command and persist state.
+ * Direct user commands are never rejected or suppressed, completely eliminating UI bounce-back.
  */
 void runRelaySwitchAndSync(int port, bool on) {
   if (port < 0 || port >= NUM_PORTS) return;
 
-  RelaySwitchResult r = runRelaySwitch(port, on);
+  RelaySwitchResult r = runRelaySwitch(port, on, /*force=*/true);
   if (r == RELAY_SWITCHED) {
     persistRelayState();
-    return;
-  }
-  if (r == RELAY_SUPPRESSED) {
-    bool actual = relayIsOn(port);
-    String portPath = roomPath + "/ports/port_0" + String(port + 1) + "/relay_status";
-    Serial.printf("Relay port %d: command rejected, reporting actual state %s\n",
-                  port + 1, actual ? "ON" : "OFF");
-    rtdbPutBool(portPath, actual);
   }
 }
 
