@@ -261,6 +261,7 @@ const Settings = () => {
   // -------------------------------------------------------------------------
   const [limits, setLimits] = useState({
     inactivity: 15,
+    responseWindow: 300,
     overcurrent: 4.5,
     nominal: 230,
     voltageCal: 4.545,
@@ -283,6 +284,7 @@ const Settings = () => {
   //     which it publishes every cycle. Prefer the written value; fall back to the enforced one, so
   //     the UI never shows a number the device is not using.
   const storedInactivity = roomData?.settings?.inactivity_limit_minutes ?? roomData?.inactivity_limit;
+  const storedResponseWindow = roomData?.settings?.response_window_seconds ?? 300;
   const storedOvercurrent = roomData?.settings?.overcurrent_limit_a ?? roomData?.overcurrent_limit_a;
   const storedNominal = roomData?.settings?.nominal_voltage;
   const storedVoltageCal = roomData?.settings?.voltage_cal_mv_per_v;
@@ -354,6 +356,7 @@ const Settings = () => {
     if (!hasSettings) return;
     setLimits({
       inactivity: storedInactivity ?? 15,
+      responseWindow: storedResponseWindow ?? 300,
       overcurrent: storedOvercurrent ?? 4.5,
       nominal: storedNominal ?? 230,
       voltageCal: storedVoltageCal ?? 4.545,
@@ -370,6 +373,7 @@ const Settings = () => {
     activeDeviceId,
     hasSettings,
     storedInactivity,
+    storedResponseWindow,
     storedOvercurrent,
     storedNominal,
     storedVoltageCal,
@@ -395,6 +399,14 @@ const Settings = () => {
       min: 1,
       max: 240,
       hint: 'How long the room must be still before the shutdown warning.'
+    },
+    responseWindow: {
+      key: 'response_window_seconds',
+      label: 'Warning window',
+      unit: 's',
+      min: 5,
+      max: 1800,
+      hint: 'Grace period countdown in seconds before unconfirmed vacant rooms are automatically shut down.'
     },
     overcurrent: {
       key: 'overcurrent_limit_a',
