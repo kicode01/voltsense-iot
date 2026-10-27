@@ -10,8 +10,11 @@
     }
   },
   "rewrites": [
+    { "source": "/demo", "destination": "/cad/voltsense_system_demo_3d.html" },
+    { "source": "/3d-demo", "destination": "/cad/voltsense_system_demo_3d.html" },
+    { "source": "/cad/(.*)", "destination": "/cad/$1" },
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|cad/).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
