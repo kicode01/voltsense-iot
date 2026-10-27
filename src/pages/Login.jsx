@@ -61,7 +61,7 @@ const Login = () => {
           await signInWithEmailAndPassword(auth, email, password);
         } catch (authErr) {
           // If Firebase client rate-limits with too-many-requests, seamlessly fallback via dev-login
-          if (authErr?.code === 'auth/too-many-requests' && email.trim().toLowerCase() === 'admin@voltsense.local') {
+          if (errorCode(authErr) === 'auth/too-many-requests' && email.trim().toLowerCase() === 'admin@voltsense.local') {
             try {
               const res = await fetch('/api/dev-login', {
                 method: 'POST',

@@ -61,10 +61,17 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 14px;
+      padding: 0 12px;
       z-index: 40;
       gap: 8px;
       flex-shrink: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    #top-bar::-webkit-scrollbar {
+      display: none;
     }
 
     .brand-block {
@@ -116,6 +123,7 @@
     /* Segmented Pill Controls */
     .segmented-group {
       display: flex;
+      flex-shrink: 0;
       align-items: center;
       background: #F0F2F5;
       padding: 3px;
@@ -126,6 +134,7 @@
 
     .group-label {
       font-size: 9px;
+      flex-shrink: 0;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.06em;
@@ -149,6 +158,7 @@
       gap: 4px;
       transition: all 0.16s cubic-bezier(0.22, 1, 0.36, 1);
       white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .btn svg, .cam-pill svg {
@@ -168,6 +178,69 @@
       color: var(--maroon-800);
       font-weight: 700;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+    }
+
+    .lbl-compact {
+      display: none;
+    }
+    .lbl-full {
+      display: inline;
+    }
+
+    @media (max-width: 1680px) {
+      .brand-sub {
+        display: none;
+      }
+    }
+
+    @media (max-width: 1580px) {
+      .lbl-full {
+        display: none;
+      }
+      .lbl-compact {
+        display: inline;
+      }
+      .btn, .cam-pill {
+        padding: 4px 6px;
+        font-size: 10.5px;
+        gap: 3.5px;
+      }
+      .btn svg, .cam-pill svg {
+        width: 13px;
+        height: 13px;
+      }
+    }
+
+    @media (max-width: 1380px) {
+      .brand-block {
+        gap: 8px;
+      }
+      .brand-logo {
+        width: 32px;
+        height: 32px;
+      }
+      .brand-title {
+        font-size: 15px;
+      }
+      .group-label {
+        font-size: 8.5px;
+        padding: 0 3px;
+      }
+      .btn, .cam-pill {
+        padding: 3.5px 5px;
+        font-size: 10px;
+        gap: 3px;
+      }
+      .segmented-group {
+        padding: 2px;
+        gap: 1px;
+      }
+    }
+
+    @media (max-width: 1240px) {
+      .sandbox-pill {
+        display: none;
+      }
     }
 
     /* =====================================================================
@@ -1712,29 +1785,35 @@
     <!-- Center: 6 Thesis Scenarios -->
     <div class="segmented-group">
       <span class="group-label">Scenario</span>
-      <button class="btn active" id="scen-active" onclick="setScenario('active')">
+      <button class="btn active" id="scen-active" onclick="setScenario('active')" title="1. Active Walk">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M13 4v16M17 4v16M19 4H9.5a4.5 4.5 0 0 0 0 9H13"/></svg>
-        1. Active Walk
+        <span class="lbl-full">1. Active Walk</span>
+        <span class="lbl-compact">1. Active</span>
       </button>
-      <button class="btn" id="scen-study" onclick="setScenario('study')">
+      <button class="btn" id="scen-study" onclick="setScenario('study')" title="2. Sit &amp; Study">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M2 20h20"/></svg>
-        2. Sit &amp; Study
+        <span class="lbl-full">2. Sit &amp; Study</span>
+        <span class="lbl-compact">2. Study</span>
       </button>
-      <button class="btn" id="scen-sleep" onclick="setScenario('sleep')">
+      <button class="btn" id="scen-sleep" onclick="setScenario('sleep')" title="3. Sleep Mode">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-        3. Sleep Mode
+        <span class="lbl-full">3. Sleep Mode</span>
+        <span class="lbl-compact">3. Sleep</span>
       </button>
-      <button class="btn" id="scen-privacy" onclick="setScenario('privacy')">
+      <button class="btn" id="scen-privacy" onclick="setScenario('privacy')" title="4. Privacy Cloth">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        4. Privacy Cloth
+        <span class="lbl-full">4. Privacy Cloth</span>
+        <span class="lbl-compact">4. Privacy</span>
       </button>
-      <button class="btn" id="scen-vacant" onclick="setScenario('vacant')">
+      <button class="btn" id="scen-vacant" onclick="setScenario('vacant')" title="5. Vacant Cutoff">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M13 4h3a2 2 0 0 1 2 2v14"/><path d="M2 20h3"/><path d="M13 20h9"/><path d="M10 12v.01"/><path d="M13 4.562v16.157a1 1 0 0 1-1.242.97L5 20V5.562a2 2 0 0 1 1.515-1.94l4-1A2 2 0 0 1 13 4.561Z"/></svg>
-        5. Vacant Cutoff
+        <span class="lbl-full">5. Vacant Cutoff</span>
+        <span class="lbl-compact">5. Vacant</span>
       </button>
-      <button class="btn" id="scen-charging" onclick="setScenario('charging')">
+      <button class="btn" id="scen-charging" onclick="setScenario('charging')" title="6. Charger Override">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="7" width="16" height="10" rx="2"/><line x1="22" y1="11" x2="22" y2="13"/><path d="m11 10-3 2h4l-3 2"/></svg>
-        6. Charger Override
+        <span class="lbl-full">6. Charger Override</span>
+        <span class="lbl-compact">6. Charger</span>
       </button>
     </div>
 
@@ -1742,11 +1821,16 @@
     <div class="segmented-group">
       <span class="group-label">Camera</span>
       <button class="cam-pill active" id="cam-room" onclick="setCameraPreset('room')">Room</button>
-      <button class="cam-pill" id="cam-enclosure" onclick="setCameraPreset('enclosure')">Enclosure PCB</button>
-      <button class="cam-pill" id="cam-pods" onclick="setCameraPreset('pods')">Port Pods</button>
+      <button class="cam-pill" id="cam-enclosure" onclick="setCameraPreset('enclosure')" title="Inspect Enclosure PCB">Enclosure</button>
+      <button class="cam-pill" id="cam-pods" onclick="setCameraPreset('pods')" title="Inspect Port Pods">Pods</button>
       <button class="cam-pill" id="cam-occupant" onclick="setCameraPreset('occupant')">Occupant</button>
       <button class="cam-pill" id="cam-desk" onclick="setCameraPreset('desk')">Desk</button>
       <button class="cam-pill" id="cam-bed" onclick="setCameraPreset('bed')">Bed</button>
+    </div>
+
+    <!-- View Overlays -->
+    <div class="segmented-group">
+      <span class="group-label">View</span>
       <button class="cam-pill active" id="btn-toggle-range" onclick="toggleRangeFOV()" title="Toggle PIR &amp; mmWave Range Coverage Overlay">Range: ON</button>
       <button class="cam-pill active" id="btn-toggle-labels" onclick="toggle3DLabels()" title="Toggle 3D Callout Labels">Labels: ON</button>
       <button class="cam-pill active" id="btn-toggle-hud" onclick="toggleAllHud()" title="Toggle Viewport Floating HUD Cards (Shortcut: H)">HUD: ON</button>
