@@ -415,10 +415,10 @@ const Dashboard = () => {
             <button 
               onClick={handleMasterOn}
               disabled={allOn || turningOn}
-              className={`flex-1 py-4 px-4 rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center transition-all duration-500 ease-apple-spring transform-gpu hover:scale-[1.02] active:scale-[0.98] ${
-                allOn 
-                  ? 'bg-gray-50 text-gray-400 cursor-not-allowed hover:scale-100 active:scale-100' 
-                  : 'bg-white border-2 border-maroon-800 text-maroon-800 hover:bg-maroon-50 shadow-sm'
+              className={`flex-1 py-4 px-4 rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center transition-all duration-300 ease-out ${
+                allOn || turningOn 
+                  ? 'bg-gray-100/80 border-2 border-transparent text-gray-400 cursor-not-allowed' 
+                  : 'bg-white border-2 border-maroon-800 text-maroon-800 shadow-sm active:scale-[0.98]'
               }`}
             >
               {turningOn ? <Loader2 className="w-5 h-5 animate-spin" /> : 'All On'}
@@ -426,10 +426,10 @@ const Dashboard = () => {
             <button 
               onClick={handleMasterOff}
               disabled={!anyOn || turningOff}
-              className={`flex-1 py-4 px-4 rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center transition-all duration-500 ease-apple-spring transform-gpu hover:scale-[1.02] active:scale-[0.98] ${
-                !anyOn 
-                  ? 'bg-gray-50 text-gray-400 cursor-not-allowed hover:scale-100 active:scale-100' 
-                  : 'bg-maroon-800 text-white hover:bg-maroon-900 hover:shadow-lg hover:shadow-maroon-900/20'
+              className={`flex-1 py-4 px-4 rounded-2xl font-bold text-sm uppercase tracking-wider flex items-center justify-center transition-all duration-300 ease-out ${
+                !anyOn || turningOff 
+                  ? 'bg-gray-100/80 border-2 border-transparent text-gray-400 cursor-not-allowed' 
+                  : 'bg-maroon-800 border-2 border-maroon-800 text-white shadow-sm active:scale-[0.98]'
               }`}
             >
               {turningOff ? <Loader2 className="w-5 h-5 animate-spin" /> : 'All Off'}
