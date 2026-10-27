@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRoomData } from '../hooks/useRoomData';
 import { useDeviceContext } from '../contexts/deviceContextCore';
-import { Zap, Moon, AlertTriangle, Loader2, Timer, Radar, Plug } from 'lucide-react';
+import { Moon, AlertTriangle, Loader2, Timer, Radar, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 /**
@@ -227,7 +227,6 @@ const Dashboard = () => {
     ? inactivityLimitSeconds
     : Math.round(inactivityLimitSeconds / 60);
   const inactivityDisplayUnit = isSubMinuteInactivity ? 'sec' : 'min';
-  const isGodModeOn = typeof window !== 'undefined' && localStorage.getItem('voltsense_god_mode') === 'true';
 
   const formatTime = (timeStr) => {
     if (!timeStr) return '';
@@ -365,18 +364,6 @@ const Dashboard = () => {
           >
             ×
           </button>
-        </div>
-      )}
-
-      {isGodModeOn && (
-        <div className="bg-amber-50 border border-amber-200/80 text-amber-900 px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold shadow-sm">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-amber-600 fill-current animate-pulse" />
-            <span>God Mode Enabled · Demonstration Overrides & Speed-Run Active</span>
-          </div>
-          <Link to="/settings" viewTransition className="bg-amber-400 text-black px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-amber-300 transition-colors">
-            God Mode Settings
-          </Link>
         </div>
       )}
 
