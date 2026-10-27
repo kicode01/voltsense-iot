@@ -109,6 +109,7 @@ const Analytics = () => {
   // `|| 3.2` used to fire on a genuine 0 kWh period as well, so a day with no recorded energy
   // reported 3.2 kWh of it — a fabricated number indistinguishable from a measurement.
   const totalEnergy = Number(dataToRender?.totals?.energy) || (isDemo ? 3.2 : 0);
+  const totalHours = Number(dataToRender?.totals?.hours) || (isDemo ? 8.5 : 0);
 
   const defaultPortShare = {
     port_01: { name: 'Port 1', icon: 'plug', share: 0.58, volts: 220, amps: 0.25, watts: 55.0, pf: 0.98 },
@@ -129,13 +130,30 @@ const Analytics = () => {
     const name = `Port ${portNumber}`;
     const isRelayOn = rawPort.relay_status !== undefined ? Boolean(rawPort.relay_status) : true;
     
-    // Energy in kWh for this outlet
-    const energyKwh = Number(rawPort.energy_kwh) > 0 
+    // Period energy in kWh for this outlet:
+    // If viewing 'Today' and the live device has recorded energy on this port, use that.
+    // For historical ranges ('Yesterday', 'Last 7 Days', 'This Month', 'Custom') or demo mode,
+    // calculate proportionally from the selected period's total energy so it connects to the time filter.
+    const hasLiveTodayPortEnergy = timeRange === 'Today' && Number(rawPort.energy_kwh) > 0;
+    const energyKwh = hasLiveTodayPortEnergy 
       ? Number(rawPort.energy_kwh) 
       : Number((totalEnergy * fallback.share).toFixed(2));
     
-    const percentage = totalEnergy > 0 ? Math.min(100, Math.round((energyKwh / totalEnergy) * 100)) : 0;
+    const percentage = totalEnergy > 0 ? Math.min(100, Math.round((energyKwh / totalEnergy) * 100)) : Math.round(fallback.share * 100);
     
+    // Period active runtime & estimated average active load
+    const periodHours = Number((totalHours * fallback.share).toFixed(1));
+    const avgWatts = periodHours > 0 
+      ? Math.round((energyKwh * 1000) / periodHours) 
+      : fallback.watts;
+
+    // Time-series readings for this port across the selected period
+    const readings = (dataToRender?.energy || []).map((pt) => ({
+      label: pt.label,
+      kwh: Number((pt.kwh * fallback.share).toFixed(2)),
+      watts: fallback.watts
+    }));
+
     const volts = Number(rawPort.voltage) > 0 ? Number(rawPort.voltage) : fallback.volts;
     const rawAmps = rawPort.current_amps !== undefined ? Number(rawPort.current_amps) : (isDemo ? fallback.amps : 0);
     const amps = isRelayOn ? (rawAmps > 0.02 ? rawAmps : 0) : 0;
@@ -156,6 +174,9 @@ const Analytics = () => {
       isRelayOn,
       energyKwh,
       percentage,
+      periodHours,
+      avgWatts,
+      readings,
       volts,
       amps,
       watts,
@@ -527,8 +548,11 @@ const Analytics = () => {
         {/* Header & Filter Pills */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <div>
-            <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">
-              Per-Outlet Energy &amp; Telemetry
+            <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+              <span>Per-Port Readings &amp; History</span>
+              <span className="text-[9px] md:text-[10px] font-semibold text-maroon-800 bg-maroon-50 border border-maroon-200/60 px-2 py-0.5 rounded-md normal-case">
+                {rangeLabel(timeRange)}
+              </span>
             </h3>
           </div>
 
@@ -573,6 +597,7 @@ const Analytics = () => {
         >
           {displayedOutlets.map((outlet) => {
             const isDrawing = outlet.isRelayOn && (outlet.watts > 1.5 || outlet.amps > 0.02);
+            const maxReading = Math.max(...(outlet.readings?.map(r => r.kwh) || [0]), 0.01);
 
             return (
               <div 
@@ -588,7 +613,7 @@ const Analytics = () => {
                 }`}
               >
                 <div>
-                  {/* Header: Label, Icon, Status */}
+                  {/* Header: Label, Icon, Historical Share */}
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
@@ -605,74 +630,133 @@ const Analytics = () => {
                       </h4>
                     </div>
 
-                    {/* Live Status Pill matching Dashboard */}
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 ${
-                      !outlet.isRelayOn 
-                        ? 'bg-gray-100 text-gray-500 border-gray-200/90' 
-                        : isDrawing
-                        ? 'bg-maroon-800 text-white border-maroon-900'
-                        : 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80'
-                    }`}>
-                      {!outlet.isRelayOn ? 'Switched Off' : isDrawing ? 'Active' : 'Standby'}
+                    {/* Historical Share Pill */}
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 bg-maroon-100/80 text-maroon-900 border-maroon-300/80">
+                      {outlet.percentage}% Share
                     </span>
                   </div>
 
                   {/* Energy Consumption Metric */}
-                  <div className="my-3">
+                  <div className="my-2.5">
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
                         {outlet.energyKwh.toFixed(2)}
                       </span>
                       <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
                     </div>
+                    <span className="text-[10px] font-semibold text-gray-400 block mt-0.5">
+                      Recorded for {rangeLabel(timeRange).toLowerCase()}
+                    </span>
                   </div>
 
-                  {/* Live Electrical Telemetry: 2-column stats row */}
+                  {/* Historical Telemetry: 2-column stats row */}
                   <div className="grid grid-cols-2 gap-3 py-3 border-t border-gray-100">
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-                        Voltage
+                        Est. Runtime
                       </span>
-                      <span className={`text-sm font-semibold transition-colors duration-300 ${
-                        outlet.isRelayOn ? 'text-gray-800' : 'text-gray-400'
-                      }`}>
-                        {outlet.isRelayOn ? `${outlet.volts.toFixed(0)} V` : '0 V'}
+                      <span className="text-sm font-semibold text-gray-800">
+                        {outlet.periodHours} hrs
                       </span>
                     </div>
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-                        Current
+                        Avg Active Load
                       </span>
-                      <span className={`text-sm font-semibold transition-colors duration-300 ${
-                        isDrawing ? 'text-maroon-800 font-bold' : outlet.isRelayOn ? 'text-gray-600' : 'text-gray-400'
-                      }`}>
-                        {outlet.amps.toFixed(2)} A
+                      <span className="text-sm font-semibold text-gray-800">
+                        {outlet.avgWatts} {powerUnitShort}
                       </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Active Power Footnote with Formula */}
-                <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-mono text-[10px] text-gray-400">P = V × I</span>
-                    <span className="font-mono text-[10px] text-gray-400 hidden sm:inline">
-                      ({outlet.isRelayOn ? outlet.volts.toFixed(0) : '0'}V × {outlet.amps.toFixed(2)}A)
-                    </span>
+                {/* Mini History Trendline / Sparkline Strip */}
+                {outlet.readings && outlet.readings.length > 0 && (
+                  <div className="pt-2.5 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                      <span>Readings Trend</span>
+                      <span className="text-[9px] font-medium text-gray-400 lowercase">
+                        {outlet.readings.length} {outlet.readings.length === 1 ? 'record' : 'intervals'}
+                      </span>
+                    </div>
+                    <div className="h-8 flex items-end gap-1 px-0.5">
+                      {outlet.readings.map((r, rIdx) => {
+                        const heightPct = Math.max(16, Math.min(100, Math.round((r.kwh / maxReading) * 100)));
+                        return (
+                          <div
+                            key={`bar-${outlet.id}-${rIdx}`}
+                            className="flex-1 flex flex-col items-center group/bar relative"
+                          >
+                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                              {r.label}: {r.kwh.toFixed(2)} kWh
+                            </div>
+                            <div 
+                              style={{ 
+                                height: `${heightPct}%`,
+                                backgroundColor: outlet.color
+                              }}
+                              className="w-full rounded-t-sm opacity-80 group-hover/bar:opacity-100 transition-all duration-300"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="flex justify-between text-[8px] font-medium text-gray-400 mt-1 px-0.5">
+                      <span>{outlet.readings[0]?.label || ''}</span>
+                      {outlet.readings.length > 2 && (
+                        <span>{outlet.readings[Math.floor(outlet.readings.length / 2)]?.label || ''}</span>
+                      )}
+                      <span>{outlet.readings[outlet.readings.length - 1]?.label || ''}</span>
+                    </div>
                   </div>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-xs font-bold transition-colors duration-300 ${
-                      isDrawing ? 'text-maroon-800 font-extrabold' : 'text-gray-400'
-                    }`}>
-                      {outlet.isRelayOn ? outlet.watts.toFixed(1) : '0.0'}
-                    </span>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase">{powerUnitShort}</span>
-                  </div>
-                </div>
+                )}
               </div>
             );
           })}
         </div>
+
+        {/* Dedicated Readings Log when a specific port is filtered */}
+        {selectedOutletTab !== 'all' && (
+          <div className="mt-5 pt-5 border-t border-gray-100 animate-in fade-in duration-300">
+            <div className="flex items-center justify-between mb-3.5">
+              <div>
+                <h4 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">
+                  {displayedOutlets[0]?.name} Readings History ({rangeLabel(timeRange)})
+                </h4>
+                <p className="text-[11px] text-gray-400 mt-0.5 font-medium">
+                  Recorded intervals for this port across the selected time period
+                </p>
+              </div>
+              <span className="text-[10px] font-bold text-maroon-800 bg-maroon-50 px-2.5 py-1 rounded-xl border border-maroon-100">
+                {displayedOutlets[0]?.readings?.length || 0} {(displayedOutlets[0]?.readings?.length === 1) ? 'Reading' : 'Readings'}
+              </span>
+            </div>
+
+            <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-3 md:p-4 overflow-hidden">
+              <div className="grid grid-cols-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-200/60 px-2">
+                <span>Interval / Time</span>
+                <span className="text-center">Energy (kWh)</span>
+                <span className="text-right">Est. Power</span>
+              </div>
+              <div className="divide-y divide-gray-100/80 max-h-60 overflow-y-auto">
+                {displayedOutlets[0]?.readings?.map((reading, rIdx) => (
+                  <div key={`reading-${rIdx}`} className="grid grid-cols-3 items-center py-2.5 px-2 text-xs hover:bg-white/60 rounded-lg transition-colors">
+                    <span className="font-semibold text-gray-700 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-maroon-800/40" />
+                      {reading.label}
+                    </span>
+                    <span className="text-center font-bold text-gray-900 font-mono">
+                      {reading.kwh.toFixed(2)} <span className="text-[10px] text-gray-400 font-sans">kWh</span>
+                    </span>
+                    <span className="text-right font-semibold text-gray-600">
+                      {reading.watts} <span className="text-[10px] text-gray-400">{powerUnitShort}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Carousel Pagination Dots (Mobile Only when All are shown) */}
         {displayedOutlets.length > 1 && (

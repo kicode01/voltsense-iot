@@ -443,7 +443,15 @@ const Settings = () => {
     }
     setSavingLimit(field);
     setLimitsError(null);
-    const ok = await updateDeviceSetting(meta.key, parsed);
+    let ok = false;
+    if (field === 'inactivity') {
+      ok = await updateDeviceSettings({
+        inactivity_limit_minutes: parsed,
+        inactivity_limit_seconds: parsed * 60
+      });
+    } else {
+      ok = await updateDeviceSetting(meta.key, parsed);
+    }
     setSavingLimit(null);
     if (!ok) {
       setLimitsError(`Could not save ${meta.label}. Check your connection and try again.`);
@@ -903,7 +911,101 @@ const Settings = () => {
             </div>
           </div>
 
-          {/* Sensor Calibration & Hardware Tuning Section */}
+        </div>
+
+        {/* Right Column (Desktop: 5 cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-4 md:gap-5">
+          {/* Night Mode Section */}
+          <div className="settings-night-mode bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <Moon className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+                </div>
+                <div>
+                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Night Mode</h3>
+                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">Ignore occupancy during sleep hours</p>
+                </div>
+              </div>
+              
+              <button 
+                onClick={() => handleNightModeChange('enabled', !nightMode.enabled)}
+                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${nightMode.enabled ? 'bg-maroon-800' : 'bg-gray-200'}`}
+              >
+                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ${nightMode.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
+              </button>
+            </div>
+
+            {nightMode.enabled && (
+              <div className="grid grid-cols-2 gap-3 mt-4 pt-4 md:mt-6 md:pt-6 border-t border-gray-100 animate-in slide-in-from-top-2 duration-300 relative">
+                <TimePicker 
+                  label="Start Time (NTP)"
+                  value={nightMode.start_time}
+                  onChange={(val) => handleNightModeChange('start_time', val)}
+                />
+                <TimePicker 
+                  label="End Time (NTP)"
+                  value={nightMode.end_time}
+                  onChange={(val) => handleNightModeChange('end_time', val)}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Notifications Section */}
+          <div className="settings-push-notifications bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <Bell className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight">Push Notifications</h3>
+                    {pushPermission === 'granted' && (
+                      <button
+                        onClick={handleTestNotification}
+                        className="bg-maroon-50 text-maroon-700 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-maroon-100 transition-colors"
+                      >
+                        Test
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">
+                    {pushPermission === 'unsupported'
+                      ? 'Not available on this device'
+                      : pushPermission === 'denied'
+                        ? 'Blocked in browser settings'
+                        : pushPermission === 'granted'
+                          ? 'Alerts for inactivity shutdown'
+                          : 'Enable alerts for inactivity shutdown'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleToggleNotifications}
+                disabled={loadingPush || pushPermission === 'unsupported'}
+                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${pushPermission === 'granted' ? 'bg-maroon-800' : 'bg-gray-200'} ${loadingPush ? 'opacity-70 cursor-wait' : ''} ${pushPermission === 'unsupported' ? 'cursor-not-allowed opacity-50' : ''}`}
+              >
+                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 flex items-center justify-center ${pushPermission === 'granted' ? 'translate-x-6' : 'translate-x-0'}`}>
+                  {loadingPush && <Loader2 className={`w-3.5 h-3.5 animate-spin ${pushPermission === 'granted' ? 'text-maroon-800' : 'text-gray-400'}`} />}
+                </div>
+              </button>
+            </div>
+
+            {pushPermission === 'denied' && (
+              <p className="mt-3 pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-500 font-medium leading-relaxed">
+                Notifications are blocked for this site. Re-enable them in your browser's site
+                settings, then toggle this back on. On iPhone, VoltSense must be added to the Home
+                Screen before push notifications work at all.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Sensor Calibration & Accuracy Section (Full Width) */}
           <div className="settings-calibration bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
               <div className="flex items-center gap-3 md:gap-4">
@@ -995,7 +1097,7 @@ const Settings = () => {
                 Fine-tune ACS712 current and ZMPT101B voltage sensor scaling to match calibrated reference meters.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {Object.entries(electricalCalMeta).map(([field, meta]) => (
                   <label key={field} className="block p-3 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col justify-between">
                     <div>
@@ -1169,99 +1271,6 @@ const Settings = () => {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Right Column (Desktop: 5 cols) */}
-        <div className="lg:col-span-5 flex flex-col gap-4 md:gap-5">
-          {/* Night Mode Section */}
-          <div className="settings-night-mode bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3 md:gap-4">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
-                  <Moon className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
-                </div>
-                <div>
-                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Night Mode</h3>
-                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">Ignore occupancy during sleep hours</p>
-                </div>
-              </div>
-              
-              <button 
-                onClick={() => handleNightModeChange('enabled', !nightMode.enabled)}
-                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${nightMode.enabled ? 'bg-maroon-800' : 'bg-gray-200'}`}
-              >
-                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 ${nightMode.enabled ? 'translate-x-6' : 'translate-x-0'}`} />
-              </button>
-            </div>
-
-            {nightMode.enabled && (
-              <div className="grid grid-cols-2 gap-3 mt-4 pt-4 md:mt-6 md:pt-6 border-t border-gray-100 animate-in slide-in-from-top-2 duration-300 relative">
-                <TimePicker 
-                  label="Start Time (NTP)"
-                  value={nightMode.start_time}
-                  onChange={(val) => handleNightModeChange('start_time', val)}
-                />
-                <TimePicker 
-                  label="End Time (NTP)"
-                  value={nightMode.end_time}
-                  onChange={(val) => handleNightModeChange('end_time', val)}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Notifications Section */}
-          <div className="settings-push-notifications bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 md:gap-4">
-                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
-                  <Bell className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight">Push Notifications</h3>
-                    {pushPermission === 'granted' && (
-                      <button
-                        onClick={handleTestNotification}
-                        className="bg-maroon-50 text-maroon-700 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-maroon-100 transition-colors"
-                      >
-                        Test
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">
-                    {pushPermission === 'unsupported'
-                      ? 'Not available on this device'
-                      : pushPermission === 'denied'
-                        ? 'Blocked in browser settings'
-                        : pushPermission === 'granted'
-                          ? 'Alerts for inactivity shutdown'
-                          : 'Enable alerts for inactivity shutdown'}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={handleToggleNotifications}
-                disabled={loadingPush || pushPermission === 'unsupported'}
-                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${pushPermission === 'granted' ? 'bg-maroon-800' : 'bg-gray-200'} ${loadingPush ? 'opacity-70 cursor-wait' : ''} ${pushPermission === 'unsupported' ? 'cursor-not-allowed opacity-50' : ''}`}
-              >
-                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 flex items-center justify-center ${pushPermission === 'granted' ? 'translate-x-6' : 'translate-x-0'}`}>
-                  {loadingPush && <Loader2 className={`w-3.5 h-3.5 animate-spin ${pushPermission === 'granted' ? 'text-maroon-800' : 'text-gray-400'}`} />}
-                </div>
-              </button>
-            </div>
-
-            {pushPermission === 'denied' && (
-              <p className="mt-3 pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-500 font-medium leading-relaxed">
-                Notifications are blocked for this site. Re-enable them in your browser's site
-                settings, then toggle this back on. On iPhone, VoltSense must be added to the Home
-                Screen before push notifications work at all.
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* Sign Out Modal */}
       {isSignOutRendered && createPortal(

@@ -2584,21 +2584,33 @@ void applyRemoteChange(const RemoteChangeT& data) {
     }
   } else if (path == "/settings/night_mode_enabled") {
     nightModeEnabled = data.boolData();
+    setNvsString("night_enabled", nightModeEnabled ? "1" : "0");
   } else if (path == "/settings/mmwave_enabled") {
     mmwaveEnabled = data.boolData();
   } else if (path == "/settings/night_mode_start") {
     nightModeStart = data.stringData();
+    setNvsString("night_start", nightModeStart);
   } else if (path == "/settings/night_mode_end") {
     nightModeEnd = data.stringData();
+    setNvsString("night_end", nightModeEnd);
   } else if (path == "/settings/inactivity_limit_minutes") {
     int minutes = data.intData();
-    if (minutes > 0) idleTimeoutMs = (unsigned long)minutes * 60 * 1000UL;
+    if (minutes > 0) {
+      idleTimeoutMs = (unsigned long)minutes * 60 * 1000UL;
+      setNvsString("idle_timeout_s", String(minutes * 60));
+    }
   } else if (path == "/settings/inactivity_limit_seconds") {
     int secs = data.intData();
-    if (secs > 0) idleTimeoutMs = (unsigned long)secs * 1000UL;
+    if (secs > 0) {
+      idleTimeoutMs = (unsigned long)secs * 1000UL;
+      setNvsString("idle_timeout_s", String(secs));
+    }
   } else if (path == "/settings/response_window_seconds") {
     int secs = data.intData();
-    if (secs > 0) responseWindowMs = (unsigned long)secs * 1000UL;
+    if (secs > 0) {
+      responseWindowMs = (unsigned long)secs * 1000UL;
+      setNvsString("resp_window_s", String(secs));
+    }
   } else if (path == "/settings/bench_mode") {
     benchMode = data.boolData();
     setNvsString("bench_mode", benchMode ? "1" : "0");
@@ -2712,28 +2724,40 @@ void applyRemoteChange(const RemoteChangeT& data) {
     if (result.success) overrideActive = result.boolValue;
 
     json.get(result, "settings/night_mode_enabled");
-    if (result.success) nightModeEnabled = result.boolValue;
+    if (result.success) {
+      nightModeEnabled = result.boolValue;
+      setNvsString("night_enabled", nightModeEnabled ? "1" : "0");
+    }
 
     json.get(result, "settings/mmwave_enabled");
     if (result.success) mmwaveEnabled = result.boolValue;
 
     json.get(result, "settings/night_mode_start");
-    if (result.success) nightModeStart = result.stringValue;
+    if (result.success) {
+      nightModeStart = result.stringValue;
+      setNvsString("night_start", nightModeStart);
+    }
 
     json.get(result, "settings/night_mode_end");
-    if (result.success) nightModeEnd = result.stringValue;
+    if (result.success) {
+      nightModeEnd = result.stringValue;
+      setNvsString("night_end", nightModeEnd);
+    }
 
     json.get(result, "settings/inactivity_limit_minutes");
     if (result.success && result.intValue > 0) {
       idleTimeoutMs = (unsigned long)result.intValue * 60 * 1000UL;
+      setNvsString("idle_timeout_s", String(result.intValue * 60));
     }
     json.get(result, "settings/inactivity_limit_seconds");
     if (result.success && result.intValue > 0) {
       idleTimeoutMs = (unsigned long)result.intValue * 1000UL;
+      setNvsString("idle_timeout_s", String(result.intValue));
     }
     json.get(result, "settings/response_window_seconds");
     if (result.success && result.intValue > 0) {
       responseWindowMs = (unsigned long)result.intValue * 1000UL;
+      setNvsString("resp_window_s", String(result.intValue));
     }
     json.get(result, "settings/bench_mode");
     if (result.success) benchMode = result.boolValue;
@@ -3472,6 +3496,22 @@ void setup() {
     if (savedFusion.length() > 0) sensorFusionMode = savedFusion;
     String savedBench = getNvsString("bench_mode");
     if (savedBench.length() > 0) benchMode = (savedBench == "1");
+    String savedIdle = getNvsString("idle_timeout_s");
+    if (savedIdle.length() > 0) {
+      unsigned long s = savedIdle.toInt();
+      if (s >= 5) idleTimeoutMs = s * 1000UL;
+    }
+    String savedResp = getNvsString("resp_window_s");
+    if (savedResp.length() > 0) {
+      unsigned long s = savedResp.toInt();
+      if (s >= 5) responseWindowMs = s * 1000UL;
+    }
+    String savedNightEn = getNvsString("night_enabled");
+    if (savedNightEn.length() > 0) nightModeEnabled = (savedNightEn == "1");
+    String savedNightSt = getNvsString("night_start");
+    if (savedNightSt.length() > 0) nightModeStart = savedNightSt;
+    String savedNightEnd = getNvsString("night_end");
+    if (savedNightEnd.length() > 0) nightModeEnd = savedNightEnd;
   }
 
   // WiFiManager handles WiFi connection and Captive Portal
