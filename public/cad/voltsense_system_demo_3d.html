@@ -677,6 +677,76 @@
       font-family: 'Outfit', sans-serif;
       color: #0F172A;
       box-shadow: -8px 0 28px -6px rgba(15, 23, 42, 0.06);
+      transition: margin-right 0.38s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.38s ease;
+      will-change: margin-right;
+    }
+
+    #pwa-dock.collapsed {
+      margin-right: -430px;
+      box-shadow: none;
+    }
+
+    .pwa-collapse-toggle-btn {
+      appearance: none;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      background: #FFFFFF;
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #4B5563;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      flex-shrink: 0;
+    }
+
+    .pwa-collapse-toggle-btn:hover {
+      background: #F9FAFB;
+      color: var(--maroon-800);
+      border-color: var(--maroon-200);
+      transform: scale(1.04);
+    }
+
+    #pwa-expand-tab {
+      position: absolute;
+      top: 14px;
+      right: 16px;
+      z-index: 35;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(97, 47, 47, 0.16);
+      border-radius: 9999px;
+      padding: 7px 14px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #612f2f;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
+      transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity: 0;
+      pointer-events: none;
+      transform: translateX(20px);
+    }
+
+    #pwa-expand-tab:hover {
+      background: #FFFFFF;
+      color: #431f1f;
+      box-shadow: 0 6px 22px rgba(97, 47, 47, 0.20);
+      transform: scale(1.03);
+    }
+
+    #pwa-expand-tab.visible {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateX(0);
     }
 
     /* Apple-style ambient background glow (Layout.jsx lines 51-54) */
@@ -1831,6 +1901,7 @@
     <!-- View Overlays -->
     <div class="segmented-group">
       <span class="group-label">View</span>
+      <button class="cam-pill active" id="btn-toggle-app" onclick="togglePwaDock()" title="Toggle VoltSense App Sidebar (Shortcut: A)">App: ON</button>
       <button class="cam-pill active" id="btn-toggle-range" onclick="toggleRangeFOV()" title="Toggle PIR &amp; mmWave Range Coverage Overlay">Range: ON</button>
       <button class="cam-pill active" id="btn-toggle-labels" onclick="toggle3DLabels()" title="Toggle 3D Callout Labels">Labels: ON</button>
       <button class="cam-pill active" id="btn-toggle-hud" onclick="toggleAllHud()" title="Toggle Viewport Floating HUD Cards (Shortcut: H)">HUD: ON</button>
@@ -1846,6 +1917,18 @@
     <div id="viewport-container">
       <canvas id="webgl-canvas"></canvas>
       <div id="labels-layer"></div>
+
+      <!-- Floating Button to re-open the PWA Dock when collapsed sideways -->
+      <button id="pwa-expand-tab" onclick="togglePwaDock()" title="Open VoltSense App (Shortcut: A)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="2" width="14" height="20" rx="2"/>
+          <path d="M12 18h.01"/>
+        </svg>
+        <span>VoltSense App</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+      </button>
 
       <!-- Compact Top-Left Hardware & Sensor Telemetry Card -->
       <div id="hw-bench-card">
@@ -1994,21 +2077,30 @@
           </div>
         </div>
 
-        <!-- Device Switcher (Layout.jsx lines 80-115) -->
-        <div class="pwa-device-switcher-wrap">
-          <button class="pwa-device-btn" onclick="document.getElementById('pwa-dev-dd').classList.toggle('open')" title="Paired Device (3D Digital Twin)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#612f2f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>
-            <span class="pwa-device-mac" id="pwa-active-mac">A8:42:E3:91:04:BC</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-          </button>
-
-          <div class="pwa-device-dropdown" id="pwa-dev-dd">
-            <div class="pwa-device-dropdown-hdr">Select Device</div>
-            <button class="pwa-device-dropdown-item" onclick="document.getElementById('pwa-dev-dd').classList.remove('open')">
-              <span>A8:42:E3:91:04:BC</span>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#612f2f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <!-- Device Switcher (Layout.jsx lines 80-115) -->
+          <div class="pwa-device-switcher-wrap">
+            <button class="pwa-device-btn" onclick="document.getElementById('pwa-dev-dd').classList.toggle('open')" title="Paired Device (3D Digital Twin)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#612f2f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>
+              <span class="pwa-device-mac" id="pwa-active-mac">A8:42:E3:91:04:BC</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
             </button>
+
+            <div class="pwa-device-dropdown" id="pwa-dev-dd">
+              <div class="pwa-device-dropdown-hdr">Select Device</div>
+              <button class="pwa-device-dropdown-item" onclick="document.getElementById('pwa-dev-dd').classList.remove('open')">
+                <span>A8:42:E3:91:04:BC</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#612f2f" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              </button>
+            </div>
           </div>
+
+          <!-- Collapse App Button (Slides dock out to the right) -->
+          <button class="pwa-collapse-toggle-btn" onclick="togglePwaDock()" title="Collapse App Sideways (Shortcut: A)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m9 18 6-6-6-6"/>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -6409,6 +6501,50 @@ function buildPhotorealisticElectronics(parent) {
       }
     };
 
+    window.togglePwaDock = function(forceState) {
+      const dock = document.getElementById('pwa-dock');
+      const expandTab = document.getElementById('pwa-expand-tab');
+      const btnToggle = document.getElementById('btn-toggle-app');
+      if (!dock) return;
+
+      const willCollapse = (forceState !== undefined) ? !forceState : !dock.classList.contains('collapsed');
+
+      if (willCollapse) {
+        dock.classList.add('collapsed');
+        if (expandTab) expandTab.classList.add('visible');
+        if (btnToggle) {
+          btnToggle.textContent = 'App: OFF';
+          btnToggle.classList.remove('active');
+        }
+        logEvent('VoltSense App collapsed sideways (Press A or tap "VoltSense App" to restore)');
+      } else {
+        dock.classList.remove('collapsed');
+        if (expandTab) expandTab.classList.remove('visible');
+        if (btnToggle) {
+          btnToggle.textContent = 'App: ON';
+          btnToggle.classList.add('active');
+        }
+        logEvent('VoltSense App expanded');
+      }
+
+      // Smoothly update 3D canvas dimensions across the 380ms transition
+      const startTime = performance.now();
+      const duration = 400;
+      function stepResize(now) {
+        if (typeof window.onWindowResize === 'function') {
+          window.onWindowResize();
+        }
+        if (now - startTime < duration) {
+          requestAnimationFrame(stepResize);
+        } else {
+          if (typeof window.onWindowResize === 'function') {
+            window.onWindowResize();
+          }
+        }
+      }
+      requestAnimationFrame(stepResize);
+    };
+
     window.toggleAllHud = function() {
       const btn = document.getElementById('btn-toggle-hud');
       const bench = document.getElementById('hw-bench-card');
@@ -6445,6 +6581,9 @@ function buildPhotorealisticElectronics(parent) {
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
       if (e.key === 'h' || e.key === 'H') {
         window.toggleAllHud();
+      }
+      if (e.key === 'a' || e.key === 'A') {
+        window.togglePwaDock();
       }
     });
 
@@ -7677,13 +7816,16 @@ function buildPhotorealisticElectronics(parent) {
     animate();
     updateUI();
 
-    window.addEventListener('resize', () => {
+    window.onWindowResize = function() {
       const w = vpW();
       const h = vpH();
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-    });
+      if (camera && renderer) {
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      }
+    };
+    window.addEventListener('resize', window.onWindowResize);
   </script>
 </body>
 </html>

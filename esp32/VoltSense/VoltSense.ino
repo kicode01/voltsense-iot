@@ -103,15 +103,25 @@ const int RELAY_PINS[NUM_PORTS] = {23, 21, 19};
 static const uint8_t RELAY_ON_LEVEL = LOW;
 static const uint8_t RELAY_OFF_LEVEL = HIGH;
 
+// Authoritative internal relay state tracking in RAM.
+// On ESP32, GPIO pins configured as OUTPUT have their hardware input buffers disabled in ESP-IDF,
+// making digitalRead() on an output pin unreliable or subject to optocoupler pullup levels.
+// Tracking the desired energized state in RAM ensures relayIsOn() is 100% authoritative and fast.
+static bool relayState[NUM_PORTS] = {false, false, false};
+
 // The ONLY place a relay pin is written.
 static inline void relayWritePin(int port, bool on) {
-  digitalWrite(RELAY_PINS[port], on ? RELAY_ON_LEVEL : RELAY_OFF_LEVEL);
+  if (port >= 0 && port < NUM_PORTS) {
+    relayState[port] = on;
+    digitalWrite(RELAY_PINS[port], on ? RELAY_ON_LEVEL : RELAY_OFF_LEVEL);
+  }
 }
 
 // The ONLY place a relay pin is read. Normalised to "the port is energised", so callers never
 // reason about pin levels.
 static inline bool relayIsOn(int port) {
-  return digitalRead(RELAY_PINS[port]) == RELAY_ON_LEVEL;
+  if (port < 0 || port >= NUM_PORTS) return false;
+  return relayState[port];
 }
 // ADC1 ONLY. GPIO 32-35 are ADC1; GPIO 0/2/4/12-15/25-27 are ADC2, and ADC2 is unusable while Wi-Fi
 // is up (analogRead returns 0). Wi-Fi is always up in this device, so an ADC2 current pin would
@@ -2970,7 +2980,8 @@ void applyRemoteChange(const RemoteChangeT& data) {
 // part of the client library that cannot handshake on ESP32 core 3.x. One small GET every few
 // seconds, and nothing is dispatched unless the payload actually changed.
 unsigned long lastRemotePollMillis = 0;
-String lastRemoteJson = "";
+String lastPortsJson = "";
+String lastSettingsJson = "";
 const unsigned long RTDB_POLL_INTERVAL_MS = 1000UL;
 
 void pollRemoteChanges(bool force = false) {
@@ -2978,269 +2989,155 @@ void pollRemoteChanges(bool force = false) {
   if (!force && (millis() - lastRemotePollMillis < RTDB_POLL_INTERVAL_MS)) return;
   lastRemotePollMillis = millis();
 
-  String body;
-  if (!rtdbRequest("GET", roomPath, "", &body)) return;
-  if (body.length() == 0 || body == "null") return;
-
-  // Report what the database actually holds once telemetry is there. This is the honest end-to-end
-  // check: it proves the values this device writes really land in the RTDB, rather than only that a
-  // request returned 2xx. Gives up after a few polls so a silent failure still says so.
-  static int pollCount = 0;
-  static bool reportedFirstPoll = false;
-  pollCount++;
-  const bool hasTelemetry = body.indexOf("total_power_watts") >= 0;
-  if (!reportedFirstPoll && (hasTelemetry || pollCount > 20)) {
-    reportedFirstPoll = true;
-    Serial.printf("RTDB read-back: %u bytes, telemetry=%s, diag=%s (poll #%d)\n",
-                  (unsigned)body.length(), hasTelemetry ? "yes" : "NO",
-                  body.indexOf("rest_ok") >= 0 ? "yes" : "no", pollCount);
-  }
-
-  if (body == lastRemoteJson) return;  // nothing changed since the last poll
-  lastRemoteJson = body;
-
-  FirebaseJson json;
-  json.setJsonData(body);
-  FirebaseJsonData field;
-
-  // The whole object first, so the defaults in the "/" branch land -- this mirrors the stream's
-  // initial full-object event.
-  RemoteChange whole;
-  whole._path = "/";
-  whole._json = body;
-  applyRemoteChange(whole);
-
-  // Dispatch override first
-  json.get(field, "override");
-  if (field.success) {
-    RemoteChange o;
-    o._path = "/override";
-    o._bool = field.boolValue;
-    applyRemoteChange(o);
-  }
-
-  // Then every control the app can touch.
-  for (int i = 0; i < NUM_PORTS; i++) {
-    const String suffix = "ports/port_0" + String(i + 1);
-
-    RemoteChange relay;
-    relay._path = "/" + suffix + "/relay_status";
-    json.get(field, suffix + "/relay_status");
-    if (field.success) {
-      relay._bool = field.boolValue;
-      applyRemoteChange(relay);
-    }
-
-    RemoteChange policy;
-    policy._path = "/" + suffix + "/policy";
-    json.get(field, suffix + "/policy");
-    if (field.success) {
-      policy._str = field.stringValue;
-      applyRemoteChange(policy);
+  // 1. Fast override check (< 10 bytes)
+  String overrideBody;
+  if (rtdbRequest("GET", roomPath + "/override", "", &overrideBody) && overrideBody.length() > 0 && overrideBody != "null") {
+    if (overrideBody == "true") {
+      RemoteChange o;
+      o._path = "/override";
+      o._bool = true;
+      applyRemoteChange(o);
     }
   }
 
-  // Explicit settings dispatch
-  json.get(field, "settings/bench_mode");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/bench_mode";
-    c._bool = field.boolValue;
-    applyRemoteChange(c);
+  // 2. Poll ports (< 500 bytes: port_01, port_02, port_03 relay_status & policy)
+  String portsBody;
+  if (rtdbRequest("GET", roomPath + "/ports", "", &portsBody) && portsBody.length() > 0 && portsBody != "null") {
+    if (portsBody != lastPortsJson) {
+      lastPortsJson = portsBody;
+      FirebaseJson json;
+      json.setJsonData(portsBody);
+      FirebaseJsonData field;
+
+      for (int i = 0; i < NUM_PORTS; i++) {
+        const String suffix = "port_0" + String(i + 1);
+
+        json.get(field, suffix + "/relay_status");
+        if (field.success) {
+          RemoteChange relay;
+          relay._path = "/ports/" + suffix + "/relay_status";
+          relay._bool = field.boolValue;
+          applyRemoteChange(relay);
+        }
+
+        json.get(field, suffix + "/policy");
+        if (field.success) {
+          RemoteChange policy;
+          policy._path = "/ports/" + suffix + "/policy";
+          policy._str = field.stringValue;
+          applyRemoteChange(policy);
+        }
+      }
+    }
   }
 
-  json.get(field, "settings/nominal_voltage");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/nominal_voltage";
-    c._float = field.floatValue;
-    applyRemoteChange(c);
+  // 3. Poll settings (< 800 bytes) - rate limited to every 3 seconds
+  static unsigned long lastSettingsPollMillis = 0;
+  if (force || (millis() - lastSettingsPollMillis >= 3000UL)) {
+    lastSettingsPollMillis = millis();
+    String settingsBody;
+    if (rtdbRequest("GET", roomPath + "/settings", "", &settingsBody) && settingsBody.length() > 0 && settingsBody != "null") {
+      if (settingsBody != lastSettingsJson) {
+        lastSettingsJson = settingsBody;
+        FirebaseJson json;
+        json.setJsonData(settingsBody);
+        FirebaseJsonData field;
+
+        json.get(field, "bench_mode");
+        if (field.success) { RemoteChange c; c._path = "/settings/bench_mode"; c._bool = field.boolValue; applyRemoteChange(c); }
+
+        json.get(field, "nominal_voltage");
+        if (field.success) { RemoteChange c; c._path = "/settings/nominal_voltage"; c._float = field.floatValue; applyRemoteChange(c); }
+
+        json.get(field, "acs712_mv_per_amp");
+        if (field.success) { RemoteChange c; c._path = "/settings/acs712_mv_per_amp"; c._float = field.floatValue; applyRemoteChange(c); }
+
+        json.get(field, "current_noise_floor_a");
+        if (field.success) { RemoteChange c; c._path = "/settings/current_noise_floor_a"; c._float = field.floatValue; applyRemoteChange(c); }
+
+        json.get(field, "current_cal_multiplier");
+        if (field.success) { RemoteChange c; c._path = "/settings/current_cal_multiplier"; c._float = field.floatValue; applyRemoteChange(c); }
+
+        json.get(field, "voltage_cal_mv_per_v");
+        if (field.success) { RemoteChange c; c._path = "/settings/voltage_cal_mv_per_v"; c._float = field.floatValue; applyRemoteChange(c); }
+
+        json.get(field, "mmwave_enabled");
+        if (field.success) { RemoteChange c; c._path = "/settings/mmwave_enabled"; c._bool = field.boolValue; applyRemoteChange(c); }
+
+        json.get(field, "mmwave_inverted");
+        if (field.success) { RemoteChange c; c._path = "/settings/mmwave_inverted"; c._bool = field.boolValue; applyRemoteChange(c); }
+
+        json.get(field, "auto_wake_enabled");
+        if (field.success) { RemoteChange c; c._path = "/settings/auto_wake_enabled"; c._bool = field.boolValue; applyRemoteChange(c); }
+
+        json.get(field, "night_mode_enabled");
+        if (field.success) { RemoteChange c; c._path = "/settings/night_mode_enabled"; c._bool = field.boolValue; applyRemoteChange(c); }
+
+        json.get(field, "night_mode_start");
+        if (field.success) { RemoteChange c; c._path = "/settings/night_mode_start"; c._str = field.stringValue; applyRemoteChange(c); }
+
+        json.get(field, "night_mode_end");
+        if (field.success) { RemoteChange c; c._path = "/settings/night_mode_end"; c._str = field.stringValue; applyRemoteChange(c); }
+
+        json.get(field, "inactivity_limit_minutes");
+        if (field.success && field.intValue > 0) { RemoteChange c; c._path = "/settings/inactivity_limit_minutes"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "inactivity_limit_seconds");
+        if (field.success && field.intValue > 0) { RemoteChange c; c._path = "/settings/inactivity_limit_seconds"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "response_window_seconds");
+        if (field.success && field.intValue > 0) { RemoteChange c; c._path = "/settings/response_window_seconds"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "radar_max_gate");
+        if (field.success) { RemoteChange c; c._path = "/settings/radar_max_gate"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "radar_static_threshold");
+        if (field.success) { RemoteChange c; c._path = "/settings/radar_static_threshold"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "radar_moving_threshold");
+        if (field.success) { RemoteChange c; c._path = "/settings/radar_moving_threshold"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "sensor_fusion_mode");
+        if (field.success) { RemoteChange c; c._path = "/settings/sensor_fusion_mode"; c._str = field.stringValue; applyRemoteChange(c); }
+
+        json.get(field, "pir_delay_seconds");
+        if (field.success) { RemoteChange c; c._path = "/settings/pir_delay_seconds"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "mmwave_delay_seconds");
+        if (field.success) { RemoteChange c; c._path = "/settings/mmwave_delay_seconds"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "force_pir");
+        if (field.success) { RemoteChange c; c._path = "/settings/force_pir"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "force_mmwave");
+        if (field.success) { RemoteChange c; c._path = "/settings/force_mmwave"; c._int = field.intValue; applyRemoteChange(c); }
+
+        json.get(field, "auto_calibrate_voltage");
+        if (field.success && field.boolValue) {
+          pendingAutoCal = true;
+          FirebaseJson r;
+          r.set("settings/auto_calibrate_voltage", false);
+          rtdbPatchJson(roomPath, r);
+        }
+
+        json.get(field, "calibrate_current_zero");
+        if (field.success && field.boolValue) {
+          pendingZeroTare = true;
+          FirebaseJson r;
+          r.set("settings/calibrate_current_zero", false);
+          rtdbPatchJson(roomPath, r);
+        }
+      }
+    }
   }
 
-  json.get(field, "settings/acs712_mv_per_amp");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/acs712_mv_per_amp";
-    c._float = field.floatValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/current_noise_floor_a");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/current_noise_floor_a";
-    c._float = field.floatValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/current_cal_multiplier");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/current_cal_multiplier";
-    c._float = field.floatValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/voltage_cal_mv_per_v");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/voltage_cal_mv_per_v";
-    c._float = field.floatValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/mmwave_enabled");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/mmwave_enabled";
-    c._bool = field.boolValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/mmwave_inverted");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/mmwave_inverted";
-    c._bool = field.boolValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/auto_wake_enabled");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/auto_wake_enabled";
-    c._bool = field.boolValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/night_mode_enabled");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/night_mode_enabled";
-    c._bool = field.boolValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/night_mode_start");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/night_mode_start";
-    c._str = field.stringValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/night_mode_end");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/night_mode_end";
-    c._str = field.stringValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/inactivity_limit_minutes");
-  if (field.success && field.intValue > 0) {
-    RemoteChange c;
-    c._path = "/settings/inactivity_limit_minutes";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/inactivity_limit_seconds");
-  if (field.success && field.intValue > 0) {
-    RemoteChange c;
-    c._path = "/settings/inactivity_limit_seconds";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/response_window_seconds");
-  if (field.success && field.intValue > 0) {
-    RemoteChange c;
-    c._path = "/settings/response_window_seconds";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/radar_max_gate");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/radar_max_gate";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-  json.get(field, "settings/radar_static_threshold");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/radar_static_threshold";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-  json.get(field, "settings/radar_moving_threshold");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/radar_moving_threshold";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-  json.get(field, "settings/sensor_fusion_mode");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/sensor_fusion_mode";
-    c._str = field.stringValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/pir_delay_seconds");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/pir_delay_seconds";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/mmwave_delay_seconds");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/mmwave_delay_seconds";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/force_pir");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/force_pir";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/force_mmwave");
-  if (field.success) {
-    RemoteChange c;
-    c._path = "/settings/force_mmwave";
-    c._int = field.intValue;
-    applyRemoteChange(c);
-  }
-
-  json.get(field, "settings/auto_calibrate_voltage");
-  if (field.success && field.boolValue) {
-    pendingAutoCal = true;
-  }
-
-  json.get(field, "settings/calibrate_current_zero");
-  if (field.success && field.boolValue) {
-    pendingZeroTare = true;
-  }
-
-  // If the user manually turned off all relays (e.g. clicking ALL OFF) while the 
-  // countdown is ticking, we should cancel the timer and just go to SHUTDOWN state.
+  // If all relays are manually turned off, log it
   if (currentState == STATE_IDLE_COUNTDOWN || currentState == STATE_RESPONSE_WINDOW) {
     bool anyOn = false;
     for (int i = 0; i < NUM_PORTS; i++) {
       if (relayIsOn(i)) { anyOn = true; break; }
     }
     if (!anyOn) {
-      // Do not force STATE_SHUTDOWN while room is occupied; leave relays off as requested
       Serial.println("All relays manually turned off by user.");
     }
   }

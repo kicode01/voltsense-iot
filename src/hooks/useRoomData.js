@@ -94,8 +94,13 @@ export const useRoomData = (roomId) => {
   const togglePortRelay = async (portId, newStatus) => {
     if (!roomId) return true;
     try {
-      const portRef = ref(db, `devices/${roomId}/ports/${portId}/relay_status`);
-      await set(portRef, newStatus);
+      const updates = {};
+      updates[`devices/${roomId}/ports/${portId}/relay_status`] = newStatus;
+      if (newStatus === true) {
+        // Signal override/wake to prevent the vacancy state machine from instantly cutting it off
+        updates[`devices/${roomId}/override`] = true;
+      }
+      await update(ref(db), updates);
       return true;
     } catch (error) {
       console.error(`Failed to toggle port ${portId}`, error);
@@ -113,6 +118,10 @@ export const useRoomData = (roomId) => {
       Object.keys(portsObj).forEach((portId) => {
         updates[`devices/${roomId}/ports/${portId}/relay_status`] = newStatus;
       });
+      if (newStatus === true) {
+        // Signal override/wake to prevent the vacancy state machine from instantly cutting them off
+        updates[`devices/${roomId}/override`] = true;
+      }
       if (Object.keys(updates).length === 0) return true;
       await update(ref(db), updates);
       return true;
