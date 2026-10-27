@@ -13,7 +13,7 @@ const devAuthPlugin = () => ({
         req.on('end', async () => {
           try {
             const { email, password } = JSON.parse(body || '{}');
-            if ((email === 'admin@voltsense.local' || email === 'admin@voltsense.com') && (password === '123456' || password === 'voltsense123')) {
+            if ((email === 'admin@voltsense.local' || email === 'admin@voltsense.com' || email === 'kianbalanag18@gmail.com') && (password === '123456' || password === 'voltsense123')) {
               const { default: admin } = await import('firebase-admin');
               const { default: dotenv } = await import('dotenv');
               dotenv.config();
@@ -21,7 +21,8 @@ const devAuthPlugin = () => ({
                 const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
                 admin.initializeApp({ credential: admin.credential.cert(sa) });
               }
-              const token = await admin.auth().createCustomToken('gvhHI7seIcQo6amqrftd3bfdOcN2');
+              const targetUid = email === 'kianbalanag18@gmail.com' ? 'IlFYL6l4KTXg9lPT2vUtP4thQiw1' : 'gvhHI7seIcQo6amqrftd3bfdOcN2';
+              const token = await admin.auth().createCustomToken(targetUid);
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ token }));
               return;
