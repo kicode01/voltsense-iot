@@ -133,7 +133,7 @@ export const useRoomData = (roomId) => {
       }
       await update(ref(db, `devices/${roomId}/settings`), settingsPatch);
       if (mirrorMinutes !== null) {
-        set(ref(db, `devices/${roomId}/inactivity_limit`), mirrorMinutes).catch(() => {});
+        await set(ref(db, `devices/${roomId}/inactivity_limit`), mirrorMinutes);
       }
       return true;
     } catch (error) {
@@ -157,7 +157,7 @@ export const useRoomData = (roomId) => {
       }
       await update(ref(db, `devices/${roomId}/settings`), patch);
       if (mirrorMinutes !== null) {
-        set(ref(db, `devices/${roomId}/inactivity_limit`), mirrorMinutes).catch(() => {});
+        await set(ref(db, `devices/${roomId}/inactivity_limit`), mirrorMinutes);
       }
       return true;
     } catch (error) {
