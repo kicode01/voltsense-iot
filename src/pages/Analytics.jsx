@@ -575,8 +575,7 @@ const Analytics = () => {
                   <th className="py-3 px-4">Live Telemetry</th>
                   <th className="py-3 px-4">Est. Runtime</th>
                   <th className="py-3 px-4">Avg Active Load</th>
-                  <th className="py-3 px-4">Period Energy</th>
-                  <th className="py-3 px-4 w-44">Usage Share</th>
+                  <th className="py-3 px-4 text-right">Period Energy</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs sm:text-sm">
@@ -666,27 +665,9 @@ const Analytics = () => {
                       </td>
 
                       {/* Period Energy */}
-                      <td className="py-3.5 px-4 whitespace-nowrap tabular-nums">
+                      <td className="py-3.5 px-4 whitespace-nowrap tabular-nums text-right">
                         <span className="font-extrabold text-gray-900">{outlet.energyKwh.toFixed(2)}</span>{' '}
                         <span className="text-[10px] font-bold text-gray-400 uppercase">kWh</span>
-                      </td>
-
-                      {/* Usage Share Progress Bar */}
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all duration-500"
-                              style={{
-                                width: `${Math.max(4, outlet.percentage)}%`,
-                                backgroundColor: outlet.color
-                              }}
-                            />
-                          </div>
-                          <span className="text-xs font-bold text-maroon-900 tabular-nums w-9 text-right">
-                            {outlet.percentage}%
-                          </span>
-                        </div>
                       </td>
                     </tr>
                   );
@@ -704,11 +685,8 @@ const Analytics = () => {
                     <td className="py-2.5 px-4 tabular-nums">
                       {Math.round(outletList.reduce((acc, o) => acc + o.avgWatts, 0) / 3)} {powerUnitShort} avg
                     </td>
-                    <td className="py-2.5 px-4 tabular-nums text-gray-900 font-extrabold">
+                    <td className="py-2.5 px-4 tabular-nums text-right text-gray-900 font-extrabold">
                       {sumAllPortsEnergy.toFixed(2)} kWh
-                    </td>
-                    <td className="py-2.5 px-4 text-right tabular-nums text-maroon-900">
-                      100%
                     </td>
                   </tr>
                 </tfoot>
