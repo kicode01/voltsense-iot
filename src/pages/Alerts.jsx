@@ -5,9 +5,6 @@ import {
   BellOff,
   CheckCheck,
   TriangleAlert,
-  CircleCheck,
-  CircleSlash,
-  CircleAlert,
   Power,
   Loader2,
   Timer,
@@ -39,18 +36,46 @@ const getAlertDetails = (alert) => {
   }
 
   if (tag.includes('overcurrent') || title.includes('overcurrent') || body.includes('overcurrent')) {
-    return { title: resolvedTitle, Icon: Zap };
+    return {
+      title: resolvedTitle,
+      category: 'Overcurrent',
+      Icon: Zap,
+      badgeClass: 'bg-maroon-800 text-white border-maroon-900 shadow-2xs',
+      iconWrapClass: 'bg-maroon-800 text-white border-maroon-900',
+      dotClass: 'bg-emerald-400 animate-pulse'
+    };
   }
 
   if (tag.includes('shutdown') || tag.includes('inactivity') || body.includes('shut down') || body.includes('empty')) {
-    return { title: resolvedTitle, Icon: Timer };
+    return {
+      title: resolvedTitle,
+      category: 'Auto-Shutdown',
+      Icon: Timer,
+      badgeClass: 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80',
+      iconWrapClass: 'bg-maroon-50 text-maroon-800 border-maroon-200/70',
+      dotClass: 'bg-maroon-600'
+    };
   }
 
   if (tag.includes('power') || title.includes('power')) {
-    return { title: resolvedTitle, Icon: Power };
+    return {
+      title: resolvedTitle,
+      category: 'Power Event',
+      Icon: Power,
+      badgeClass: 'bg-maroon-50 text-maroon-800 border-maroon-200/70',
+      iconWrapClass: 'bg-maroon-50 text-maroon-800 border-maroon-200/70',
+      dotClass: 'bg-maroon-500'
+    };
   }
 
-  return { title: resolvedTitle, Icon: Bell };
+  return {
+    title: resolvedTitle,
+    category: 'System',
+    Icon: Bell,
+    badgeClass: 'bg-gray-100 text-gray-700 border-gray-200/90',
+    iconWrapClass: 'bg-gray-100 text-gray-500 border-gray-200/70',
+    dotClass: 'bg-gray-400'
+  };
 };
 
 const formatTimeOnly = (ms) => {
@@ -59,49 +84,15 @@ const formatTimeOnly = (ms) => {
   return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 };
 
-// Outcome describes what the SERVER managed to do, not what the alert means. A history that said
-// "delivered" for an alert nobody received would be worse than no history at all, so the badge is
-// shown on every row, including the failures.
-const OUTCOME = {
-  sent: {
-    label: 'Delivered',
-    Icon: CircleCheck,
-    className: 'bg-emerald-50 text-emerald-700 border-emerald-200/70'
-  },
-  partial: {
-    label: 'Partly delivered',
-    Icon: CircleAlert,
-    className: 'bg-amber-50 text-amber-700 border-amber-200/70'
-  },
-  failed: {
-    label: 'Not delivered',
-    Icon: CircleSlash,
-    className: 'bg-red-50 text-red-700 border-red-200/70'
-  },
-  skipped: {
-    label: 'No recipients',
-    Icon: BellOff,
-    className: 'bg-gray-100 text-gray-600 border-gray-200'
-  },
-  unknown: {
-    label: 'Recorded',
-    Icon: CircleAlert,
-    className: 'bg-gray-100 text-gray-600 border-gray-200'
-  }
-};
-
-const formatStamp = (ms) => {
-  if (!ms) return '';
+const formatShortDate = (ms) => {
+  if (!ms) return '—';
   const date = new Date(ms);
   const now = new Date();
   const sameDay =
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
-
-  const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-
-  if (sameDay) return `Today, ${time}`;
+  if (sameDay) return 'Today';
 
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
@@ -109,10 +100,40 @@ const formatStamp = (ms) => {
     date.getFullYear() === yesterday.getFullYear() &&
     date.getMonth() === yesterday.getMonth() &&
     date.getDate() === yesterday.getDate();
+  if (isYesterday) return 'Yesterday';
 
-  if (isYesterday) return `Yesterday, ${time}`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
 
-  return `${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, ${time}`;
+// Outcome describes what the SERVER managed to do, not what the alert means. A history that said
+// "delivered" for an alert nobody received would be worse than no history at all, so the badge is
+// shown on every row, including the failures.
+const OUTCOME = {
+  sent: {
+    label: 'Delivered',
+    dotClass: 'bg-maroon-700',
+    className: 'bg-maroon-50/90 text-maroon-900 border-maroon-200/80'
+  },
+  partial: {
+    label: 'Partial',
+    dotClass: 'bg-maroon-500',
+    className: 'bg-maroon-50/50 text-maroon-800 border-maroon-200/60'
+  },
+  failed: {
+    label: 'Failed',
+    dotClass: 'bg-red-500',
+    className: 'bg-red-50 text-red-800 border-red-200/70'
+  },
+  skipped: {
+    label: 'Logged only',
+    dotClass: 'bg-gray-400',
+    className: 'bg-gray-100 text-gray-500 border-gray-200/80'
+  },
+  unknown: {
+    label: 'Recorded',
+    dotClass: 'bg-gray-400',
+    className: 'bg-gray-100 text-gray-500 border-gray-200/80'
+  }
 };
 
 const Alerts = () => {
@@ -151,22 +172,6 @@ const Alerts = () => {
     });
   }, [alerts, filter]);
 
-  const grouped = useMemo(() => {
-    const groups = [];
-    let current = null;
-
-    filteredAlerts.forEach((alert) => {
-      const day = alert.at ? new Date(alert.at).toDateString() : 'Unknown date';
-      if (!current || current.day !== day) {
-        current = { day, label: formatStamp(alert.at).split(',')[0] || 'Unknown date', items: [] };
-        groups.push(current);
-      }
-      current.items.push(alert);
-    });
-
-    return groups;
-  }, [filteredAlerts]);
-
   const busy = devicesLoading || loading;
 
   return (
@@ -195,30 +200,6 @@ const Alerts = () => {
         )}
       </div>
 
-      {/* Category Filter Pills */}
-      {!busy && alerts.length > 0 && (
-        <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-1 no-scrollbar">
-          {[
-            { id: 'all', label: `All (${alerts.length})` },
-            { id: 'shutdown', label: 'Auto-Shutdown' },
-            { id: 'overcurrent', label: 'Overcurrent' },
-            { id: 'system', label: 'System Notice' },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setFilter(item.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 whitespace-nowrap shrink-0 ${
-                filter === item.id
-                  ? 'bg-maroon-800 text-white shadow-sm'
-                  : 'bg-white/80 text-gray-500 hover:text-gray-900 border border-gray-100 hover:bg-white'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* No device paired — the hook has nothing to subscribe to. Show a representative alert so
           the user can see what an entry will look like, instead of three empty cards. */}
       {!busy && !activeDeviceId && (
@@ -226,31 +207,33 @@ const Alerts = () => {
           <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">
             Preview · what an alert looks like
           </p>
-          <article className="rounded-2xl border bg-white border-maroon-100 shadow-sm p-4 md:p-5 flex items-start gap-3.5 md:gap-4">
-            <div className="w-10 h-10 md:w-11 md:h-11 rounded-2xl bg-maroon-50 text-maroon-800 border border-maroon-100 flex items-center justify-center shrink-0 shadow-sm">
-              <Timer className="w-5 h-5 text-maroon-800" strokeWidth={1.75} />
+          <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-3.5 md:p-4 flex items-start gap-3">
+            <div className="w-8 h-8 rounded-xl bg-maroon-50 text-maroon-800 border border-maroon-200/70 flex items-center justify-center shrink-0">
+              <Timer className="w-4 h-4 text-maroon-800" strokeWidth={2} />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">
-                    Room Became Empty
+                  <h3 className="text-xs md:text-sm font-bold text-gray-900 truncate">
+                    Auto-Shutdown Warning
                   </h3>
-                  <span className="w-2 h-2 rounded-full bg-maroon-600 shrink-0" />
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider border bg-maroon-100/80 text-maroon-900 border-maroon-300/80">
+                    Auto-Shutdown
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[11px] font-medium text-gray-400">Just now</span>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-bold">
-                    <CircleCheck className="w-3 h-3" />
+                  <span className="text-[11px] font-semibold text-gray-500 tabular-nums">Today · Just now</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-maroon-200/80 bg-maroon-50/90 text-maroon-900 text-[10px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-maroon-700" />
                     Delivered
                   </span>
                 </div>
               </div>
-              <p className="text-xs md:text-sm text-gray-600 leading-relaxed break-words">
+              <p className="text-xs text-gray-600 leading-relaxed break-words">
                 The lounge has been unoccupied for 15 minutes. Power will shut off in 5 minutes unless you tap Keep Power On.
               </p>
             </div>
-          </article>
+          </div>
           <div className="rounded-3xl bg-white/60 border border-gray-200/70 p-6 mt-3 text-center">
             <BellOff className="w-7 h-7 text-gray-300 mx-auto mb-2" />
             <h3 className="text-sm font-bold text-gray-800">No device paired yet</h3>
@@ -260,7 +243,7 @@ const Alerts = () => {
             </p>
             <Link
               to="/settings"
-              className="inline-block px-5 py-2.5 rounded-2xl bg-maroon-800 text-white text-xs font-bold hover:bg-maroon-900 transition-colors"
+              className="inline-block mt-4 px-5 py-2.5 rounded-2xl bg-maroon-800 text-white text-xs font-bold hover:bg-maroon-900 transition-colors"
             >
               Go to Settings
             </Link>
@@ -299,96 +282,203 @@ const Alerts = () => {
         </div>
       )}
 
-      {!busy && grouped.length > 0 && (
-        <div className="space-y-6 mt-6">
-          {grouped.map((group) => (
-            <section key={group.day}>
-              <h2 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2 px-1">
-                {group.label}
-              </h2>
+      {/* Unified Event Log Table */}
+      {!busy && alerts.length > 0 && (
+        <div className="bg-white p-4 md:p-6 rounded-3xl border border-gray-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] mt-6">
+          {/* Table Header + Segmented Category Filter */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-base md:text-lg font-bold text-gray-900">System Event Log</h3>
+              <p className="text-xs text-gray-500 font-medium">
+                {filteredAlerts.length} {filteredAlerts.length === 1 ? 'entry' : 'entries'} shown · newest first
+              </p>
+            </div>
+            <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl border border-gray-200/60 self-start sm:self-auto overflow-x-auto max-w-full no-scrollbar">
+              {[
+                { id: 'all', label: `All (${alerts.length})` },
+                { id: 'shutdown', label: 'Shutdown' },
+                { id: 'overcurrent', label: 'Overcurrent' },
+                { id: 'system', label: 'System' },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setFilter(item.id)}
+                  className={`px-2.5 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap shrink-0 ${
+                    filter === item.id
+                      ? 'bg-maroon-800 text-white shadow-2xs'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {group.items.map((alert) => {
+          {filteredAlerts.length === 0 ? (
+            <div className="rounded-2xl border border-gray-100 bg-gray-50/40 p-8 text-center">
+              <p className="text-xs text-gray-500 font-medium">No alerts match the selected category filter.</p>
+              <button
+                onClick={() => setFilter('all')}
+                className="mt-2.5 text-xs font-bold text-maroon-800 underline hover:text-maroon-900"
+              >
+                Show all alerts
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-gray-100 overflow-hidden">
+              {/* Mobile Compact Stacked Log Rows (No horizontal scroll) */}
+              <div className="md:hidden divide-y divide-gray-100 max-h-[620px] overflow-y-auto custom-scrollbar">
+                {filteredAlerts.map((alert) => {
                   const meta = OUTCOME[alert.outcome] || OUTCOME.unknown;
-                  const { Icon: OutcomeIcon } = meta;
                   const details = getAlertDetails(alert);
                   const { Icon: AlertIcon } = details;
                   const isUnread =
                     lastSeenId === null || (lastSeenId !== undefined && alert.at > lastSeenId);
 
                   return (
-                    <article
+                    <div
                       key={alert.id}
-                      className={`rounded-2xl border p-4 md:p-5 transition-all duration-300 ease-apple-spring flex items-start gap-3.5 md:gap-4 ${
-                        isUnread
-                          ? 'bg-white border-maroon-200/80 shadow-[0_4px_20px_rgb(128,0,0,0.04)]'
-                          : 'bg-white/70 backdrop-blur-md border-white/60 hover:border-gray-200 shadow-sm'
+                      className={`p-3.5 transition-colors ${
+                        isUnread ? 'bg-maroon-50/20' : 'bg-white hover:bg-gray-50/60'
                       }`}
                     >
-                      {/* Clean themed icon on the left */}
-                      <div
-                        className={`w-10 h-10 md:w-11 md:h-11 rounded-2xl flex items-center justify-center shrink-0 border ${
-                          isUnread
-                            ? 'bg-maroon-50 text-maroon-800 border-maroon-100 shadow-sm'
-                            : 'bg-gray-50 text-gray-400 border-gray-100'
-                        }`}
-                      >
-                        <AlertIcon
-                          className={`w-5 h-5 ${isUnread ? 'text-maroon-800' : 'text-gray-500'}`}
-                          strokeWidth={1.75}
-                        />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <h3 className="text-sm md:text-base font-bold text-gray-900 truncate">
-                              {details.title}
-                            </h3>
-                            {isUnread && (
-                              <span className="w-2 h-2 rounded-full bg-maroon-600 shrink-0" />
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-[11px] font-medium text-gray-400">
-                              {formatTimeOnly(alert.at)}
-                            </span>
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-bold ${meta.className}`}
-                            >
-                              <OutcomeIcon className="w-3 h-3" />
-                              {meta.label}
-                            </span>
-                          </div>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${details.iconWrapClass}`}
+                          >
+                            <AlertIcon className="w-3.5 h-3.5" strokeWidth={2} />
+                          </span>
+                          <span className="font-bold text-gray-900 text-xs truncate">
+                            {details.title}
+                          </span>
+                          {isUnread && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-maroon-700 shrink-0" />
+                          )}
                         </div>
-
-                        <p className="text-xs md:text-sm text-gray-600 leading-relaxed break-words">
-                          {alert.body}
-                        </p>
+                        <span className="text-[11px] font-semibold text-gray-500 tabular-nums shrink-0">
+                          {formatShortDate(alert.at)} · {formatTimeOnly(alert.at)}
+                        </span>
                       </div>
-                    </article>
+
+                      <p className="text-xs text-gray-600 leading-relaxed break-words pl-8 mb-2">
+                        {alert.body}
+                      </p>
+
+                      <div className="flex items-center justify-between gap-2 pl-8">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider border ${details.badgeClass}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${details.dotClass}`} />
+                          {details.category}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10px] font-bold ${meta.className}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${meta.dotClass}`} />
+                          {meta.label}
+                        </span>
+                      </div>
+                    </div>
                   );
                 })}
               </div>
-            </section>
-          ))}
 
-          <p className="text-[10px] text-gray-400 text-center pt-2 px-4">
+              {/* Desktop Structured Table View */}
+              <div className="hidden md:block max-h-[620px] overflow-y-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-xs">
+                    <tr className="border-b border-gray-100 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
+                      <th className="py-3 px-4 w-[240px]">Event</th>
+                      <th className="py-3 px-4">Details</th>
+                      <th className="py-3 px-4 w-[165px]">Date & Time</th>
+                      <th className="py-3 px-4 text-right w-[135px]">Push Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 text-xs md:text-sm">
+                    {filteredAlerts.map((alert) => {
+                      const meta = OUTCOME[alert.outcome] || OUTCOME.unknown;
+                      const details = getAlertDetails(alert);
+                      const { Icon: AlertIcon } = details;
+                      const isUnread =
+                        lastSeenId === null || (lastSeenId !== undefined && alert.at > lastSeenId);
+
+                      return (
+                        <tr
+                          key={alert.id}
+                          className={`transition-colors ${
+                            isUnread
+                              ? 'bg-maroon-50/20 hover:bg-maroon-50/35'
+                              : 'hover:bg-maroon-50/15'
+                          }`}
+                        >
+                          {/* Event Column */}
+                          <td className="py-3.5 px-4 align-top">
+                            <div className="flex items-start gap-2.5">
+                              <span
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border mt-0.5 ${details.iconWrapClass}`}
+                              >
+                                <AlertIcon className="w-3.5 h-3.5" strokeWidth={2} />
+                              </span>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-bold text-gray-900 text-xs md:text-sm leading-snug">
+                                    {details.title}
+                                  </span>
+                                  {isUnread && (
+                                    <span
+                                      className="w-2 h-2 rounded-full bg-maroon-700 shrink-0"
+                                      title="Unread"
+                                    />
+                                  )}
+                                </div>
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider border mt-1 ${details.badgeClass}`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${details.dotClass}`} />
+                                  {details.category}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Details / Message Column */}
+                          <td className="py-3.5 px-4 align-top text-xs md:text-sm text-gray-600 leading-relaxed max-w-xl break-words">
+                            {alert.body}
+                          </td>
+
+                          {/* Timestamp Column */}
+                          <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                            <div className="font-bold text-gray-800 text-xs tabular-nums">
+                              {formatShortDate(alert.at)}
+                            </div>
+                            <div className="text-[11px] font-medium text-gray-400 tabular-nums mt-0.5">
+                              {formatTimeOnly(alert.at)}
+                            </div>
+                          </td>
+
+                          {/* Push Status Column */}
+                          <td className="py-3.5 px-4 align-top text-right whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold ${meta.className}`}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${meta.dotClass}`} />
+                              {meta.label}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <p className="text-[10px] text-gray-400 text-center pt-4">
             The newest 200 alerts are kept. Older entries are removed automatically.
           </p>
-        </div>
-      )}
-
-      {!busy && alerts.length > 0 && grouped.length === 0 && (
-        <div className="rounded-3xl bg-white border border-gray-200/70 p-8 text-center mt-6">
-          <p className="text-xs text-gray-500 font-medium">No alerts match the selected category filter.</p>
-          <button
-            onClick={() => setFilter('all')}
-            className="mt-3 text-xs font-bold text-maroon-800 underline hover:text-maroon-900"
-          >
-            Show all alerts
-          </button>
         </div>
       )}
     </div>
