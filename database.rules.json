@@ -63,6 +63,12 @@
           ".write": "auth != null && (auth.uid === root.child('device_uids').child($mac).val() || root.child('users').child(auth.uid).child('owned_devices').child($mac).exists())",
           ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 1440"
         },
+        "inactivity_limit_seconds": {
+          ".validate": "newData.isNumber()"
+        },
+        "bench_mode": {
+          ".validate": "newData.isBoolean()"
+        },
         "override": {
           ".write": "auth != null && (auth.uid === root.child('device_uids').child($mac).val() || root.child('users').child(auth.uid).child('owned_devices').child($mac).exists())",
           ".validate": "newData.isBoolean()"

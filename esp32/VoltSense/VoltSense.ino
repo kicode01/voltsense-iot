@@ -2554,7 +2554,9 @@ void applyRemoteChange(const RemoteChangeT& data) {
       currentState = STATE_OCCUPIED;
       lastMotionMillis = millis(); // Reset timer
       // Reset override flag in database to avoid getting stuck
-      rtdbPutBool(roomPath + "/override", false);
+      FirebaseJson resetOverride;
+      resetOverride.set("override", false);
+      rtdbPatchJson(roomPath, resetOverride);
     }
   } else if (path == "/ports/port_01/relay_status") {
     runRelaySwitchAndSync(0, data.boolData());

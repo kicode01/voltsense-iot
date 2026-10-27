@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid } from 'recharts';
 import { Calendar, PlugZap, ChevronDown, AlertTriangle, BarChart3, Clock, Zap, Activity, Plug } from 'lucide-react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useHistoryData, generateMockData } from '../hooks/useHistoryData';
@@ -36,7 +36,6 @@ const Analytics = () => {
   const [isChartsReady, setIsChartsReady] = useState(false);
   const [selectedOutletTab, setSelectedOutletTab] = useState('all');
   const [activeOutletIndex, setActiveOutletIndex] = useState(0);
-  const [shareViewMode, setShareViewMode] = useState('ribbon');
   const dropdownRef = useRef(null);
   const carouselRef = useRef(null);
 
@@ -203,13 +202,6 @@ const Analytics = () => {
       });
     }
   };
-
-  const outletChartData = outletList.map(o => ({
-    name: o.name,
-    fullName: o.name,
-    kwh: Number(o.energyKwh.toFixed(2)),
-    color: o.color
-  }));
 
   const displayedOutlets = selectedOutletTab === 'all' 
     ? outletList 
@@ -585,329 +577,332 @@ const Analytics = () => {
           </div>
         </div>
 
-        {/* Outlet Cards Layout: Carousel on Mobile (< md), 3-col Grid on Desktop */}
-        <div
-          ref={carouselRef}
-          onScroll={handleCarouselScroll}
-          className={`${
-            displayedOutlets.length > 1
-              ? 'flex md:grid md:grid-cols-3 overflow-x-auto snap-x snap-mandatory gap-3.5 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 hide-scrollbar'
-              : 'grid grid-cols-1 max-w-xl mx-auto'
-          }`}
-        >
-          {displayedOutlets.map((outlet) => {
-            const isDrawing = outlet.isRelayOn && (outlet.watts > 1.5 || outlet.amps > 0.02);
-            const maxReading = Math.max(...(outlet.readings?.map(r => r.kwh) || [0]), 0.01);
+        {/* Proportional Energy Distribution Ribbon (only in 'All' overview mode) */}
+        {selectedOutletTab === 'all' && (
+          <div className="mb-5">
+            <div className="w-full bg-gray-100 p-1 rounded-2xl flex items-center gap-1 overflow-hidden">
+              {outletList.map((outlet) => {
+                const widthPct = totalEnergy > 0 ? Math.max(8, outlet.percentage) : 33.3;
+                return (
+                  <div
+                    key={`ribbon-${outlet.id}`}
+                    style={{ width: `${widthPct}%`, backgroundColor: outlet.color }}
+                    className="h-5 sm:h-6 rounded-xl transition-all duration-500 ease-apple-spring relative flex items-center justify-center text-[10px] font-bold text-white shadow-2xs px-1"
+                    title={`${outlet.name}: ${outlet.energyKwh.toFixed(2)} kWh (${outlet.percentage}%)`}
+                  >
+                    <span className="truncate font-mono">
+                      {outlet.name} • {outlet.percentage}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* MODE A: All Outlets Overview (3-col Grid on Desktop / Carousel on Mobile) */}
+        {selectedOutletTab === 'all' ? (
+          <>
+            <div
+              ref={carouselRef}
+              onScroll={handleCarouselScroll}
+              className="flex md:grid md:grid-cols-3 overflow-x-auto snap-x snap-mandatory gap-3.5 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 hide-scrollbar"
+            >
+              {outletList.map((outlet) => {
+                const isDrawing = outlet.isRelayOn && (outlet.watts > 1.5 || outlet.amps > 0.02);
+                const maxReading = Math.max(...(outlet.readings?.map(r => r.kwh) || [0]), 0.01);
+
+                return (
+                  <div 
+                    key={outlet.id} 
+                    className={`border rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 w-[86vw] sm:w-[320px] md:w-auto shrink-0 snap-center ${
+                      isDrawing
+                        ? 'bg-white border-maroon-200/90 shadow-md shadow-maroon-900/5'
+                        : outlet.isRelayOn
+                        ? 'bg-white/80 border-gray-200/70 shadow-[0_8px_30px_rgb(0,0,0,0.02)]'
+                        : 'bg-gray-50/60 border-gray-100 opacity-90'
+                    }`}
+                  >
+                    <div>
+                      {/* Header: Label, Icon, Historical Share */}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
+                            !outlet.isRelayOn
+                              ? 'bg-gray-100/80 text-gray-400 border-gray-200/80 shadow-inner'
+                              : isDrawing
+                              ? 'bg-maroon-50 text-maroon-800 border-maroon-200 shadow-inner'
+                              : 'bg-maroon-50/50 text-maroon-700 border-maroon-100 shadow-inner'
+                          }`}>
+                            <Plug strokeWidth={1.5} className="w-4 h-4" />
+                          </div>
+                          <h4 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
+                            {outlet.name}
+                          </h4>
+                        </div>
+
+                        {/* Historical Share Pill */}
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 bg-maroon-100/80 text-maroon-900 border-maroon-300/80">
+                          {outlet.percentage}% Share
+                        </span>
+                      </div>
+
+                      {/* Energy Consumption Metric */}
+                      <div className="my-2.5">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                            {outlet.energyKwh.toFixed(2)}
+                          </span>
+                          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
+                        </div>
+                        <span className="text-[10px] font-semibold text-gray-400 block mt-0.5">
+                          Recorded for {rangeLabel(timeRange).toLowerCase()}
+                        </span>
+                      </div>
+
+                      {/* Historical Telemetry: 2-column stats row */}
+                      <div className="grid grid-cols-2 gap-3 py-3 border-t border-gray-100">
+                        <div>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                            Est. Runtime
+                          </span>
+                          <span className="text-sm font-semibold text-gray-800">
+                            {outlet.periodHours} hrs
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                            Avg Active Load
+                          </span>
+                          <span className="text-sm font-semibold text-gray-800">
+                            {outlet.avgWatts} {powerUnitShort}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mini History Trendline / Sparkline Strip */}
+                    {outlet.readings && outlet.readings.length > 0 && (
+                      <div className="pt-2.5 border-t border-gray-100">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                          <span>Readings Trend</span>
+                          <span className="text-[9px] font-medium text-gray-400 lowercase">
+                            {outlet.readings.length} {outlet.readings.length === 1 ? 'record' : 'intervals'}
+                          </span>
+                        </div>
+                        <div className="h-8 flex items-end gap-1 px-0.5">
+                          {outlet.readings.map((r, rIdx) => {
+                            const heightPct = Math.max(16, Math.min(100, Math.round((r.kwh / maxReading) * 100)));
+                            return (
+                              <div
+                                key={`bar-${outlet.id}-${rIdx}`}
+                                className="flex-1 flex flex-col items-center group/bar relative"
+                              >
+                                <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                                  {r.label}: {r.kwh.toFixed(2)} kWh
+                                </div>
+                                <div 
+                                  style={{ 
+                                    height: `${heightPct}%`,
+                                    backgroundColor: outlet.color
+                                  }}
+                                  className="w-full rounded-t-sm opacity-80 group-hover/bar:opacity-100 transition-all duration-300"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="flex justify-between text-[8px] font-medium text-gray-400 mt-1 px-0.5">
+                          <span>{outlet.readings[0]?.label || ''}</span>
+                          {outlet.readings.length > 2 && (
+                            <span>{outlet.readings[Math.floor(outlet.readings.length / 2)]?.label || ''}</span>
+                          )}
+                          <span>{outlet.readings[outlet.readings.length - 1]?.label || ''}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Carousel Pagination Dots (Mobile Only when All are shown) */}
+            <div className="flex items-center justify-center gap-1.5 mt-3 md:hidden">
+              {outletList.map((outlet, idx) => (
+                <button
+                  key={`dot-${outlet.id}`}
+                  onClick={() => scrollToOutletIndex(idx)}
+                  aria-label={`Jump to ${outlet.name}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    activeOutletIndex === idx 
+                      ? 'w-6 bg-maroon-800' 
+                      : 'w-1.5 bg-gray-200'
+                  }`}
+                />
+              ))}
+            </div>
+          </>
+        ) : (
+          /* MODE B: Focused Single Port View (No redundancies, clean timeline) */
+          (() => {
+            const focusedOutlet = displayedOutlets[0] || outletList[0];
+            const isDrawing = focusedOutlet.isRelayOn && (focusedOutlet.watts > 1.5 || focusedOutlet.amps > 0.02);
+            const activeReadings = (focusedOutlet.readings || []).filter(r => r.kwh > 0);
 
             return (
-              <div 
-                key={outlet.id} 
-                className={`border rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 ${
+              <div className="flex flex-col gap-5 animate-in fade-in duration-300">
+                {/* Focused Port Summary Banner */}
+                <div className={`border rounded-2xl p-5 md:p-6 transition-all duration-300 ${
                   isDrawing
                     ? 'bg-white border-maroon-200/90 shadow-md shadow-maroon-900/5'
-                    : outlet.isRelayOn
-                    ? 'bg-white/80 border-gray-200/70 shadow-[0_8px_30px_rgb(0,0,0,0.02)]'
-                    : 'bg-gray-50/60 border-gray-100 opacity-90'
-                } ${
-                  displayedOutlets.length > 1 ? 'w-[86vw] sm:w-[320px] md:w-auto shrink-0 snap-center' : 'w-full'
-                }`}
-              >
-                <div>
-                  {/* Header: Label, Icon, Historical Share */}
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
-                        !outlet.isRelayOn
+                    : 'bg-white/90 border-gray-200/70 shadow-[0_8px_30px_rgb(0,0,0,0.02)]'
+                }`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
+                        !focusedOutlet.isRelayOn
                           ? 'bg-gray-100/80 text-gray-400 border-gray-200/80 shadow-inner'
                           : isDrawing
                           ? 'bg-maroon-50 text-maroon-800 border-maroon-200 shadow-inner'
                           : 'bg-maroon-50/50 text-maroon-700 border-maroon-100 shadow-inner'
                       }`}>
-                        <Plug strokeWidth={1.5} className="w-4 h-4" />
+                        <Plug strokeWidth={1.5} className="w-5 h-5" />
                       </div>
-                      <h4 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
-                        {outlet.name}
-                      </h4>
+                      <div>
+                        <h4 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">
+                          {focusedOutlet.name}
+                        </h4>
+                        <span className="text-xs text-gray-400 font-medium mt-0.5 block">
+                          Recorded for {rangeLabel(timeRange).toLowerCase()}
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Historical Share Pill */}
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 bg-maroon-100/80 text-maroon-900 border-maroon-300/80">
-                      {outlet.percentage}% Share
-                    </span>
-                  </div>
-
-                  {/* Energy Consumption Metric */}
-                  <div className="my-2.5">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                        {outlet.energyKwh.toFixed(2)}
+                    <div className="flex items-center gap-2 self-start sm:self-auto">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border transition-all duration-300 bg-maroon-100/80 text-maroon-900 border-maroon-300/80">
+                        {focusedOutlet.percentage}% of Room Energy
                       </span>
-                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
                     </div>
-                    <span className="text-[10px] font-semibold text-gray-400 block mt-0.5">
-                      Recorded for {rangeLabel(timeRange).toLowerCase()}
-                    </span>
                   </div>
 
-                  {/* Historical Telemetry: 2-column stats row */}
-                  <div className="grid grid-cols-2 gap-3 py-3 border-t border-gray-100">
+                  {/* 3 Key Metrics Row */}
+                  <div className="grid grid-cols-3 gap-3 md:gap-6 pt-4">
                     <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                      <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                        Period Energy
+                      </span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
+                          {focusedOutlet.energyKwh.toFixed(2)}
+                        </span>
+                        <span className="text-xs font-bold text-gray-400">kWh</span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
                         Est. Runtime
                       </span>
-                      <span className="text-sm font-semibold text-gray-800">
-                        {outlet.periodHours} hrs
-                      </span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
+                          {focusedOutlet.periodHours}
+                        </span>
+                        <span className="text-xs font-bold text-gray-400">hrs</span>
+                      </div>
                     </div>
                     <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                      <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
                         Avg Active Load
                       </span>
-                      <span className="text-sm font-semibold text-gray-800">
-                        {outlet.avgWatts} {powerUnitShort}
-                      </span>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
+                          {focusedOutlet.avgWatts}
+                        </span>
+                        <span className="text-xs font-bold text-gray-400">{powerUnitShort}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Mini History Trendline / Sparkline Strip */}
-                {outlet.readings && outlet.readings.length > 0 && (
-                  <div className="pt-2.5 border-t border-gray-100">
-                    <div className="flex items-center justify-between text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-                      <span>Readings Trend</span>
-                      <span className="text-[9px] font-medium text-gray-400 lowercase">
-                        {outlet.readings.length} {outlet.readings.length === 1 ? 'record' : 'intervals'}
-                      </span>
-                    </div>
-                    <div className="h-8 flex items-end gap-1 px-0.5">
-                      {outlet.readings.map((r, rIdx) => {
-                        const heightPct = Math.max(16, Math.min(100, Math.round((r.kwh / maxReading) * 100)));
-                        return (
-                          <div
-                            key={`bar-${outlet.id}-${rIdx}`}
-                            className="flex-1 flex flex-col items-center group/bar relative"
-                          >
-                            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[9px] font-bold py-0.5 px-1.5 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
-                              {r.label}: {r.kwh.toFixed(2)} kWh
-                            </div>
-                            <div 
-                              style={{ 
-                                height: `${heightPct}%`,
-                                backgroundColor: outlet.color
-                              }}
-                              className="w-full rounded-t-sm opacity-80 group-hover/bar:opacity-100 transition-all duration-300"
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="flex justify-between text-[8px] font-medium text-gray-400 mt-1 px-0.5">
-                      <span>{outlet.readings[0]?.label || ''}</span>
-                      {outlet.readings.length > 2 && (
-                        <span>{outlet.readings[Math.floor(outlet.readings.length / 2)]?.label || ''}</span>
-                      )}
-                      <span>{outlet.readings[outlet.readings.length - 1]?.label || ''}</span>
-                    </div>
+                {/* High-Resolution Interactive Readings History Timeline */}
+                <div className="bg-gray-50/60 border border-gray-100 rounded-2xl p-4 md:p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider">
+                      Readings Timeline ({rangeLabel(timeRange)})
+                    </span>
+                    <span className="text-[10px] font-semibold text-gray-400">
+                      {focusedOutlet.readings?.length || 0} intervals recorded
+                    </span>
                   </div>
-                )}
+
+                  {/* High-res responsive chart */}
+                  <div className="h-44 sm:h-52 w-full pt-2">
+                    {focusedOutlet.readings && focusedOutlet.readings.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={focusedOutlet.readings}
+                          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                          <XAxis 
+                            dataKey="label" 
+                            stroke="#9ca3af" 
+                            fontSize={11} 
+                            tickLine={false} 
+                            axisLine={false}
+                          />
+                          <YAxis 
+                            stroke="#9ca3af" 
+                            fontSize={11} 
+                            tickLine={false} 
+                            axisLine={false}
+                            width={35}
+                            unit="k"
+                          />
+                          <Tooltip
+                            contentStyle={{ 
+                              backgroundColor: '#ffffff', 
+                              borderColor: '#e5e7eb', 
+                              borderRadius: '12px', 
+                              boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+                              fontWeight: 'bold',
+                              fontSize: '11px'
+                            }}
+                            formatter={(val) => [`${Number(val).toFixed(2)} kWh`, 'Energy']}
+                          />
+                          <Bar 
+                            dataKey="kwh" 
+                            fill={focusedOutlet.color} 
+                            radius={[4, 4, 0, 0]} 
+                            animationDuration={600} 
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
+                        No recorded intervals in this period
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary note below chart — zero dots, zero redundant empty rows */}
+                  <div className="mt-3 pt-3 border-t border-gray-200/60 flex items-center justify-between text-xs text-gray-500">
+                    <span>
+                      {activeReadings.length > 0
+                        ? `${activeReadings.length} active interval${activeReadings.length > 1 ? 's' : ''} detected with measurable draw`
+                        : 'Standby / low consumption across this period'}
+                    </span>
+                    <button
+                      onClick={() => setSelectedOutletTab('all')}
+                      className="text-maroon-800 font-bold hover:underline"
+                    >
+                      View all ports
+                    </button>
+                  </div>
+                </div>
               </div>
             );
-          })}
-        </div>
-
-        {/* Dedicated Readings Log when a specific port is filtered */}
-        {selectedOutletTab !== 'all' && (
-          <div className="mt-5 pt-5 border-t border-gray-100 animate-in fade-in duration-300">
-            <div className="flex items-center justify-between mb-3.5">
-              <div>
-                <h4 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">
-                  {displayedOutlets[0]?.name} Readings History ({rangeLabel(timeRange)})
-                </h4>
-                <p className="text-[11px] text-gray-400 mt-0.5 font-medium">
-                  Recorded intervals for this port across the selected time period
-                </p>
-              </div>
-              <span className="text-[10px] font-bold text-maroon-800 bg-maroon-50 px-2.5 py-1 rounded-xl border border-maroon-100">
-                {displayedOutlets[0]?.readings?.length || 0} {(displayedOutlets[0]?.readings?.length === 1) ? 'Reading' : 'Readings'}
-              </span>
-            </div>
-
-            <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-3 md:p-4 overflow-hidden">
-              <div className="grid grid-cols-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider pb-2 border-b border-gray-200/60 px-2">
-                <span>Interval / Time</span>
-                <span className="text-center">Energy (kWh)</span>
-                <span className="text-right">Est. Power</span>
-              </div>
-              <div className="divide-y divide-gray-100/80 max-h-60 overflow-y-auto">
-                {displayedOutlets[0]?.readings?.map((reading, rIdx) => (
-                  <div key={`reading-${rIdx}`} className="grid grid-cols-3 items-center py-2.5 px-2 text-xs hover:bg-white/60 rounded-lg transition-colors">
-                    <span className="font-semibold text-gray-700 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-maroon-800/40" />
-                      {reading.label}
-                    </span>
-                    <span className="text-center font-bold text-gray-900 font-mono">
-                      {reading.kwh.toFixed(2)} <span className="text-[10px] text-gray-400 font-sans">kWh</span>
-                    </span>
-                    <span className="text-right font-semibold text-gray-600">
-                      {reading.watts} <span className="text-[10px] text-gray-400">{powerUnitShort}</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          })()
         )}
-
-        {/* Carousel Pagination Dots (Mobile Only when All are shown) */}
-        {displayedOutlets.length > 1 && (
-          <div className="flex items-center justify-center gap-1.5 mt-3 md:hidden">
-            {outletList.map((outlet, idx) => (
-              <button
-                key={`dot-${outlet.id}`}
-                onClick={() => scrollToOutletIndex(idx)}
-                aria-label={`Jump to ${outlet.name}`}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  activeOutletIndex === idx 
-                    ? 'w-6 bg-maroon-800' 
-                    : 'w-1.5 bg-gray-200'
-                }`}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Outlet Consumption Comparison Section */}
-        <div className="mt-6 pt-5 border-t border-gray-100">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <div>
-              <h4 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">
-                Energy Share Comparison
-              </h4>
-            </div>
-
-            {/* View Mode Switcher */}
-            <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-xl self-start sm:self-auto border border-gray-100">
-              <button
-                onClick={() => setShareViewMode('ribbon')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                  shareViewMode === 'ribbon'
-                    ? 'bg-white text-gray-900 shadow-2xs font-extrabold'
-                    : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                Distribution Bar
-              </button>
-              <button
-                onClick={() => setShareViewMode('chart')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                  shareViewMode === 'chart'
-                    ? 'bg-white text-gray-900 shadow-2xs font-extrabold'
-                    : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                Bar Chart
-              </button>
-            </div>
-          </div>
-
-          {shareViewMode === 'ribbon' ? (
-            <div>
-              {/* Proportional Multi-Segment Distribution Bar */}
-              <div className="w-full bg-gray-100 p-1 rounded-2xl flex items-center gap-1 overflow-hidden mb-3.5">
-                {outletList.map((outlet) => {
-                  const widthPct = totalEnergy > 0 ? Math.max(8, outlet.percentage) : 33.3;
-                  return (
-                    <div
-                      key={`ribbon-${outlet.id}`}
-                      style={{ width: `${widthPct}%`, backgroundColor: outlet.color }}
-                      className="h-5 sm:h-6 rounded-xl transition-all duration-500 ease-apple-spring relative flex items-center justify-center text-[10px] font-bold text-white shadow-2xs px-1"
-                      title={`${outlet.name}: ${outlet.energyKwh.toFixed(2)} kWh (${outlet.percentage}%)`}
-                    >
-                      <span className="truncate font-mono">
-                        {outlet.percentage}%
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* 3 Metric Summary Cards */}
-              <div className="grid grid-cols-3 gap-2 sm:gap-3.5">
-                {outletList.map((outlet) => (
-                  <div
-                    key={`summary-${outlet.id}`}
-                    onClick={() => setSelectedOutletTab(selectedOutletTab === outlet.id ? 'all' : outlet.id)}
-                    className={`p-2.5 sm:p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
-                      selectedOutletTab === outlet.id 
-                        ? 'bg-maroon-50/50 border-maroon-200/80 shadow-2xs'
-                        : 'bg-gray-50/60 border-gray-100/90 hover:bg-white hover:border-gray-200/80'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: outlet.color }} />
-                        <span className="text-xs font-bold text-gray-800 truncate">{outlet.name}</span>
-                      </div>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-xs sm:text-sm font-extrabold text-gray-900">
-                          {outlet.energyKwh.toFixed(2)}
-                        </span>
-                        <span className="text-[9px] sm:text-[10px] font-bold text-gray-400">kWh</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            /* Responsive Recharts Bar Chart */
-            <div className="h-44 sm:h-48 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart 
-                  data={outletChartData} 
-                  barSize={24} 
-                  layout="vertical" 
-                  margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" />
-                  <XAxis 
-                    type="number" 
-                    stroke="#9ca3af" 
-                    fontSize={11} 
-                    tickLine={false} 
-                    axisLine={false} 
-                    unit=" kWh" 
-                  />
-                  <YAxis 
-                    type="category" 
-                    dataKey="name" 
-                    stroke="#4b5563" 
-                    fontSize={11} 
-                    tickLine={false} 
-                    axisLine={false} 
-                    width={70} 
-                  />
-                  <Tooltip
-                    contentStyle={{ 
-                      backgroundColor: '#ffffff', 
-                      borderColor: '#e5e7eb', 
-                      borderRadius: '16px', 
-                      boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
-                      fontWeight: 'bold',
-                      fontSize: '12px'
-                    }}
-                    formatter={(val) => [`${Number(val).toFixed(2)} kWh`, 'Energy']}
-                  />
-                  <Bar dataKey="kwh" radius={[0, 8, 8, 0]}>
-                    {outletChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
       </div>
 
 
