@@ -98,24 +98,44 @@ const AlertCatchUp = ({ alerts, loading, lastSeenId, deviceId }) => {
       }
 
       try {
-        const notification = new window.Notification(title, {
+        const options = {
           body,
           icon: '/pwa-192x192.png',
           badge: '/favicon-48.png',
           // A tag of its own, so the catch-up never collapses a real live alert out of the tray.
           tag: 'voltsense-catchup',
           data: { url: '/alerts' }
-        });
-
-        notification.onclick = () => {
-          try {
-            window.focus();
-          } catch {
-            // window.focus() is a no-op in some contexts; the navigation below still works.
-          }
-          navigate('/alerts');
-          notification.close();
         };
+
+        if ('serviceWorker' in navigator && navigator.serviceWorker) {
+          navigator.serviceWorker
+            .getRegistration()
+            .then((reg) => {
+              if (reg && typeof reg.showNotification === 'function') {
+                return reg.showNotification(title, options);
+              }
+              const notification = new window.Notification(title, options);
+              notification.onclick = () => {
+                try {
+                  window.focus();
+                } catch {}
+                navigate('/alerts');
+                notification.close();
+              };
+            })
+            .catch(() => {});
+        } else {
+          const notification = new window.Notification(title, options);
+          notification.onclick = () => {
+            try {
+              window.focus();
+            } catch {
+              // window.focus() is a no-op in some contexts; the navigation below still works.
+            }
+            navigate('/alerts');
+            notification.close();
+          };
+        }
       } catch (error) {
         console.warn('Could not show the catch-up notification:', errorMessage(error));
         return;

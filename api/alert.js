@@ -253,14 +253,28 @@ module.exports = async (req, res) => {
       uids.map(async (uid) => {
         const snapshot = await db.ref(`pushTokens/${uid}`).get();
         const value = snapshot.val();
-        if (value && typeof value.token === 'string' && value.token) {
-          return { uid, token: value.token };
+        if (!value || typeof value !== 'object') return [];
+        const collected = [];
+        if (typeof value.token === 'string' && value.token) {
+          collected.push({ uid, token: value.token, slot: null });
         }
-        return null;
+        if (value.devices && typeof value.devices === 'object') {
+          Object.entries(value.devices).forEach(([slot, dev]) => {
+            if (dev && typeof dev.token === 'string' && dev.token) {
+              collected.push({ uid, token: dev.token, slot });
+            }
+          });
+        }
+        return collected;
       })
     );
 
-    const recipients = tokenEntries.filter(Boolean);
+    const seenTokens = new Set();
+    const recipients = tokenEntries.flat().filter((item) => {
+      if (!item || !item.token || seenTokens.has(item.token)) return false;
+      seenTokens.add(item.token);
+      return true;
+    });
     if (recipients.length === 0) {
       console.log(`Alert for ${mac}: ${uids.length} owner(s), none with a push token`);
       const recorded = await recordAlert(db, mac, { ...entry, outcome: 'skipped', reason: 'no-tokens' });

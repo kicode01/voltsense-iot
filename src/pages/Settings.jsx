@@ -24,7 +24,7 @@ import {
   Radio
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
-import { enablePushForUser, clearPushToken } from '../lib/pushNotifications';
+import { enablePushForUser, clearPushToken, showSystemNotification } from '../lib/pushNotifications';
 import { claimDevice, unpairDevice, formatPairingCodeInput } from '../lib/deviceClaim';
 import { errorMessage } from '../lib/errors';
 import { signOut } from 'firebase/auth';
@@ -110,6 +110,22 @@ const Settings = () => {
       ? window.Notification.permission
       : 'unsupported'
   );
+  const [pushOptOut, setPushOptOut] = useState(() => {
+    try {
+      return localStorage.getItem('voltsenseNotificationsEnabled') === 'false';
+    } catch {
+      return false;
+    }
+  });
+  const isPushActive = pushPermission === 'granted' && !pushOptOut;
+
+  useEffect(() => {
+    if (userId && isPushActive) {
+      enablePushForUser(userId).catch((err) =>
+        console.warn('Auto push token sync failed:', err?.message || err)
+      );
+    }
+  }, [userId, isPushActive]);
 
   const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [isSignOutRendered, setIsSignOutRendered] = useState(false);
@@ -200,16 +216,20 @@ const Settings = () => {
       // Play synthesized emergency buzzer + haptic vibration
       playEmergencyAlarm();
 
-      const registration = await navigator.serviceWorker?.getRegistration();
-      const payload = {
+      if (userId) {
+        enablePushForUser(userId).catch((err) =>
+          console.warn('Background token sync during test:', err?.message || err)
+        );
+      }
+
+      const shown = await showSystemNotification('⚠️ VoltSense Warning', {
         body: 'VoltSense Alert: Inactivity warning countdown started. Open the app to keep power on.',
-        icon: '/logo.svg',
-        vibrate: [200, 100, 200]
-      };
-      if (registration && registration.showNotification) {
-        await registration.showNotification('VoltSense Warning', payload);
-      } else {
-        new Notification('VoltSense Warning', payload);
+        tag: `voltsense-test-${Date.now()}`,
+        data: { url: '/dashboard' }
+      });
+
+      if (!shown) {
+        throw new Error('Notification display returned false');
       }
       showModal('Alert Dispatched', 'Test warning notification and audio alarm were triggered.', 'alert');
     } catch (error) {
@@ -605,10 +625,13 @@ const Settings = () => {
       return;
     }
 
-    if (pushPermission === 'granted') {
+    if (isPushActive) {
       setLoadingPush(true);
       if (userId) await clearPushToken(userId);
-      localStorage.setItem('voltsenseNotificationsEnabled', 'false');
+      try {
+        localStorage.setItem('voltsenseNotificationsEnabled', 'false');
+      } catch {}
+      setPushOptOut(true);
       setPushPermission(
         typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'
       );
@@ -641,7 +664,10 @@ const Settings = () => {
 
       if (perm === 'granted') {
         setPushPermission('granted');
-        localStorage.setItem('voltsenseNotificationsEnabled', 'true');
+        setPushOptOut(false);
+        try {
+          localStorage.setItem('voltsenseNotificationsEnabled', 'true');
+        } catch {}
         showModal('Enabled', 'This device will now receive alerts.', 'alert');
       } else {
         showModal('Permission Denied', 'Please allow notifications in your browser settings to receive alerts.', 'alert');
@@ -1020,7 +1046,7 @@ const Settings = () => {
                       ? 'Not available on this device'
                       : pushPermission === 'denied'
                         ? 'Blocked in browser settings'
-                        : pushPermission === 'granted'
+                        : isPushActive
                           ? 'Alerts for inactivity shutdown'
                           : 'Enable alerts for inactivity shutdown'}
                   </p>
@@ -1030,10 +1056,10 @@ const Settings = () => {
               <button
                 onClick={handleToggleNotifications}
                 disabled={loadingPush || pushPermission === 'unsupported'}
-                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${pushPermission === 'granted' ? 'bg-maroon-800' : 'bg-gray-200'} ${loadingPush ? 'opacity-70 cursor-wait' : ''} ${pushPermission === 'unsupported' ? 'cursor-not-allowed opacity-50' : ''}`}
+                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${isPushActive ? 'bg-maroon-800' : 'bg-gray-200'} ${loadingPush ? 'opacity-70 cursor-wait' : ''} ${pushPermission === 'unsupported' ? 'cursor-not-allowed opacity-50' : ''}`}
               >
-                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 flex items-center justify-center ${pushPermission === 'granted' ? 'translate-x-6' : 'translate-x-0'}`}>
-                  {loadingPush && <Loader2 className={`w-3.5 h-3.5 animate-spin ${pushPermission === 'granted' ? 'text-maroon-800' : 'text-gray-400'}`} />}
+                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 flex items-center justify-center ${isPushActive ? 'translate-x-6' : 'translate-x-0'}`}>
+                  {loadingPush && <Loader2 className={`w-3.5 h-3.5 animate-spin ${isPushActive ? 'text-maroon-800' : 'text-gray-400'}`} />}
                 </div>
               </button>
             </div>

@@ -31,7 +31,17 @@ const useAuth = () => {
 
       if (user) {
         import('./lib/pushNotifications')
-          .then(({ enablePushForUser }) => enablePushForUser(user.uid))
+          .then(({ enablePushForUser, subscribeForegroundPush }) => {
+            subscribeForegroundPush();
+            let optedOut = false;
+            try {
+              optedOut = localStorage.getItem('voltsenseNotificationsEnabled') === 'false';
+            } catch {}
+            if (!optedOut) {
+              return enablePushForUser(user.uid);
+            }
+            return null;
+          })
           .catch((err) => console.warn('Push registration skipped:', err?.message || err));
       }
     });
