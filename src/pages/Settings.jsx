@@ -22,7 +22,8 @@ import {
   Activity,
   Crosshair,
   Radio,
-  Plug
+  Plug,
+  ChevronDown
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { enablePushForUser, clearPushToken, showSystemNotification } from '../lib/pushNotifications';
@@ -349,7 +350,27 @@ const Settings = () => {
     }
   };
 
-  // Port policies are NOT mirrored into local state. The <select> is controlled straight from
+  // Per-port vacancy policy custom dropdown state & outside click handler
+  const [openPolicyDropdown, setOpenPolicyDropdown] = useState(null);
+  const policyDropdownContainerRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (policyDropdownContainerRef.current && !policyDropdownContainerRef.current.contains(e.target)) {
+        setOpenPolicyDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  const POLICY_OPTIONS = [
+    { value: 'occupancy', label: 'Cut when empty', badge: 'Auto-Cut', desc: 'Cuts power when room idle timeout expires' },
+    { value: 'keep_while_drawing', label: 'Keep while drawing', badge: 'Smart Charge', desc: 'Stays energized until charging draw finishes' },
+    { value: 'always_on', label: 'Never cut (Always on)', badge: 'Always On', desc: 'Bypasses vacancy cutoff (e.g. router, fridge)' }
+  ];
+
+  // Port policies are NOT mirrored into local state. The selector is controlled straight from
   // roomData, so the device's copy is the single source of truth and a failed write simply snaps
   // back rather than showing a value the device never accepted.
 
@@ -956,106 +977,134 @@ const Settings = () => {
                 </div>
               </button>
             </div>
+          </div>
 
-            {/* Per-port shutdown policy */}
-            <div className="mt-6 pt-6 border-t border-gray-100">
-              <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-maroon-50 text-maroon-800 flex items-center justify-center">
-                    <Plug className="w-3.5 h-3.5" />
-                  </div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-800">
-                    Smart Vacancy Policy
-                  </h4>
+          {/* Smart Vacancy Policy Section (Separate Standalone Container) */}
+          <div className="settings-vacancy-policy bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6" ref={policyDropdownContainerRef}>
+            <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <Plug className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" strokeWidth={1.75} />
                 </div>
-                <span className="text-[10px] font-semibold text-gray-400 bg-gray-50 border border-gray-200/60 px-2 py-0.5 rounded-full">
-                  Autonomous Cutoff Rules
-                </span>
+                <div>
+                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">
+                    Smart Vacancy Policy
+                  </h3>
+                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">
+                    Action taken when room idle timeout expires
+                  </p>
+                </div>
               </div>
-              <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">
-                Choose how each outlet behaves when the room empties. Unattended high-draw appliances cut off to save energy, while chargers can stay active until charging completes.
-              </p>
+              <span className="text-[10px] font-semibold text-gray-400 bg-gray-50 border border-gray-200/60 px-2.5 py-1 rounded-full shrink-0">
+                Autonomous Rules
+              </span>
+            </div>
 
-              <div className="grid grid-cols-1 gap-2.5">
-                {(roomData?.ports ? Object.keys(roomData.ports) : ['port_01', 'port_02', 'port_03']).map((portId, index) => {
-                  const portNumber = index + 1;
-                  const rawName = roomData?.ports?.[portId]?.name;
-                  const displayName = rawName && rawName !== portId ? rawName : `Port ${portNumber}`;
-                  const value = roomData?.ports?.[portId]?.policy || 'occupancy';
-                  const isSaving = savingLimit === portId;
+            <p className="text-[11px] md:text-xs text-gray-500 my-3 leading-relaxed">
+              Choose how each outlet behaves when the room empties. Unattended appliances cut off to save energy, while chargers can stay active until charging completes.
+            </p>
 
-                  const policyConfig = {
-                    occupancy: {
-                      badge: 'Auto-Cut',
-                      badgeClass: 'bg-maroon-50 text-maroon-700 border-maroon-200/70',
-                      desc: 'Cuts power when room idle timeout expires'
-                    },
-                    keep_while_drawing: {
-                      badge: 'Smart Charge',
-                      badgeClass: 'bg-amber-50 text-amber-700 border-amber-200/70',
-                      desc: 'Stays energized until charging draw finishes'
-                    },
-                    always_on: {
-                      badge: 'Always On',
-                      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/70',
-                      desc: 'Bypasses vacancy cutoff (e.g. router, fridge)'
-                    }
-                  }[value] || {
-                    badge: 'Auto-Cut',
-                    badgeClass: 'bg-maroon-50 text-maroon-700 border-maroon-200/70',
-                    desc: 'Cuts power when vacant'
-                  };
+            <div className="grid grid-cols-1 gap-2.5 mt-4">
+              {(roomData?.ports ? Object.keys(roomData.ports) : ['port_01', 'port_02', 'port_03']).map((portId, index) => {
+                const portNumber = index + 1;
+                const rawName = roomData?.ports?.[portId]?.name;
+                const displayName = rawName && rawName !== portId ? rawName : `Port ${portNumber}`;
+                const value = roomData?.ports?.[portId]?.policy || 'occupancy';
+                const isSaving = savingLimit === portId;
 
-                  return (
-                    <div 
-                      key={portId} 
-                      className="bg-gray-50/70 hover:bg-white border border-gray-200/70 hover:border-maroon-200/80 rounded-2xl p-3 md:p-3.5 transition-all duration-300 shadow-2xs hover:shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                    >
-                      {/* Left: Port identity & description */}
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-white text-maroon-800 border border-gray-200/80 flex items-center justify-center shadow-2xs shrink-0">
-                          <Plug className="w-5 h-5 text-maroon-800" strokeWidth={1.75} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h5 className="text-xs md:text-sm font-bold text-gray-900 leading-tight truncate">
-                              {displayName}
-                            </h5>
-                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border ${policyConfig.badgeClass}`}>
-                              {policyConfig.badge}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-gray-400 mt-0.5 truncate">
-                            {policyConfig.desc}
-                          </p>
-                        </div>
+                const currentOption = POLICY_OPTIONS.find(o => o.value === value) || POLICY_OPTIONS[0];
+
+                const badgeStyles = {
+                  occupancy: 'bg-maroon-50 text-maroon-700 border-maroon-200/70',
+                  keep_while_drawing: 'bg-amber-50 text-amber-700 border-amber-200/70',
+                  always_on: 'bg-emerald-50 text-emerald-700 border-emerald-200/70'
+                }[value] || 'bg-maroon-50 text-maroon-700 border-maroon-200/70';
+
+                return (
+                  <div 
+                    key={portId} 
+                    className="relative bg-gray-50/70 hover:bg-white border border-gray-200/70 hover:border-maroon-200/80 rounded-2xl p-3 md:p-3.5 transition-all duration-300 shadow-2xs hover:shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    {/* Left: Port identity & description */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-white text-maroon-800 border border-gray-200/80 flex items-center justify-center shadow-2xs shrink-0">
+                        <Plug className="w-5 h-5 text-maroon-800" strokeWidth={1.75} />
                       </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h5 className="text-xs md:text-sm font-bold text-gray-900 leading-tight truncate">
+                            {displayName}
+                          </h5>
+                          <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border ${badgeStyles}`}>
+                            {currentOption.badge}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+                          {currentOption.desc}
+                        </p>
+                      </div>
+                    </div>
 
-                      {/* Right: Policy Selector with live save indicator */}
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    {/* Right: Custom Dropdown matching Device Selector */}
+                    <div className="relative shrink-0 self-end sm:self-center">
+                      <div className="flex items-center gap-2">
                         {isSaving && (
                           <div className="flex items-center gap-1 text-[10px] text-maroon-700 font-bold">
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                             <span>Saving…</span>
                           </div>
                         )}
-                        <select
-                          value={value}
-                          onChange={(e) => handlePolicyChange(portId, e.target.value)}
+                        <button
+                          type="button"
+                          onClick={() => setOpenPolicyDropdown(openPolicyDropdown === portId ? null : portId)}
                           disabled={isSaving}
-                          aria-label={`Shutdown policy for ${displayName}`}
-                          className="text-xs font-bold text-gray-800 bg-white border border-gray-200 hover:border-maroon-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-500/20 shadow-2xs transition-all cursor-pointer"
+                          aria-label={`Select policy for ${displayName}`}
+                          className="flex items-center justify-between gap-3 bg-white border border-gray-200/90 hover:border-maroon-300 px-3.5 py-2 rounded-xl text-xs font-bold text-gray-800 shadow-2xs transition-all min-w-[185px] hover:shadow-xs"
                         >
-                          <option value="occupancy">⚡ Cut when empty</option>
-                          <option value="keep_while_drawing">⏳ Keep while drawing</option>
-                          <option value="always_on">🛡️ Never cut (Always On)</option>
-                        </select>
+                          <span className="truncate">{currentOption.label}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0 ${openPolicyDropdown === portId ? 'rotate-180 text-maroon-700' : ''}`} />
+                        </button>
                       </div>
+
+                      {/* Floating Popover Menu */}
+                      {openPolicyDropdown === portId && (
+                        <div className="absolute right-0 mt-2 w-60 bg-white border border-black/5 rounded-2xl shadow-[0_20px_40px_-15px_rgba(0,0,0,0.18)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-widest text-gray-500 whitespace-nowrap">
+                            Select Policy
+                          </div>
+                          <div className="p-1">
+                            {POLICY_OPTIONS.map((opt) => {
+                              const isSelected = value === opt.value;
+                              return (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => {
+                                    handlePolicyChange(portId, opt.value);
+                                    setOpenPolicyDropdown(null);
+                                  }}
+                                  className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-between gap-3 whitespace-nowrap ${
+                                    isSelected
+                                      ? 'bg-maroon-50 text-maroon-800'
+                                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-medium'
+                                  }`}
+                                >
+                                  <span>{opt.label}</span>
+                                  {isSelected && (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-maroon-600 shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
+          </div>
           </div>
 
         </div>
