@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Home, BarChart3, Bell, Settings as SettingsIcon, ChevronDown, FlaskConical, Wifi } from 'lucide-react';
+import { Home, BarChart3, Bell, Settings as SettingsIcon, ChevronDown, FlaskConical, Wifi, Check } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useAlerts } from '../hooks/useAlerts';
@@ -8,7 +8,7 @@ import ViewportDebug from './ViewportDebug';
 
 const Layout = () => {
   const location = useLocation();
-  const { devices, activeDeviceId, setActiveDeviceId, userId, isDeviceOnline, activeIsOnline } = useDeviceContext();
+  const { devices, activeDeviceId, setActiveDeviceId, userId } = useDeviceContext();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const dropdownRef = useRef(null);
@@ -81,9 +81,8 @@ const Layout = () => {
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
                   className="flex items-center gap-2 bg-white/70 border border-gray-200/60 px-3 py-1.5 rounded-xl text-sm font-bold text-gray-700 hover:bg-white hover:shadow-sm transition-all"
-                  title={activeIsOnline ? 'Device Powered On (Online)' : 'Device Offline / Not Powered On'}
                 >
-                  <Wifi className={`w-3.5 h-3.5 ${activeIsOnline ? 'text-maroon-800' : 'text-gray-400'}`} />
+                  <Wifi className="w-3.5 h-3.5 text-maroon-800" />
                   <span className="max-w-[80px] md:max-w-[120px] truncate font-mono text-xs">{activeDeviceId}</span>
                   <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${dropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -94,37 +93,25 @@ const Layout = () => {
                       Select Device
                     </div>
                     <div className="max-h-60 overflow-y-auto">
-                      {devices.map(mac => {
-                        const online = isDeviceOnline(mac);
-                        return (
-                          <button
-                            key={mac}
-                            onClick={() => {
-                              setActiveDeviceId(mac);
-                              setDropdownOpen(false);
-                            }}
-                            className={`w-full text-left px-4 py-3 text-xs font-mono font-bold transition-colors flex items-center justify-between whitespace-nowrap gap-4 ${
-                              activeDeviceId === mac
-                                ? 'bg-maroon-50 text-maroon-800'
-                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5">
-                              <span>{mac}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-sans font-semibold px-2 py-0.5 rounded-full ${
-                                online
-                                  ? 'bg-emerald-100/80 text-emerald-800'
-                                  : 'bg-gray-100 text-gray-500'
-                              }`}>
-                                {online ? 'Powered On' : 'Offline'}
-                              </span>
-                              {activeDeviceId === mac && <div className="w-1.5 h-1.5 rounded-full bg-maroon-600 shrink-0" />}
-                            </div>
-                          </button>
-                        );
-                      })}
+                      {devices.map(mac => (
+                        <button
+                          key={mac}
+                          onClick={() => {
+                            setActiveDeviceId(mac);
+                            setDropdownOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-3 text-xs font-mono font-bold transition-colors flex items-center justify-between whitespace-nowrap gap-6 ${
+                            activeDeviceId === mac
+                              ? 'bg-maroon-50 text-maroon-800'
+                              : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          }`}
+                        >
+                          <span>{mac}</span>
+                          {activeDeviceId === mac && (
+                            <Check className="w-3.5 h-3.5 text-maroon-800 shrink-0" strokeWidth={2.5} />
+                          )}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
