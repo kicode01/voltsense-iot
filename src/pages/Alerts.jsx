@@ -35,16 +35,11 @@ const getAlertDetails = (alert) => {
     }
   }
 
-  const engravedWellBase =
-    'bg-[#f2eeed] border-gray-300/70 shadow-[inset_0_1.5px_3px_rgba(45,10,15,0.14),inset_0_1px_1px_rgba(0,0,0,0.08),0_1px_0_rgba(255,255,255,0.95)]';
-  const engravedIconBase = 'drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]';
-
   if (tag.includes('overcurrent') || title.includes('overcurrent') || body.includes('overcurrent')) {
     return {
       title: resolvedTitle,
       Icon: Zap,
-      iconWrapClass: `${engravedWellBase} text-maroon-900`,
-      iconClass: `${engravedIconBase} text-maroon-900`
+      iconWrapClass: 'bg-maroon-50 text-maroon-800 border-maroon-200 shadow-inner'
     };
   }
 
@@ -52,8 +47,7 @@ const getAlertDetails = (alert) => {
     return {
       title: resolvedTitle,
       Icon: Timer,
-      iconWrapClass: `${engravedWellBase} text-maroon-800/80`,
-      iconClass: `${engravedIconBase} text-maroon-800/80`
+      iconWrapClass: 'bg-maroon-50/50 text-maroon-700 border-maroon-100 shadow-inner'
     };
   }
 
@@ -61,16 +55,14 @@ const getAlertDetails = (alert) => {
     return {
       title: resolvedTitle,
       Icon: Power,
-      iconWrapClass: `${engravedWellBase} text-maroon-800/80`,
-      iconClass: `${engravedIconBase} text-maroon-800/80`
+      iconWrapClass: 'bg-maroon-50/50 text-maroon-700 border-maroon-100 shadow-inner'
     };
   }
 
   return {
     title: resolvedTitle,
     Icon: Bell,
-    iconWrapClass: `${engravedWellBase} text-gray-500`,
-    iconClass: `${engravedIconBase} text-gray-500`
+    iconWrapClass: 'bg-gray-100/80 text-gray-400 border-gray-200/80 shadow-inner'
   };
 };
 
@@ -190,8 +182,8 @@ const Alerts = () => {
             Preview · what an alert looks like
           </p>
           <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-3.5 md:p-4 flex items-start gap-3">
-            <div className="w-8 h-8 rounded-lg bg-[#f2eeed] text-maroon-800/80 border border-gray-300/70 shadow-[inset_0_1.5px_3px_rgba(45,10,15,0.14),inset_0_1px_1px_rgba(0,0,0,0.08),0_1px_0_rgba(255,255,255,0.95)] flex items-center justify-center shrink-0">
-              <Timer className="w-4 h-4 text-maroon-800/80 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]" strokeWidth={1.75} />
+            <div className="w-9 h-9 rounded-2xl bg-maroon-50/50 text-maroon-700 border border-maroon-100 shadow-inner flex items-center justify-center shrink-0">
+              <Timer className="w-4 h-4" strokeWidth={1.5} />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
@@ -317,11 +309,11 @@ const Alerts = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <span
-                            className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 border ${details.iconWrapClass}`}
+                            className={`w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 border ${details.iconWrapClass}`}
                           >
-                            <AlertIcon className={`w-3.5 h-3.5 ${details.iconClass}`} strokeWidth={1.75} />
+                            <AlertIcon className="w-4 h-4" strokeWidth={1.5} />
                           </span>
                           <span className="font-bold text-gray-900 text-xs truncate">
                             {details.title}
@@ -335,7 +327,7 @@ const Alerts = () => {
                         </span>
                       </div>
 
-                      <p className="text-xs text-gray-600 leading-relaxed break-words pl-8">
+                      <p className="text-xs text-gray-600 leading-relaxed break-words pl-10">
                         {alert.body}
                       </p>
                     </div>
@@ -371,11 +363,11 @@ const Alerts = () => {
                         >
                           {/* Event Column */}
                           <td className="py-3.5 px-4 align-middle">
-                            <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-3">
                               <span
-                                className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${details.iconWrapClass}`}
+                                className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 border ${details.iconWrapClass}`}
                               >
-                                <AlertIcon className={`w-3.5 h-3.5 ${details.iconClass}`} strokeWidth={1.75} />
+                                <AlertIcon className="w-4 h-4" strokeWidth={1.5} />
                               </span>
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <span className="font-bold text-gray-900 text-xs md:text-sm leading-snug">
