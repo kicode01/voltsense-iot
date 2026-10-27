@@ -3,6 +3,7 @@ import { AlertTriangle, ShieldCheck, Volume2, X, Loader2, Bell } from 'lucide-re
 import { useRoomData } from '../hooks/useRoomData';
 import { playEmergencyAlarm } from '../lib/soundAlert';
 import { showSystemNotification, requestNotificationPermission } from '../lib/pushNotifications';
+import { formatDurationPhrase } from '../lib/formatDuration';
 import { auth } from '../lib/firebase';
 
 export const EmergencyAlertBanner = ({ activeDeviceId }) => {
@@ -35,7 +36,7 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
       lastAlarmTimeRef.current = Date.now();
 
       showSystemNotification('Auto-Shutdown Warning', {
-        body: `The room has been empty. Devices will shut down in ${countdownSec} seconds unless you keep them on.`,
+        body: `The room has been empty. Devices will shut down in ${formatDurationPhrase(countdownSec)} unless you keep them on.`,
         tag: uniqueTag,
         data: { url: '/dashboard' }
       });
@@ -76,7 +77,7 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
         lastAlarmTimeRef.current = Date.now();
 
         showSystemNotification('Auto-Shutdown Warning', {
-          body: `The room has been empty. Devices will shut down in ${remainingSec} seconds unless you keep them on.`,
+          body: `The room has been empty. Devices will shut down in ${formatDurationPhrase(remainingSec)} unless you keep them on.`,
           tag: `volt-sense-shutdown-${remoteAlertUntil}`,
           data: { url: '/dashboard' }
         });
@@ -132,7 +133,7 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
 
       // 1. Fire local system / OS notification
       showSystemNotification('Auto-Shutdown Warning', {
-        body: `The room has been empty. Devices will shut down in ${remainingSeconds} seconds unless you keep them on.`,
+        body: `The room has been empty. Devices will shut down in ${formatDurationPhrase(remainingSeconds)} unless you keep them on.`,
         tag: uniqueTag,
         data: { url: '/dashboard' }
       });
@@ -154,7 +155,7 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
             body: JSON.stringify({
               mac: activeDeviceId,
               title: 'Auto-Shutdown Warning',
-              body: `The room has been empty. Devices will shut down in ${remainingSeconds} seconds unless you keep them on.`,
+              body: `The room has been empty. Devices will shut down in ${formatDurationPhrase(remainingSeconds)} unless you keep them on.`,
               tag: uniqueTag
             })
           }).catch((err) => console.warn('Could not dispatch real response window push:', err));

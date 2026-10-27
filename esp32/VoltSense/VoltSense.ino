@@ -4261,11 +4261,24 @@ void loop() {
         // The window is DERIVED from responseWindowMs, never written as a literal. The old text
         // said "60 seconds" while the window was five minutes — a copy bug that survived precisely
         // because nothing tied the two numbers together. Now the text cannot drift from the timing.
-        char alertBody[112];
-        snprintf(alertBody, sizeof(alertBody),
-                 "The room has been empty. Devices will shut down in %lu minutes unless you "
-                 "keep them on.",
-                 (unsigned long)(responseWindowMs / 60000UL));
+        char alertBody[128];
+        unsigned long totalWindowSec = (unsigned long)(responseWindowMs / 1000UL);
+        if (totalWindowSec < 60UL) {
+          snprintf(alertBody, sizeof(alertBody),
+                   "The room has been empty. Devices will shut down in %lu second%s unless you keep them on.",
+                   totalWindowSec, totalWindowSec == 1UL ? "" : "s");
+        } else if (totalWindowSec % 60UL == 0UL) {
+          unsigned long mins = totalWindowSec / 60UL;
+          snprintf(alertBody, sizeof(alertBody),
+                   "The room has been empty. Devices will shut down in %lu minute%s unless you keep them on.",
+                   mins, mins == 1UL ? "" : "s");
+        } else {
+          unsigned long mins = totalWindowSec / 60UL;
+          unsigned long remSec = totalWindowSec % 60UL;
+          snprintf(alertBody, sizeof(alertBody),
+                   "The room has been empty. Devices will shut down in %lu min %lu sec unless you keep them on.",
+                   mins, remSec);
+        }
 
         // Fire-and-forget: this must not block, or the response window below drifts.
         sendAlert("\xE2\x9A\xA0\xEF\xB8\x8F VoltSense Alert", String(alertBody), "volt-sense-shutdown");

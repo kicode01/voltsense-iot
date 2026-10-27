@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useRoomData } from '../hooks/useRoomData';
 import { playEmergencyAlarm, playSuccessChime } from '../lib/soundAlert';
+import { formatDurationPhrase } from '../lib/formatDuration';
 import { auth } from '../lib/firebase';
 
 export const GodModePanel = ({ activeDeviceId, onDisable }) => {
@@ -161,14 +162,16 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
   };
 
   // Trigger Response Window Banner, Audio & Cross-Device Push Notification
-  const handleTriggerSimulatedAlert = async (seconds = 15) => {
+  const handleTriggerSimulatedAlert = async (seconds) => {
+    const durationSec = typeof seconds === 'number' && seconds > 0 ? seconds : responseWindowSec;
+    const durationText = formatDurationPhrase(durationSec);
     const now = Date.now();
-    const alertUntil = now + seconds * 1000;
+    const alertUntil = now + durationSec * 1000;
     const uniqueTag = `volt-sense-shutdown-${alertUntil}`;
 
     window.dispatchEvent(
       new CustomEvent('voltsense-trigger-alert', {
-        detail: { seconds, alertUntil, tag: uniqueTag }
+        detail: { seconds: durationSec, alertUntil, tag: uniqueTag }
       })
     );
     playEmergencyAlarm();
@@ -178,7 +181,7 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
     // 1. Broadcast live countdown banner & siren to all open clients subscribed to this ESP32
     updateDeviceSettings({
       simulated_alert_until: alertUntil,
-      simulated_alert_seconds: seconds
+      simulated_alert_seconds: durationSec
     }).catch((err) => {
       console.warn('Could not broadcast simulated alert state:', err);
     });
@@ -196,7 +199,7 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
           body: JSON.stringify({
             mac: activeDeviceId,
             title: 'Auto-Shutdown Warning',
-            body: `The room has been empty. Devices will shut down in ${seconds} seconds unless you keep them on.`,
+            body: `The room has been empty. Devices will shut down in ${durationText} unless you keep them on.`,
             tag: uniqueTag
           })
         });
@@ -716,13 +719,15 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Button A: Trigger Instant Simulated Response Window Countdown */}
           <button
-            onClick={() => handleTriggerSimulatedAlert(15)}
+            onClick={() => handleTriggerSimulatedAlert(responseWindowSec)}
             className="flex items-center justify-center gap-2.5 p-3.5 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-center shadow-lg shadow-red-600/30 active:scale-95 transition-all"
           >
             <ShieldAlert className="w-5 h-5 shrink-0 animate-bounce" />
             <div className="text-left">
               <div className="text-xs font-black uppercase tracking-wider">Trigger Emergency Alert</div>
-              <div className="text-[10px] text-white/80 font-medium">15s Countdown + Siren Banner</div>
+              <div className="text-[10px] text-white/80 font-medium">
+                {formatDurationPhrase(responseWindowSec)} Countdown + Siren Banner
+              </div>
             </div>
           </button>
 
