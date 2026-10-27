@@ -119,7 +119,22 @@ export const useRoomData = (roomId) => {
   const updateDeviceSetting = async (key, value) => {
     if (!roomId) return true;
     try {
-      await update(ref(db, `devices/${roomId}/settings`), { [key]: value });
+      const settingsPatch = { [key]: value };
+      let mirrorMinutes = null;
+      if (key === 'inactivity_limit_minutes') {
+        const mins = Math.max(1, Math.round(Number(value) || 15));
+        settingsPatch.inactivity_limit_seconds = mins * 60;
+        mirrorMinutes = mins;
+      } else if (key === 'inactivity_limit_seconds') {
+        const secs = Math.max(1, Math.round(Number(value) || 900));
+        const mins = Math.max(1, Math.round(secs / 60));
+        settingsPatch.inactivity_limit_minutes = mins;
+        mirrorMinutes = mins;
+      }
+      await update(ref(db, `devices/${roomId}/settings`), settingsPatch);
+      if (mirrorMinutes !== null) {
+        set(ref(db, `devices/${roomId}/inactivity_limit`), mirrorMinutes).catch(() => {});
+      }
       return true;
     } catch (error) {
       console.error(`Failed to update setting ${key}`, error);
@@ -130,7 +145,20 @@ export const useRoomData = (roomId) => {
   const updateDeviceSettings = async (settingsMap) => {
     if (!roomId || !settingsMap || typeof settingsMap !== 'object') return true;
     try {
-      await update(ref(db, `devices/${roomId}/settings`), settingsMap);
+      const patch = { ...settingsMap };
+      let mirrorMinutes = null;
+      if (patch.inactivity_limit_seconds !== undefined && patch.inactivity_limit_minutes === undefined) {
+        patch.inactivity_limit_minutes = Math.max(1, Math.round(Number(patch.inactivity_limit_seconds) / 60));
+      } else if (patch.inactivity_limit_minutes !== undefined && patch.inactivity_limit_seconds === undefined) {
+        patch.inactivity_limit_seconds = Math.max(1, Math.round(Number(patch.inactivity_limit_minutes))) * 60;
+      }
+      if (patch.inactivity_limit_minutes !== undefined) {
+        mirrorMinutes = Math.max(1, Math.round(Number(patch.inactivity_limit_minutes)));
+      }
+      await update(ref(db, `devices/${roomId}/settings`), patch);
+      if (mirrorMinutes !== null) {
+        set(ref(db, `devices/${roomId}/inactivity_limit`), mirrorMinutes).catch(() => {});
+      }
       return true;
     } catch (error) {
       console.error('Failed to update multiple settings', error);

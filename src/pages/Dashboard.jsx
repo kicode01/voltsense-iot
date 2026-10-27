@@ -217,25 +217,26 @@ const Dashboard = () => {
   const powerIsMeasured = data.voltage_source === 'measured';
 
   // Inactivity limit in seconds or minutes, synced from firmware / RTDB settings.
-  // Prefer the hardware-enforced top-level telemetry (`inactivity_limit` / `inactivity_limit_seconds`)
-  // published by the ESP32 so a stale `settings/inactivity_limit_seconds` value in RTDB never
-  // causes the dashboard to disagree with the device's actual countdown timer.
-  const enforcedMinutes = data.inactivity_limit != null ? Number(data.inactivity_limit) : null;
-  const enforcedSecondsRaw = data.inactivity_limit_seconds != null ? Number(data.inactivity_limit_seconds) : null;
-  const enforcedInactivitySeconds =
-    enforcedSecondsRaw != null && enforcedSecondsRaw > 0 && (enforcedSecondsRaw < 60 || enforcedMinutes == null)
-      ? enforcedSecondsRaw
-      : enforcedMinutes != null && enforcedMinutes > 0
-        ? enforcedMinutes * 60
-        : enforcedSecondsRaw;
-  const settingsInactivitySeconds = Number(
-    data.settings?.inactivity_limit_seconds ??
-    ((data.settings?.inactivity_limit_minutes || 15) * 60)
+  // Use `settings/inactivity_limit_seconds` when it agrees with the active minute limit
+  // (including sub-minute God Mode presets like 5s/10s/30s where minutes === 1); otherwise
+  // use `activeMinutes * 60` so a stale `settings/inactivity_limit_seconds` never overrides
+  // the actual minute threshold.
+  const activeMinutes = Number(
+    data.settings?.inactivity_limit_minutes ??
+    data.inactivity_limit ??
+    15
   );
+  const rawSettingsSeconds =
+    data.settings?.inactivity_limit_seconds != null
+      ? Number(data.settings.inactivity_limit_seconds)
+      : null;
+  const settingsSecondsMatchesMinutes =
+    rawSettingsSeconds != null &&
+    rawSettingsSeconds > 0 &&
+    Math.max(1, Math.round(rawSettingsSeconds / 60)) === activeMinutes;
+
   const inactivityLimitSeconds = Number(
-    (enforcedInactivitySeconds && enforcedInactivitySeconds > 0
-      ? enforcedInactivitySeconds
-      : settingsInactivitySeconds) || 900
+    (settingsSecondsMatchesMinutes ? rawSettingsSeconds : activeMinutes * 60) || 900
   );
   const isSubMinuteInactivity = inactivityLimitSeconds < 60;
   const inactivityDisplayVal = isSubMinuteInactivity
