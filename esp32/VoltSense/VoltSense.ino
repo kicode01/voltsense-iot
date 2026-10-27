@@ -281,7 +281,7 @@ unsigned long lastHourSeen = 0;
 // Timers (idleTimeoutMs is overridable at runtime from settings/inactivity_limit_minutes)
 const unsigned long DEFAULT_IDLE_TIMEOUT_MS = 15 * 60 * 1000UL; // 15 minutes
 unsigned long idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS;
-const unsigned long RESPONSE_WINDOW_MS = 300 * 1000UL; // 5 minutes
+unsigned long responseWindowMs = 300 * 1000UL; // 5 minutes
 const unsigned long HISTORY_PUBLISH_MS = 5 * 60 * 1000UL;
 const unsigned long ENERGY_PERSIST_MS = 5 * 60 * 1000UL;
 // ---------------------------------------------------------------------------
@@ -316,6 +316,7 @@ const float VOLTAGE = 220.0;
 // Runtime-overridable supply voltage. Written by streamCallback when the app changes
 // `settings/nominal_voltage` (or restored from NVS at boot). Kept in RAM because the telemetry
 // path reads it every 2 s and NVS reads are slow.
+bool benchMode = false;
 float nominalVoltage = VOLTAGE;
 
 // Voltage-sense calibration factor (mV/V). Bounded so a typo cannot scale every reading into nonsense:
@@ -367,6 +368,7 @@ bool measuredVoltageIsUsable() {
  */
 float supplyVoltage() {
 #ifdef HAS_VOLTAGE_SENSE
+  if (benchMode) return (nominalVoltage >= 50.0f && nominalVoltage <= 300.0f) ? nominalVoltage : VOLTAGE;
   if (measuredVoltageIsUsable()) return measuredVoltageRms;
 #endif
   if (nominalVoltage >= 50.0f && nominalVoltage <= 300.0f) return nominalVoltage;
@@ -382,6 +384,7 @@ float supplyVoltage() {
  */
 bool voltageIsMeasured() {
 #ifdef HAS_VOLTAGE_SENSE
+  if (benchMode) return false;
   return measuredVoltageIsUsable();
 #else
   return false;
@@ -1601,32 +1604,43 @@ void samplePortIntoCache(int i) {
 
 #ifdef HAS_VOLTAGE_SENSE
   if (relayOn) {
-    PowerReading p = readPowerPort(CURRENT_SENSOR_PINS[i]);
-    if (p.valid) {
-      c.amps = p.amps;
-      c.watts = p.watts;
-      c.va = p.va;
-      c.pf = p.pf;
-      c.volts = p.volts;
-      c.powerValid = true;
-      // Publish the newest plausible mains reading. supplyVoltage() and the telemetry both read
-      // this, so the two always agree about which voltage the watts were computed against.
-      if (p.volts >= 50.0f && p.volts <= 300.0f) {
-        measuredVoltageRms = p.volts;
-        lastVoltageSampleMs = millis();
-      }
-    } else {
-      // Voltage waveform unusable / < 50V on bench:
-      // Fallback to standalone ACS712 RMS sensing so current is NEVER lost!
+    if (benchMode) {
+      // Bench Test Mode: bypass AC mains sine sampling, measure current via standalone ACS712 peak-to-peak
       float rawAmps = readACS712RMS(CURRENT_SENSOR_PINS[i]);
       c.amps = rawAmps;
       c.volts = supplyVoltage();
       c.watts = rawAmps * c.volts;
       c.va = c.watts;
-      // No phase relationship was captured, so there is no power factor to report. 0 = unknown.
-      // (This used to claim 0.95f, then 1.0f — both fabricated, both surfaced as watts.)
-      c.pf = 0.0f;
+      c.pf = 1.0f;
       c.powerValid = false;
+    } else {
+      PowerReading p = readPowerPort(CURRENT_SENSOR_PINS[i]);
+      if (p.valid) {
+        c.amps = p.amps;
+        c.watts = p.watts;
+        c.va = p.va;
+        c.pf = p.pf;
+        c.volts = p.volts;
+        c.powerValid = true;
+        // Publish the newest plausible mains reading. supplyVoltage() and the telemetry both read
+        // this, so the two always agree about which voltage the watts were computed against.
+        if (p.volts >= 50.0f && p.volts <= 300.0f) {
+          measuredVoltageRms = p.volts;
+          lastVoltageSampleMs = millis();
+        }
+      } else {
+        // Voltage waveform unusable / < 50V on bench:
+        // Fallback to standalone ACS712 RMS sensing so current is NEVER lost!
+        float rawAmps = readACS712RMS(CURRENT_SENSOR_PINS[i]);
+        c.amps = rawAmps;
+        c.volts = supplyVoltage();
+        c.watts = rawAmps * c.volts;
+        c.va = c.watts;
+        // No phase relationship was captured, so there is no power factor to report. 0 = unknown.
+        // (This used to claim 0.95f, then 1.0f — both fabricated, both surfaced as watts.)
+        c.pf = 0.0f;
+        c.powerValid = false;
+      }
     }
   } else {
     c.amps = 0.0f;
@@ -2579,6 +2593,16 @@ void applyRemoteChange(const RemoteChangeT& data) {
   } else if (path == "/settings/inactivity_limit_minutes") {
     int minutes = data.intData();
     if (minutes > 0) idleTimeoutMs = (unsigned long)minutes * 60 * 1000UL;
+  } else if (path == "/settings/inactivity_limit_seconds") {
+    int secs = data.intData();
+    if (secs > 0) idleTimeoutMs = (unsigned long)secs * 1000UL;
+  } else if (path == "/settings/response_window_seconds") {
+    int secs = data.intData();
+    if (secs > 0) responseWindowMs = (unsigned long)secs * 1000UL;
+  } else if (path == "/settings/bench_mode") {
+    benchMode = data.boolData();
+    setNvsString("bench_mode", benchMode ? "1" : "0");
+    Serial.printf("Bench test mode set to %s\n", benchMode ? "true" : "false");
   } else if (path == "/settings/nominal_voltage") {
     // Optional. Only meaningful if the user has actually measured their supply; the value is
     // clamped by supplyVoltage() so a typo cannot produce absurd power numbers.
@@ -2703,6 +2727,16 @@ void applyRemoteChange(const RemoteChangeT& data) {
     if (result.success && result.intValue > 0) {
       idleTimeoutMs = (unsigned long)result.intValue * 60 * 1000UL;
     }
+    json.get(result, "settings/inactivity_limit_seconds");
+    if (result.success && result.intValue > 0) {
+      idleTimeoutMs = (unsigned long)result.intValue * 1000UL;
+    }
+    json.get(result, "settings/response_window_seconds");
+    if (result.success && result.intValue > 0) {
+      responseWindowMs = (unsigned long)result.intValue * 1000UL;
+    }
+    json.get(result, "settings/bench_mode");
+    if (result.success) benchMode = result.boolValue;
 
     json.get(result, "settings/nominal_voltage");
     if (result.success && result.floatValue >= 50.0f && result.floatValue <= 300.0f) {
@@ -3436,6 +3470,8 @@ void setup() {
     if (savedMmwInv.length() > 0) mmwaveInverted = (savedMmwInv == "1");
     String savedFusion = getNvsString("fusion_mode");
     if (savedFusion.length() > 0) sensorFusionMode = savedFusion;
+    String savedBench = getNvsString("bench_mode");
+    if (savedBench.length() > 0) benchMode = (savedBench == "1");
   }
 
   // WiFiManager handles WiFi connection and Captive Portal
@@ -3801,14 +3837,14 @@ void loop() {
         responseWindowStartMillis = millis();
         Serial.println("Entering Response Window. Sending alert.");
 
-        // The window is DERIVED from RESPONSE_WINDOW_MS, never written as a literal. The old text
+        // The window is DERIVED from responseWindowMs, never written as a literal. The old text
         // said "60 seconds" while the window was five minutes — a copy bug that survived precisely
         // because nothing tied the two numbers together. Now the text cannot drift from the timing.
         char alertBody[112];
         snprintf(alertBody, sizeof(alertBody),
                  "The room has been empty. Devices will shut down in %lu minutes unless you "
                  "keep them on.",
-                 (unsigned long)(RESPONSE_WINDOW_MS / 60000UL));
+                 (unsigned long)(responseWindowMs / 60000UL));
 
         // Fire-and-forget: this must not block, or the response window below drifts.
         sendAlert("\xE2\x9A\xA0\xEF\xB8\x8F VoltSense Alert", String(alertBody), "volt-sense-shutdown");
@@ -3816,7 +3852,7 @@ void loop() {
     }
     else if (currentState == STATE_RESPONSE_WINDOW) {
       unsigned long timeInWindow = millis() - responseWindowStartMillis;
-      if (timeInWindow >= RESPONSE_WINDOW_MS) {
+      if (timeInWindow >= responseWindowMs) {
         currentState = STATE_SHUTDOWN;
 
         Serial.println("Response window expired. Performing Smart Selective Shutdown.");
@@ -3987,6 +4023,8 @@ void loop() {
     json.set("total_current_amps", totalAmps);
     json.set("total_power_watts", totalWatts);
     json.set("inactivity_limit", (int)(idleTimeoutMs / 60000UL));
+      json.set("inactivity_limit_seconds", (int)(idleTimeoutMs / 1000UL));
+      json.set("bench_mode", benchMode);
     // Reported so the app can show what the device is actually enforcing, rather than assuming the
     // compiled-in default. Apparent power only — see the ACS712 note: this is VA, not W.
     json.set("overcurrent_limit_a", overcurrentLimitA);
@@ -3995,7 +4033,7 @@ void loop() {
     if (currentState == STATE_IDLE_COUNTDOWN) {
       remaining_seconds = (idleTimeoutMs - (millis() - lastMotionMillis)) / 1000;
     } else if (currentState == STATE_RESPONSE_WINDOW) {
-      remaining_seconds = (RESPONSE_WINDOW_MS - (millis() - responseWindowStartMillis)) / 1000;
+      remaining_seconds = (responseWindowMs - (millis() - responseWindowStartMillis)) / 1000;
     }
     json.set("countdown_remaining_seconds", remaining_seconds);
     json.set("night_mode_active", nightMode);

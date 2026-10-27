@@ -347,7 +347,7 @@ const Settings = () => {
    * Validate, then write. The bounds here deliberately mirror the firmware's, because a value the
    * app accepts and the device rejects produces a silent no-op — the worst possible outcome.
    */
-  const limitsMeta = {
+  const deviceLimitsMeta = {
     inactivity: {
       key: 'inactivity_limit_minutes',
       label: 'Idle timeout',
@@ -362,7 +362,7 @@ const Settings = () => {
       unit: 'A',
       min: 0.5,
       max: 5.0,
-      hint: 'Bounded by what the 5 A sensor can actually resolve — above 5 A it is blind.'
+      hint: 'Hardware cutoff limit — safely bounded by 5 A ACS712 sensor capacity.'
     },
     nominal: {
       key: 'nominal_voltage',
@@ -370,15 +370,18 @@ const Settings = () => {
       unit: 'V',
       min: 50,
       max: 300,
-      hint: 'Used to compute power while no voltage sensor is fitted. Measure it, do not guess.'
-    },
+      hint: 'Nominal grid baseline used when mains waveform is unmeasured or in bench mode.'
+    }
+  };
+
+  const electricalCalMeta = {
     voltageCal: {
       key: 'voltage_cal_mv_per_v',
       label: 'Voltage calibration',
       unit: 'mV/V',
       min: 1.0,
       max: 20.0,
-      hint: 'Divides into every voltage reading, so it scales every wattage. Compare against a meter.'
+      hint: 'ZMPT101B transformer scaling factor. Divides into raw ADC mV to derive mains RMS.'
     },
     acsSensitivity: {
       key: 'acs712_mv_per_amp',
@@ -386,7 +389,7 @@ const Settings = () => {
       unit: 'mV/A',
       min: 10.0,
       max: 400.0,
-      hint: 'Default 123.33 mV/A for 5A with 1k/2k divider; 185 mV/A direct; 100 mV/A for 20A.'
+      hint: '123.33 mV/A for 5A with 1k/2k divider; 185 mV/A direct without divider.'
     },
     currentNoiseFloor: {
       key: 'current_noise_floor_a',
@@ -394,7 +397,7 @@ const Settings = () => {
       unit: 'A',
       min: 0.005,
       max: 1.0,
-      hint: 'Current readings below this threshold clamp to 0.00 A to suppress idle ADC jitter.'
+      hint: 'Readings below this threshold clamp to 0.00 A to reject idle ADC hiss.'
     },
     currentMultiplier: {
       key: 'current_cal_multiplier',
@@ -402,8 +405,11 @@ const Settings = () => {
       unit: 'x',
       min: 0.5,
       max: 2.0,
-      hint: 'Fine multiplier to trim current readings against a calibrated multimeter.'
-    },
+      hint: 'Precision multiplier to calibrate current readings against a reference multimeter.'
+    }
+  };
+
+  const occupancyFilterMeta = {
     pirDelay: {
       key: 'pir_delay_seconds',
       label: 'PIR hold delay',
@@ -420,6 +426,12 @@ const Settings = () => {
       max: 60,
       hint: 'Stillness hold bridge to prevent radar flutter while seated or resting.'
     }
+  };
+
+  const limitsMeta = {
+    ...deviceLimitsMeta,
+    ...electricalCalMeta,
+    ...occupancyFilterMeta
   };
 
   const handleLimitSave = async (field, rawValue) => {
@@ -778,13 +790,16 @@ const Settings = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {Object.entries(limitsMeta).map(([field, meta]) => (
-                <label key={field} className="block">
-                  <span className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
-                    {meta.label} ({meta.unit})
-                  </span>
-                  <div className="flex items-center gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {Object.entries(deviceLimitsMeta).map(([field, meta]) => (
+                <label key={field} className="block p-3 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col justify-between">
+                  <div>
+                    <span className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                      {meta.label} ({meta.unit})
+                    </span>
+                    <span className="block text-[10px] text-gray-400 mb-2 leading-snug">{meta.hint}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-auto">
                     <input
                       type="number"
                       inputMode="decimal"
@@ -801,11 +816,10 @@ const Settings = () => {
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') e.currentTarget.blur();
                       }}
-                      className="w-full text-[16px] md:text-sm font-semibold text-gray-900 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-300"
+                      className="w-full text-[16px] md:text-sm font-semibold text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-300"
                     />
                     {savingLimit === field && <Loader2 className="w-4 h-4 animate-spin text-maroon-800 shrink-0" />}
                   </div>
-                  <span className="block text-[10px] text-gray-400 mt-1 leading-snug">{meta.hint}</span>
                 </label>
               ))}
             </div>
@@ -965,6 +979,53 @@ const Settings = () => {
                   )}
                   <span>Auto-Calibrate (220V Grid)</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Electrical Sensor Precision Tuning */}
+            <div className="mb-5 pt-4 border-t border-gray-100">
+              <div className="flex items-center gap-2 mb-2">
+                <Sliders className="w-4 h-4 text-maroon-800" />
+                <span className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  Electrical Sensor Precision Parameters
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 mb-3 leading-snug">
+                Fine-tune ACS712 current and ZMPT101B voltage sensor scaling to match calibrated reference meters.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {Object.entries(electricalCalMeta).map(([field, meta]) => (
+                  <label key={field} className="block p-3 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col justify-between">
+                    <div>
+                      <span className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                        {meta.label} ({meta.unit})
+                      </span>
+                      <span className="block text-[10px] text-gray-400 mb-2 leading-snug">{meta.hint}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-auto">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={meta.min}
+                        max={meta.max}
+                        step="any"
+                        defaultValue={limits[field]}
+                        key={`${field}-${limits[field]}`}
+                        onBlur={(e) => {
+                          if (Number(e.target.value) !== Number(limits[field])) {
+                            handleLimitSave(field, e.target.value);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.currentTarget.blur();
+                        }}
+                        className="w-full text-[16px] md:text-sm font-semibold text-gray-900 bg-white border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-300"
+                      />
+                      {savingLimit === field && <Loader2 className="w-4 h-4 animate-spin text-maroon-800 shrink-0" />}
+                    </div>
+                  </label>
+                ))}
               </div>
             </div>
 
