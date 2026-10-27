@@ -1044,14 +1044,6 @@ const Settings = () => {
                 <div>
                   <div className="flex items-center gap-2 mb-0.5">
                     <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight">Push Notifications</h3>
-                    {pushPermission === 'granted' && (
-                      <button
-                        onClick={handleTestNotification}
-                        className="bg-maroon-50 text-maroon-700 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider hover:bg-maroon-100 transition-colors"
-                      >
-                        Test
-                      </button>
-                    )}
                   </div>
                   <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">
                     {pushPermission === 'unsupported'
