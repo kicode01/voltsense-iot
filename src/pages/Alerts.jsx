@@ -318,9 +318,6 @@ const Alerts = () => {
                           <span className="font-bold text-gray-900 text-xs truncate">
                             {details.title}
                           </span>
-                          {isUnread && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-maroon-700 shrink-0" />
-                          )}
                         </div>
                         <span className="text-[11px] font-semibold text-gray-500 tabular-nums shrink-0">
                           {formatShortDate(alert.at)} · {formatTimeOnly(alert.at)}
@@ -373,12 +370,6 @@ const Alerts = () => {
                                 <span className="font-bold text-gray-900 text-xs md:text-sm leading-snug">
                                   {details.title}
                                 </span>
-                                {isUnread && (
-                                  <span
-                                    className="w-2 h-2 rounded-full bg-maroon-700 shrink-0"
-                                    title="Unread"
-                                  />
-                                )}
                               </div>
                             </div>
                           </td>
