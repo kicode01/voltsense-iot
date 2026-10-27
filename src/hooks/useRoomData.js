@@ -44,10 +44,15 @@ export const useRoomData = (roomId) => {
         lastSeenMsRef.current = ls;
 
         if (ls) {
-          const age = now - ls;
-          setIsOnline(age >= -5000 && age < 10000);
+          let age = now - ls;
+          // Compensate if firmware pushed UTC+8 offset (28800s = 8 hours ahead)
+          if (age < -20000000 && age > -35000000) {
+            age += 28800000;
+          }
+          const packetFresh = snapshotCountRef.current > 1 && (now - lastPacketAtRef.current < 8000);
+          setIsOnline((age >= -5000 && age < 15000) || packetFresh);
         } else if (snapshotCountRef.current > 1) {
-          setIsOnline(true);
+          setIsOnline(now - lastPacketAtRef.current < 8000);
         } else {
           setIsOnline(false);
         }

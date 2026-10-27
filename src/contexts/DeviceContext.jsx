@@ -74,13 +74,18 @@ export const DeviceProvider = ({ children }) => {
     if (!status || !status.exists) return false;
 
     const now = Date.now();
+    const packetFresh = status.packetCount > 1 && (now - status.lastPacketAt < 8000);
+
     if (status.lastSeen) {
-      const age = now - status.lastSeen;
-      return age >= -5000 && age < 10000;
+      let age = now - status.lastSeen;
+      // Compensate if firmware pushed UTC+8 offset (28800s = 8 hours ahead)
+      if (age < -20000000 && age > -35000000) {
+        age += 28800000;
+      }
+      return (age >= -5000 && age < 15000) || packetFresh;
     }
 
-    // Fallback if last_seen not yet written by older firmware:
-    return status.packetCount > 1 && (now - status.lastPacketAt < 8000);
+    return packetFresh;
   };
 
   const activeIsOnline = isDeviceOnline(activeDeviceId);

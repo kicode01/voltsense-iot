@@ -4502,7 +4502,8 @@ void loop() {
     // Heartbeat timestamp (epoch ms) and uptime for real-time online/offline presence detection
     time_t epochNow = timeClient.getEpochTime();
     if (epochNow > 100000) {
-      json.set("last_seen", (double)epochNow * 1000.0);
+      time_t utcEpoch = epochNow - UTC_OFFSET_SECONDS;
+      json.set("last_seen", (double)utcEpoch * 1000.0);
     }
     json.set("uptime_seconds", (int)(millis() / 1000UL));
 
