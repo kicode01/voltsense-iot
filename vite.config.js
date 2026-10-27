@@ -3,12 +3,50 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
+const devAuthPlugin = () => ({
+  name: 'dev-auth-bypass',
+  configureServer(server) {
+    server.middlewares.use(async (req, res, next) => {
+      if (req.url === '/api/dev-login' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const { email, password } = JSON.parse(body || '{}');
+            if (email === 'admin@voltsense.local' && (password === '123456' || password === 'voltsense123')) {
+              const { default: admin } = await import('firebase-admin');
+              const { default: dotenv } = await import('dotenv');
+              dotenv.config();
+              if (!admin.apps.length) {
+                const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+                admin.initializeApp({ credential: admin.credential.cert(sa) });
+              }
+              const token = await admin.auth().createCustomToken('gvhHI7seIcQo6amqrftd3bfdOcN2');
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ token }));
+              return;
+            }
+            res.statusCode = 401;
+            res.end(JSON.stringify({ error: 'Invalid credentials' }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+      next();
+    });
+  }
+});
+
 export default defineConfig({
   server: {
     host: true, // Listen on all local IPs
     allowedHosts: true, // Allow tunnel hostnames like .loca.lt
   },
   plugins: [
+    devAuthPlugin(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
