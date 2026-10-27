@@ -1087,14 +1087,14 @@ const TestLab = () => {
 
                   <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 block mb-1">
-                      Calculated Power ({powerIsMeasured ? 'Real' : 'Apparent'})
+                      Calculated Power (P = V × I)
                     </span>
                     <div className="flex items-baseline gap-1.5">
                       <span className="text-2xl font-mono font-bold text-gray-900">
                         {measuredPower.toFixed(1)}
                       </span>
                       <span className="text-sm font-bold text-gray-500 uppercase">
-                        {powerIsMeasured ? 'Watts' : 'VA'}
+                        Watts
                       </span>
                     </div>
                   </div>
