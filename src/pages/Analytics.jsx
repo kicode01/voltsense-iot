@@ -526,7 +526,7 @@ const Analytics = () => {
           <div>
             <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
               <span>Per-Port Readings &amp; History</span>
-              <span className="text-[9px] md:text-[10px] font-semibold text-maroon-800 bg-maroon-50 border border-maroon-200/60 px-2 py-0.5 rounded-md normal-case">
+              <span className="text-[9px] md:text-[10px] font-bold text-maroon-800 bg-maroon-50 border border-maroon-200/60 px-2 py-0.5 rounded-md uppercase tracking-wider">
                 {rangeLabel(timeRange)}
               </span>
             </h3>
@@ -596,7 +596,7 @@ const Analytics = () => {
                       </div>
                       <span className="font-bold text-sm text-gray-900 truncate">{outlet.name}</span>
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
                           !outlet.isRelayOn
                             ? 'bg-gray-100 text-gray-500 border-gray-200/90'
                             : isDrawing
@@ -604,15 +604,6 @@ const Analytics = () => {
                             : 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80'
                         }`}
                       >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                            !outlet.isRelayOn
-                              ? 'bg-gray-400'
-                              : isDrawing
-                              ? 'bg-emerald-400 animate-pulse'
-                              : 'bg-maroon-600'
-                          }`}
-                        />
                         {!outlet.isRelayOn ? 'Switched Off' : isDrawing ? 'In Use' : 'Standby'}
                       </span>
                     </div>
@@ -711,7 +702,7 @@ const Analytics = () => {
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 ${
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 ${
                             !outlet.isRelayOn
                               ? 'bg-gray-100 text-gray-500 border-gray-200/90'
                               : isDrawing
@@ -719,15 +710,6 @@ const Analytics = () => {
                               : 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80'
                           }`}
                         >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                              !outlet.isRelayOn
-                                ? 'bg-gray-400'
-                                : isDrawing
-                                ? 'bg-emerald-400 animate-pulse'
-                                : 'bg-maroon-600'
-                            }`}
-                          />
                           {!outlet.isRelayOn ? 'Switched Off' : isDrawing ? 'In Use' : 'Standby'}
                         </span>
                       </td>
