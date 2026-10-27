@@ -1161,18 +1161,190 @@
       gap: 12px;
     }
 
+    .pwa-demo-banner {
+      background: rgba(254, 242, 242, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid #FEE2E2;
+      border-radius: 24px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
     .outlet-card {
       background: rgba(255, 255, 255, 0.7);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
       border: 1px solid rgba(255, 255, 255, 0.4);
-      border-radius: 20px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
-      padding: 12px 14px;
+      border-radius: 24px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.03);
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .port-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .port-header-left {
       display: flex;
       align-items: center;
       gap: 12px;
+      min-width: 0;
+    }
+
+    .port-icon-squircle {
+      width: 40px;
+      height: 40px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(0, 0, 0, 0.06);
       transition: all 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .outlet-card.relay-on .port-icon-squircle {
+      background: #fdf2f2;
+      color: #612f2f;
+      border-color: #fbd5d5;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.03);
+    }
+
+    .outlet-card.relay-off .port-icon-squircle {
+      background: rgba(243, 244, 246, 0.8);
+      color: #9CA3AF;
+      border-color: rgba(229, 231, 235, 0.8);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.03);
+    }
+
+    .port-titles {
+      min-width: 0;
+    }
+
+    .port-name-heading {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .port-status-pill-wrap {
+      margin-top: 4px;
+    }
+
+    .port-status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      transition: all 0.3s ease;
+      border: 1px solid transparent;
+    }
+
+    .port-status-badge.in-use {
+      background: #612f2f;
+      color: #FFFFFF;
+      border-color: #4a2424;
+    }
+
+    .port-status-badge.standby {
+      background: rgba(97, 47, 47, 0.12);
+      color: #612f2f;
+      border-color: rgba(97, 47, 47, 0.2);
+    }
+
+    .port-status-badge.off {
+      background: #F3F4F6;
+      color: #6B7280;
+      border-color: #E5E7EB;
+    }
+
+    .port-metrics-bottom-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #F3F4F6;
+    }
+
+    .port-metric-sub {
+      font-size: 10px;
+      font-weight: 700;
+      color: #9CA3AF;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .port-metric-power-val {
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+    }
+
+    .port-val-w {
+      font-size: 24px;
+      font-weight: 800;
+      color: #111827;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .port-unit-sub {
+      font-size: 11px;
+      font-weight: 700;
+      color: #9CA3AF;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .port-right-metrics {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-align: right;
+    }
+
+    .port-v-divider {
+      width: 1px;
+      height: 22px;
+      background: #E5E7EB;
+      align-self: center;
+    }
+
+    .port-sub-val {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1F2937;
+      white-space: nowrap;
+      display: block;
+    }
+
+    .port-sub-val-cur {
+      font-size: 13px;
+      font-weight: 700;
+      color: #612f2f;
+      white-space: nowrap;
+      display: block;
     }
 
     .outlet-card.rename-ring {
@@ -1764,6 +1936,20 @@
              =============================================================== -->
         <div class="pwa-tab-view active" id="pwa-view-dashboard">
 
+          <!-- Demo Notice Banner (Matches Dashboard.jsx lines 340-360) -->
+          <div class="pwa-demo-banner">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <div style="padding:6px; background:#FEE2E2; color:#DC2626; border-radius:12px; display:flex; align-items:center; justify-content:center;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
+              </div>
+              <p style="font-size:12px; font-weight:700; color:#111827; margin:0;">No device paired. Showing demo data.</p>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button onclick="simulateOvercurrentEvent()" style="appearance:none; border:none; background:none; font-size:11px; font-weight:700; color:#612f2f; text-decoration:underline; cursor:pointer;">Simulate Alert</button>
+              <button onclick="document.getElementById('pwa-dev-dd').classList.add('open')" style="appearance:none; border:none; background:#612f2f; color:#FFFFFF; font-size:11px; font-weight:700; padding:6px 12px; border-radius:12px; cursor:pointer;">Pair Device</button>
+            </div>
+          </div>
+
           <!-- Auto-Shutdown In Banner (Dashboard.jsx lines 349-383) -->
           <div id="pwa-alert-modal">
             <svg class="alert-watermark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
@@ -1774,7 +1960,7 @@
             </button>
           </div>
 
-          <!-- System Load Card (Dashboard.jsx lines 386-425) -->
+          <!-- System Load Card (Dashboard.jsx lines 510-530) -->
           <div class="hero-load-card">
             <div class="hero-load-glow-1"></div>
             <div class="hero-load-glow-2"></div>
@@ -1786,42 +1972,21 @@
                 </div>
               </div>
               <div class="hero-watts-row">
-                <span class="hero-watts-val" id="m-total-power">112</span>
-                <span class="hero-watts-unit" title="Real power (W) — measured from the voltage and current waveforms, so power factor is accounted for.">W</span>
+                <span class="hero-watts-val" id="m-total-power">290</span>
+                <span class="hero-watts-unit" id="m-total-power-unit">VA</span>
               </div>
             </div>
-
-            <!-- Mains Voltage & Current Sub-metrics -->
-            <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px; position:relative; z-index:10;">
-              <div style="display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.25); backdrop-filter:blur(8px); padding:4px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.1);">
-                <span style="font-size:9.5px; text-transform:uppercase; font-weight:700; color:rgba(244,229,229,0.8); letter-spacing:0.05em;">Voltage (V)</span>
-                <span style="font-weight:700; color:#fff; font-size:12px;" id="m-total-volts">220 V</span>
-              </div>
-              <div style="display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.25); backdrop-filter:blur(8px); padding:4px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.1);">
-                <span style="font-size:9.5px; text-transform:uppercase; font-weight:700; color:rgba(244,229,229,0.8); letter-spacing:0.05em;">Current (A)</span>
-                <span style="font-weight:700; color:#fff; font-size:12px;" id="m-total-amps">0.50 A</span>
-              </div>
-            </div>
-
-            <!-- Power Computation Breakdown -->
-            <div style="margin-top:10px; position:relative; z-index:10; background:rgba(0,0,0,0.3); backdrop-filter:blur(8px); border-radius:14px; padding:8px 12px; border:1px solid rgba(255,255,255,0.12);">
-              <div style="display:flex; align-items:center; justify-content:space-between; font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:rgba(244,229,229,0.9); margin-bottom:3px;">
-                <span>Power Computation</span>
-                <span style="font-size:9px; background:rgba(255,255,255,0.2); color:#fff; padding:1px 5px; border-radius:4px; font-family:monospace;">P = V × I</span>
-              </div>
-              <div style="font-family:monospace; font-size:11.5px; color:#fff; display:flex; align-items:center; justify-content:space-between; font-weight:600;" id="m-pwr-formula-hero">
-                <span>220 V × 0.50 A</span>
-                <span style="color:#fcd34d;">= 110.0 W</span>
-              </div>
-            </div>
-            <div style="margin-top:10px;"></div>
+            <p style="font-size:10px; color:rgba(244,229,229,0.8); margin-top:8px; font-weight:500; text-transform:uppercase; letter-spacing:0.08em; position:relative; z-index:10;">
+              Apparent power, all active ports
+            </p>
           </div>
 
-          <!-- Master Power Card (Dashboard.jsx lines 427-463) -->
+          <!-- Master Power Card (Dashboard.jsx lines 532-568) -->
           <div class="bento-glass-card">
             <div>
               <h2 class="master-hdr-title">Master Power</h2>
-              <p class="master-hdr-sub" id="pwa-master-summary">3 / 3 ON • 3 In Use</p>
+              <p class="master-hdr-sub" id="pwa-master-summary">2 / 3 ON • 2 In Use</p>
+              <p style="font-size:10px; color:#9CA3AF; margin-top:3px; font-weight:500;">Turn all ports on or off at once.</p>
             </div>
             <div class="master-btn-row">
               <button class="btn-master disabled-btn" id="btn-master-on" onclick="setMasterRelays(true)">All On</button>
@@ -1829,19 +1994,18 @@
             </div>
           </div>
 
-          <!-- Middle 2-Col Bento Grid: Night Mode & Inactivity Limit (Dashboard.jsx lines 466-508) -->
+          <!-- Middle 2-Col Bento Grid: Night Mode & Inactivity Limit (Dashboard.jsx lines 571-623) -->
           <div class="bento-grid-2">
-            <!-- Night Mode Card (Dashboard.jsx lines 468-489) -->
+            <!-- Night Mode Card -->
             <div class="bento-glass-card" onclick="toggleNightMode()" style="cursor:pointer;" title="Click to toggle Night Mode">
               <svg class="bento-watermark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
               <div style="position:relative; z-index:10;">
                 <h3 class="bento-micro-heading">Night Mode</h3>
                 <p class="bento-main-value">10:00 PM<br/> - 6:00 AM</p>
-                <p class="bento-status-tag" id="tag-night-mode" style="color:#D1D5DB;">Not active</p>
               </div>
             </div>
 
-            <!-- Inactivity Limit Card (Dashboard.jsx lines 492-507) -->
+            <!-- Inactivity Limit Card -->
             <div class="bento-glass-card" onclick="skipTimerToThreshold()" style="cursor:pointer;" title="Click to test 15-min inactivity threshold">
               <svg class="bento-watermark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
               <div style="position:relative; z-index:10;">
@@ -1850,12 +2014,11 @@
                   <span style="font-size:24px; font-weight:700; color:#111827;" id="pwa-idle-limit-lbl">15</span>
                   <span style="font-size:11px; font-weight:700; color:#6B7280; text-transform:uppercase; letter-spacing:0.05em;">min</span>
                 </div>
-                <p class="bento-status-tag" style="color:#9CA3AF;">Countdown threshold</p>
               </div>
             </div>
           </div>
 
-          <!-- Dual Presence Sensing Card (Dashboard.jsx lines 510-527) -->
+          <!-- Dual Presence Sensing Card (Dashboard.jsx lines 625-657) -->
           <div class="bento-glass-card" onclick="toggleFusionMode()" style="cursor:pointer;" title="Click to toggle Dual Sensor Fusion vs PIR-Only">
             <svg class="bento-watermark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19.07 4.93A10 10 0 0 0 6.99 3.34"/><path d="M4 6h.01"/><path d="M2.29 9.62A10 10 0 1 0 21.31 8.35"/><path d="M16.24 7.76A6 6 0 1 0 8.23 16.67"/><path d="M12 18h.01"/><path d="M17.99 11.66A6 6 0 0 1 15.77 16.67"/><circle cx="12" cy="12" r="2"/><path d="m13.41 10.59 5.66-5.66"/></svg>
             <div style="position:relative; z-index:10;">
@@ -1872,115 +2035,144 @@
             </div>
           </div>
 
-          <!-- Port / Device Management Section (Dashboard.jsx lines 530-694) -->
+          <!-- Port Management Section (Dashboard.jsx lines 660-780) -->
           <div>
             <div class="ports-section-hdr">
-              <h2 class="ports-section-title">Port / Device Management</h2>
-              <button class="btn-edit-ports" id="btn-pwa-edit" onclick="togglePwaEditMode()">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                <span id="btn-pwa-edit-lbl">Edit</span>
-              </button>
+              <h2 class="ports-section-title">Port Management</h2>
             </div>
+            <p style="font-size:10px; color:#9CA3AF; margin-bottom:14px; font-weight:500;">Toggle and view power draw for each smart port.</p>
 
             <div class="ports-stack">
-              <!-- Port 1 Card: Electric Stand Fan -->
+              <!-- Port 1 Card -->
               <div class="outlet-card relay-on" id="card-outlet-1">
-                <button class="port-icon-btn" id="port-icon-1" onclick="cyclePortIcon(0)" title="Port 1 Icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/><circle cx="12" cy="12" r="2"/></svg>
-                </button>
-                <div class="port-mid-col">
-                  <div class="port-name-text" id="port-name-1">Electric Stand Fan</div>
-                  <div class="port-sub-row">
-                    <div class="port-status-inline" id="port-conn-1">
-                      <span class="port-status-dot" style="background:#10B981;"></span>
-                      <span class="port-status-lbl" style="color:#047857;">In Use</span>
+                <div class="port-top-row">
+                  <div class="port-header-left">
+                    <div class="port-icon-squircle" id="port-icon-sq-1">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v6M9 5h6M7 8h10v5a5 5 0 0 1-5 5h0a5 5 0 0 1-5-5V8zM12 18v4"/>
+                      </svg>
                     </div>
-                    <span class="port-sep-dot">•</span>
-                    <div class="port-metrics-inline">
-                      <span class="port-val-w" id="m-pwr-1">55.2 W</span>
-                      <span class="port-val-muted" id="m-cur-1">0.25 A</span>
-                      <span class="load-cat-badge load-cat-active" id="port-cat-1">Active Device</span>
-                      <span class="port-val-muted" id="port-volt-1">220 V</span>
-                      <span class="port-val-muted" id="port-pf-1">PF 0.98</span>
+                    <div class="port-titles">
+                      <h3 class="port-name-heading" id="port-name-1">Port 1</h3>
+                      <div class="port-status-pill-wrap">
+                        <span class="port-status-badge in-use" id="port-status-badge-1">In Use</span>
+                      </div>
                     </div>
                   </div>
-                  <div class="port-calc-pill" id="port-calc-1" style="display:inline-flex; align-items:center; gap:4px; font-family:monospace; font-size:10px; background:rgba(97,47,47,0.06); border:1px solid rgba(97,47,47,0.15); border-radius:6px; padding:2px 6px; margin-top:4px; color:#612f2f; width:fit-content;">
-                    <span style="font-weight:700;">P = V × I:</span>
-                    <span style="color:#4B5563;" id="port-calc-calc-1">220V × 0.25A =</span>
-                    <span style="font-weight:700; color:#612f2f;" id="port-calc-res-1">55.0 W</span>
+                  <button class="ios-switch switch-on" id="btn-relay-1" onclick="toggleOutletRelay(0)" aria-label="Toggle Port 1">
+                    <span class="ios-switch-thumb"></span>
+                  </button>
+                </div>
+                <!-- Bottom Integrated Metrics Row -->
+                <div class="port-metrics-bottom-row">
+                  <div>
+                    <span class="port-metric-sub">Power</span>
+                    <div class="port-metric-power-val">
+                      <span class="port-val-w" id="m-pwr-1">26.4</span>
+                      <span class="port-unit-sub">W</span>
+                    </div>
+                  </div>
+                  <div class="port-right-metrics">
+                    <div>
+                      <span class="port-metric-sub">Voltage</span>
+                      <span class="port-sub-val" id="port-volt-1">220 V</span>
+                    </div>
+                    <div class="port-v-divider"></div>
+                    <div>
+                      <span class="port-metric-sub">Current</span>
+                      <span class="port-sub-val-cur" id="m-cur-1">0.12 A</span>
+                    </div>
                   </div>
                 </div>
-                <button class="ios-switch switch-on" id="btn-relay-1" onclick="toggleOutletRelay(0)" aria-label="Toggle Port 1">
-                  <span class="ios-switch-thumb"></span>
-                </button>
               </div>
 
-              <!-- Port 2 Card: Study Desk Lamp -->
+              <!-- Port 2 Card -->
               <div class="outlet-card relay-on" id="card-outlet-2">
-                <button class="port-icon-btn" id="port-icon-2" onclick="cyclePortIcon(1)" title="Port 2 Icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8l4 10H4L8 2Z"/><path d="M12 12v6"/><path d="M8 22v-2c0-1.1.9-2 2-2h4a2 2 0 0 1 2 2v2H8Z"/></svg>
-                </button>
-                <div class="port-mid-col">
-                  <div class="port-name-text" id="port-name-2">Study Desk Lamp</div>
-                  <div class="port-sub-row">
-                    <div class="port-status-inline" id="port-conn-2">
-                      <span class="port-status-dot" style="background:#10B981;"></span>
-                      <span class="port-status-lbl" style="color:#047857;">In Use</span>
+                <div class="port-top-row">
+                  <div class="port-header-left">
+                    <div class="port-icon-squircle" id="port-icon-sq-2">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v6M9 5h6M7 8h10v5a5 5 0 0 1-5 5h0a5 5 0 0 1-5-5V8zM12 18v4"/>
+                      </svg>
                     </div>
-                    <span class="port-sep-dot">•</span>
-                    <div class="port-metrics-inline">
-                      <span class="port-val-w" id="m-pwr-2">12.0 W</span>
-                      <span class="port-val-muted" id="m-cur-2">0.05 A</span>
-                      <span class="load-cat-badge load-cat-active" id="port-cat-2">Charging / Low Power</span>
-                      <span class="port-val-muted" id="port-volt-2">220 V</span>
-                      <span class="port-val-muted" id="port-pf-2">PF 0.95</span>
+                    <div class="port-titles">
+                      <h3 class="port-name-heading" id="port-name-2">Port 2</h3>
+                      <div class="port-status-pill-wrap">
+                        <span class="port-status-badge in-use" id="port-status-badge-2">In Use</span>
+                      </div>
                     </div>
                   </div>
-                  <div class="port-calc-pill" id="port-calc-2" style="display:inline-flex; align-items:center; gap:4px; font-family:monospace; font-size:10px; background:rgba(97,47,47,0.06); border:1px solid rgba(97,47,47,0.15); border-radius:6px; padding:2px 6px; margin-top:4px; color:#612f2f; width:fit-content;">
-                    <span style="font-weight:700;">P = V × I:</span>
-                    <span style="color:#4B5563;" id="port-calc-calc-2">220V × 0.05A =</span>
-                    <span style="font-weight:700; color:#612f2f;" id="port-calc-res-2">11.0 W</span>
+                  <button class="ios-switch switch-on" id="btn-relay-2" onclick="toggleOutletRelay(1)" aria-label="Toggle Port 2">
+                    <span class="ios-switch-thumb"></span>
+                  </button>
+                </div>
+                <!-- Bottom Integrated Metrics Row -->
+                <div class="port-metrics-bottom-row">
+                  <div>
+                    <span class="port-metric-sub">Power</span>
+                    <div class="port-metric-power-val">
+                      <span class="port-val-w" id="m-pwr-2">264.0</span>
+                      <span class="port-unit-sub">W</span>
+                    </div>
+                  </div>
+                  <div class="port-right-metrics">
+                    <div>
+                      <span class="port-metric-sub">Voltage</span>
+                      <span class="port-sub-val" id="port-volt-2">220 V</span>
+                    </div>
+                    <div class="port-v-divider"></div>
+                    <div>
+                      <span class="port-metric-sub">Current</span>
+                      <span class="port-sub-val-cur" id="m-cur-2">1.20 A</span>
+                    </div>
                   </div>
                 </div>
-                <button class="ios-switch switch-on" id="btn-relay-2" onclick="toggleOutletRelay(1)" aria-label="Toggle Port 2">
-                  <span class="ios-switch-thumb"></span>
-                </button>
               </div>
 
-              <!-- Port 3 Card: Laptop & Charger -->
-              <div class="outlet-card relay-on" id="card-outlet-3">
-                <button class="port-icon-btn" id="port-icon-3" onclick="cyclePortIcon(2)" title="Port 3 Icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
-                </button>
-                <div class="port-mid-col">
-                  <div class="port-name-text" id="port-name-3">Laptop &amp; Charger</div>
-                  <div class="port-sub-row">
-                    <div class="port-status-inline" id="port-conn-3">
-                      <span class="port-status-dot" style="background:#10B981;"></span>
-                      <span class="port-status-lbl" style="color:#047857;">In Use</span>
+              <!-- Port 3 Card -->
+              <div class="outlet-card relay-off" id="card-outlet-3">
+                <div class="port-top-row">
+                  <div class="port-header-left">
+                    <div class="port-icon-squircle" id="port-icon-sq-3">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v6M9 5h6M7 8h10v5a5 5 0 0 1-5 5h0a5 5 0 0 1-5-5V8zM12 18v4"/>
+                      </svg>
                     </div>
-                    <span class="port-sep-dot">•</span>
-                    <div class="port-metrics-inline">
-                      <span class="port-val-w" id="m-pwr-3">44.8 W</span>
-                      <span class="port-val-muted" id="m-cur-3">0.20 A</span>
-                      <span class="load-cat-badge load-cat-active" id="port-cat-3">Active Device</span>
-                      <span class="port-val-muted" id="port-volt-3">220 V</span>
-                      <span class="port-val-muted" id="port-pf-3">PF 0.92</span>
+                    <div class="port-titles">
+                      <h3 class="port-name-heading" id="port-name-3">Port 3</h3>
+                      <div class="port-status-pill-wrap">
+                        <span class="port-status-badge off" id="port-status-badge-3">Switched Off</span>
+                      </div>
                     </div>
                   </div>
-                  <div class="port-calc-pill" id="port-calc-3" style="display:inline-flex; align-items:center; gap:4px; font-family:monospace; font-size:10px; background:rgba(97,47,47,0.06); border:1px solid rgba(97,47,47,0.15); border-radius:6px; padding:2px 6px; margin-top:4px; color:#612f2f; width:fit-content;">
-                    <span style="font-weight:700;">P = V × I:</span>
-                    <span style="color:#4B5563;" id="port-calc-calc-3">220V × 0.20A =</span>
-                    <span style="font-weight:700; color:#612f2f;" id="port-calc-res-3">44.0 W</span>
+                  <button class="ios-switch switch-off" id="btn-relay-3" onclick="toggleOutletRelay(2)" aria-label="Toggle Port 3">
+                    <span class="ios-switch-thumb"></span>
+                  </button>
+                </div>
+                <!-- Bottom Integrated Metrics Row -->
+                <div class="port-metrics-bottom-row">
+                  <div>
+                    <span class="port-metric-sub">Power</span>
+                    <div class="port-metric-power-val">
+                      <span class="port-val-w" id="m-pwr-3">0.0</span>
+                      <span class="port-unit-sub">W</span>
+                    </div>
+                  </div>
+                  <div class="port-right-metrics">
+                    <div>
+                      <span class="port-metric-sub">Voltage</span>
+                      <span class="port-sub-val" id="port-volt-3">0 V</span>
+                    </div>
+                    <div class="port-v-divider"></div>
+                    <div>
+                      <span class="port-metric-sub">Current</span>
+                      <span class="port-sub-val-cur" id="m-cur-3">0.00 A</span>
+                    </div>
                   </div>
                 </div>
-                <button class="ios-switch switch-on" id="btn-relay-3" onclick="toggleOutletRelay(2)" aria-label="Toggle Port 3">
-                  <span class="ios-switch-thumb"></span>
-                </button>
               </div>
             </div>
           </div>
-
         </div>
 
         <!-- ===============================================================
@@ -6867,11 +7059,9 @@ function buildPhotorealisticElectronics(parent) {
       }
 
       // Ports 1-3 & Master Power Calculation (1:1 Dashboard.jsx)
-      let totalI = 0, totalP = 0, onCount = 0;
-      const powers = [55.2, 12.0, 44.8];
-      const currents = [0.25, 0.05, 0.20];
-      const pfs = ['0.98', '0.92', '0.96'];
-      const activeCats = ['Active Device', 'Charging / Low Power', 'Active Device'];
+      let totalI = 0, totalP = 0, onCount = 0, drawingCount = 0;
+      const powers = [26.4, 264.0, 44.8];
+      const currents = [0.12, 1.20, 0.20];
 
       for (let i = 0; i < 3; i++) {
         const on = simState.relays[i];
@@ -6879,57 +7069,42 @@ function buildPhotorealisticElectronics(parent) {
         const btn = document.getElementById('btn-relay-' + (i + 1));
         const curEl = document.getElementById('m-cur-' + (i + 1));
         const pwrEl = document.getElementById('m-pwr-' + (i + 1));
-        const connEl = document.getElementById('port-conn-' + (i + 1));
-        const catEl = document.getElementById('port-cat-' + (i + 1));
         const voltEl = document.getElementById('port-volt-' + (i + 1));
-        const pfEl = document.getElementById('port-pf-' + (i + 1));
+        const badgeEl = document.getElementById('port-status-badge-' + (i + 1));
 
         if (on) {
           onCount++;
-          if (card) card.className = 'outlet-card relay-on' + (pwaEditMode ? ' rename-ring' : '');
+          const isDrawing = (powers[i] > 0);
+          if (isDrawing) drawingCount++;
+
+          if (card) card.className = 'outlet-card relay-on';
           if (btn) btn.className = 'ios-switch switch-on';
           if (curEl) curEl.textContent = currents[i].toFixed(2) + ' A';
-          if (pwrEl) pwrEl.textContent = powers[i].toFixed(1) + ' W';
-          if (connEl) {
-            connEl.style.color = '#047857';
-            connEl.innerHTML = '<span style="width:6px; height:6px; border-radius:50%; background:#10B981; display:inline-block;"></span> In Use';
-          }
-          if (catEl) {
-            catEl.className = 'load-cat-badge load-cat-active';
-            catEl.textContent = activeCats[i];
-          }
-          if (voltEl) {
-            voltEl.style.display = 'inline-flex';
-            voltEl.textContent = '220 V';
-          }
-          if (pfEl) {
-            pfEl.style.display = 'inline-flex';
-            pfEl.textContent = 'PF ' + pfs[i];
+          if (pwrEl) pwrEl.textContent = powers[i].toFixed(1);
+          if (voltEl) voltEl.textContent = '220 V';
+          if (badgeEl) {
+            badgeEl.className = isDrawing ? 'port-status-badge in-use' : 'port-status-badge standby';
+            badgeEl.textContent = isDrawing ? 'In Use' : 'Standby';
           }
           totalI += currents[i];
           totalP += powers[i];
           if (portPodLedMats[i]) portPodLedMats[i].color.setHex(0x10b981);
         } else {
-          if (card) card.className = 'outlet-card relay-off' + (pwaEditMode ? ' rename-ring' : '');
+          if (card) card.className = 'outlet-card relay-off';
           if (btn) btn.className = 'ios-switch switch-off';
           if (curEl) curEl.textContent = '0.00 A';
-          if (pwrEl) pwrEl.textContent = '0.0 W';
-          if (connEl) {
-            connEl.style.color = '#9CA3AF';
-            connEl.innerHTML = '<span style="width:6px; height:6px; border-radius:50%; background:#D1D5DB; display:inline-block;"></span> Switched Off';
+          if (pwrEl) pwrEl.textContent = '0.0';
+          if (voltEl) voltEl.textContent = '0 V';
+          if (badgeEl) {
+            badgeEl.className = 'port-status-badge off';
+            badgeEl.textContent = 'Switched Off';
           }
-          if (catEl) {
-            catEl.className = 'load-cat-badge load-cat-off';
-            catEl.textContent = 'De-energized';
-          }
-          if (voltEl) voltEl.style.display = 'none';
-          if (pfEl) pfEl.style.display = 'none';
           if (portPodLedMats[i]) portPodLedMats[i].color.setHex(0x334155);
         }
       }
 
       const masterSum = document.getElementById('pwa-master-summary');
-      if (masterSum) masterSum.textContent = onCount + ' / 3 ON • ' + onCount + ' In Use';
+      if (masterSum) masterSum.textContent = onCount + ' / 3 ON • ' + drawingCount + ' In Use';
 
       const btnMasterOn = document.getElementById('btn-master-on');
       const btnMasterOff = document.getElementById('btn-master-off');
@@ -6940,20 +7115,10 @@ function buildPhotorealisticElectronics(parent) {
         btnMasterOff.className = (onCount === 0) ? 'btn-master disabled-btn' : 'btn-master off-active';
       }
 
-      const totalCurEl = document.getElementById('m-total-cur');
-      if (totalCurEl) totalCurEl.textContent = totalI.toFixed(2);
       const totalPwrEl = document.getElementById('m-total-power');
-      if (totalPwrEl) totalPwrEl.textContent = totalP.toFixed(0);
-
-      const totalVoltsEl = document.getElementById('m-total-volts');
-      if (totalVoltsEl) totalVoltsEl.textContent = '220 V';
-      const totalAmpsEl = document.getElementById('m-total-amps');
-      if (totalAmpsEl) totalAmpsEl.textContent = totalI.toFixed(2) + ' A';
-      const pwrFormulaHero = document.getElementById('m-pwr-formula-hero');
-      if (pwrFormulaHero) {
-        pwrFormulaHero.innerHTML = `<span>220 V × ${totalI.toFixed(2)} A</span><span style="color:#fcd34d;">= ${(220 * totalI).toFixed(1)} W</span>`;
-      }
-
+      if (totalPwrEl) totalPwrEl.textContent = (totalP > 0) ? totalP.toFixed(0) : '0';
+      const totalPwrUnit = document.getElementById('m-total-power-unit');
+      if (totalPwrUnit) totalPwrUnit.textContent = (totalP > 0) ? 'W' : 'VA';
       // Update per-outlet power computation pills
       const calc1 = document.getElementById('port-calc-calc-1');
       const res1 = document.getElementById('port-calc-res-1');
