@@ -107,6 +107,9 @@
         },
         "settings": {
           ".write": "auth != null && root.child('users').child(auth.uid).child('owned_devices').child($mac).exists()",
+          "auto_wake_enabled": {
+            ".validate": "newData.isBoolean()"
+          },
           "night_mode_enabled": {
             ".validate": "newData.isBoolean()"
           },

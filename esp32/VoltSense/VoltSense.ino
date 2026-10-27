@@ -422,6 +422,7 @@ String historyDayDate = ""; // which day the hourly buckets belong to
 
 // Database Settings & Hardware Calibration (NVS Backed)
 bool overrideActive = false;
+bool autoWakeEnabled = true;
 bool nightModeEnabled = true;
 bool mmwaveEnabled = false;
 bool mmwaveInverted = false;
@@ -2629,6 +2630,10 @@ void applyRemoteChange(const RemoteChangeT& data) {
       portPolicy[port] = policyFromString(data.stringData());
       Serial.printf("Port %d policy -> %s\n", port + 1, policyToString(portPolicy[port]));
     }
+  } else if (path == "/settings/auto_wake_enabled") {
+    autoWakeEnabled = data.boolData();
+    setNvsString("auto_wake_en", autoWakeEnabled ? "1" : "0");
+    Serial.printf("Auto-wake enabled -> %s\n", autoWakeEnabled ? "true" : "false");
   } else if (path == "/settings/night_mode_enabled") {
     nightModeEnabled = data.boolData();
     setNvsString("night_enabled", nightModeEnabled ? "1" : "0");
@@ -2790,6 +2795,12 @@ void applyRemoteChange(const RemoteChangeT& data) {
 
     json.get(result, "override");
     if (result.success) overrideActive = result.boolValue;
+
+    json.get(result, "settings/auto_wake_enabled");
+    if (result.success) {
+      autoWakeEnabled = result.boolValue;
+      setNvsString("auto_wake_en", autoWakeEnabled ? "1" : "0");
+    }
 
     json.get(result, "settings/night_mode_enabled");
     if (result.success) {
@@ -3042,6 +3053,14 @@ void pollRemoteChanges(bool force = false) {
   if (field.success) {
     RemoteChange c;
     c._path = "/settings/mmwave_inverted";
+    c._bool = field.boolValue;
+    applyRemoteChange(c);
+  }
+
+  json.get(field, "settings/auto_wake_enabled");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/auto_wake_enabled";
     c._bool = field.boolValue;
     applyRemoteChange(c);
   }
@@ -3869,6 +3888,8 @@ void setup() {
       unsigned long s = savedResp.toInt();
       if (s >= 5) responseWindowMs = s * 1000UL;
     }
+    String savedAutoWake = getNvsString("auto_wake_en");
+    if (savedAutoWake.length() > 0) autoWakeEnabled = (savedAutoWake == "1");
     String savedNightEn = getNvsString("night_enabled");
     if (savedNightEn.length() > 0) nightModeEnabled = (savedNightEn == "1");
     String savedNightSt = getNvsString("night_start");
@@ -4227,7 +4248,7 @@ void loop() {
 
   // Update State Machine
   if (motionDetected || nightMode) {
-    if (currentState == STATE_SHUTDOWN || currentState == STATE_RESPONSE_WINDOW) {
+    if (autoWakeEnabled && (currentState == STATE_SHUTDOWN || currentState == STATE_RESPONSE_WINDOW)) {
       setAllRelays(true);
       persistRelayState();
 
