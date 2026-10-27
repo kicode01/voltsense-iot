@@ -163,7 +163,7 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-white/60 backdrop-blur-md border border-gray-200/80 py-4 pl-12 pr-4 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-maroon-500 focus:ring-4 focus:ring-maroon-500/10 transition-all duration-300 font-medium rounded-2xl hover:bg-white/80"
-                placeholder="kianbalanag18@gmail.com"
+                placeholder="voltsense@local.com"
                 autoComplete="email"
                 required
               />
