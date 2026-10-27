@@ -3733,6 +3733,7 @@ void setup() {
   factoryResetIfRequested();
 
   pinMode(PIR_PIN, INPUT);
+  pinMode(PIR_PIN, INPUT_PULLDOWN); // Prevent floating-pin EMI triggers when HC-SR501 is unplugged
   // Initialize Hardware UART2 for LD2410 24GHz mmWave radar (RX2=GPIO 16, TX2=GPIO 17 @ 256k baud)
   Serial2.begin(256000, SERIAL_8N1, LD2410_RX_PIN, LD2410_TX_PIN);
   pinMode(MMWAVE_PIN, INPUT);
