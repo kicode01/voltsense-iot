@@ -35,7 +35,7 @@ import GodModePanel from '../components/GodModePanel';
 import { playEmergencyAlarm } from '../lib/soundAlert';
 
 const Settings = () => {
-  const { devices, activeDeviceId, devicesLoading, userId } = useDeviceContext();
+  const { devices, activeDeviceId, devicesLoading, userId, isDeviceOnline } = useDeviceContext();
 
   const {
     roomData,
@@ -781,12 +781,26 @@ const Settings = () => {
             </div>
             
             <div className="space-y-3 mb-5">
-              {devices.map(mac => (
-                <div key={mac} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
-                  <div className="flex items-center justify-between p-3">
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono text-sm font-bold text-gray-700">{mac}</span>
-                    </div>
+              {devices.map(mac => {
+                const online = isDeviceOnline(mac);
+                return (
+                  <div key={mac} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+                    <div className="flex items-center justify-between p-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
+                          online 
+                            ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' 
+                            : 'bg-gray-300'
+                        }`} />
+                        <span className="font-mono text-sm font-bold text-gray-700">{mac}</span>
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          online
+                            ? 'bg-emerald-100/80 text-emerald-800'
+                            : 'bg-gray-200/80 text-gray-500'
+                        }`}>
+                          {online ? 'Powered On' : 'Offline'}
+                        </span>
+                      </div>
                     <button 
                       onClick={() => handleUnpairDevice(mac)}
                       disabled={unpairingId === mac}
@@ -822,7 +836,8 @@ const Settings = () => {
                     </div>
                   )}
                 </div>
-              ))}
+                );
+              })}
               {devices.length === 0 && (
                 <p className="text-sm text-gray-500 italic text-center py-2">No devices paired.</p>
               )}

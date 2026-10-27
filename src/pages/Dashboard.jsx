@@ -58,9 +58,9 @@ const getPortConnectionState = (portData) => {
 };
 
 const Dashboard = () => {
-  const { activeDeviceId, devicesLoading } = useDeviceContext();
+  const { activeDeviceId, devicesLoading, activeIsOnline } = useDeviceContext();
 
-  const { roomData, loading: roomLoading, toggleMasterRelay, togglePortRelay, setOverride } = useRoomData(activeDeviceId);
+  const { roomData, loading: roomLoading, isOnline, toggleMasterRelay, togglePortRelay, setOverride } = useRoomData(activeDeviceId);
   
   const [turningOn, setTurningOn] = useState(false);
   const [turningOff, setTurningOff] = useState(false);
@@ -135,6 +135,7 @@ const Dashboard = () => {
   }
 
   const isDemo = !activeDeviceId;
+  const deviceOnline = isDemo ? true : (isOnline || activeIsOnline);
   const data = isDemo ? demoData : (roomData || {});
 
   const settings = data.settings || { night_mode_enabled: false, night_mode_start: '22:00', night_mode_end: '06:00' };
@@ -415,6 +416,17 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+
+      {!isDemo && !deviceOnline && (
+        <div className="bg-amber-50/90 border border-amber-200/80 text-amber-900 px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-medium animate-in fade-in duration-300">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span>
+              <strong className="font-bold">Device Not Powered On:</strong> The ESP32 (<span className="font-mono font-bold">{activeDeviceId}</span>) is offline or unreachable. Telemetry values below reflect the last recorded session.
+            </span>
+          </div>
+        </div>
+      )}
       
       {data.state === 'RESPONSE_WINDOW' && (
         <div className="bg-gradient-to-r from-red-600 to-orange-500 rounded-3xl p-6 shadow-2xl flex flex-col items-center justify-center text-white relative overflow-hidden mb-2 animate-in fade-in slide-in-from-top-4">
@@ -460,12 +472,24 @@ const Dashboard = () => {
           <div>
             <div className="flex items-center justify-between mb-4 relative z-10">
               <h2 className="text-sm font-bold uppercase tracking-widest text-maroon-100/80">System Load</h2>
-              <div className={`px-3 py-1 text-xs font-bold uppercase tracking-widest rounded-full backdrop-blur-sm border ${
-                occupied
-                  ? 'bg-white/20 border-white/30 text-white' 
-                  : 'bg-black/20 border-black/30 text-maroon-200'
-              }`}>
-                {occupied ? 'Occupied' : 'Idle'}
+              <div className="flex items-center gap-2">
+                {activeDeviceId && (
+                  <div className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full backdrop-blur-sm border flex items-center gap-1.5 ${
+                    deviceOnline
+                      ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-200'
+                      : 'bg-amber-500/20 border-amber-400/40 text-amber-200'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${deviceOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                    {deviceOnline ? 'Powered On' : 'Offline'}
+                  </div>
+                )}
+                <div className={`px-3 py-1 text-xs font-bold uppercase tracking-widest rounded-full backdrop-blur-sm border ${
+                  occupied
+                    ? 'bg-white/20 border-white/30 text-white' 
+                    : 'bg-black/20 border-black/30 text-maroon-200'
+                }`}>
+                  {occupied ? 'Occupied' : 'Idle'}
+                </div>
               </div>
             </div>
             <div className="flex items-baseline gap-2 relative z-10">

@@ -89,6 +89,7 @@
         "night_mode_start": "22:00",
         "night_mode_end": "06:00",
         "nominal_voltage": 220.0,
+        "overcurrent_limit_a": 4.5,
         "voltage_cal_mv_per_v": 4.545,
         "auto_calibrate_voltage": false,
         "acs712_mv_per_amp": 123.33,

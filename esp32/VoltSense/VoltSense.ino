@@ -4478,6 +4478,13 @@ void loop() {
     json.set("countdown_remaining_seconds", remaining_seconds);
     json.set("night_mode_active", nightMode);
 
+    // Heartbeat timestamp (epoch ms) and uptime for real-time online/offline presence detection
+    time_t epochNow = timeClient.getEpochTime();
+    if (epochNow > 100000) {
+      json.set("last_seen", (double)epochNow * 1000.0);
+    }
+    json.set("uptime_seconds", (int)(millis() / 1000UL));
+
     // The telemetry push is the other call that can sit on a TLS handshake. Fed before it so a
     // hang here is charged to the push, and the device resets rather than going silent.
     watchdogFeed();

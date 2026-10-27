@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ref, onValue, set, update } from 'firebase/database';
 import { db } from '../lib/firebase';
 
@@ -7,11 +7,16 @@ import { db } from '../lib/firebase';
 export const useRoomData = (roomId) => {
   const [roomData, setRoomData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(false);
+  const snapshotCountRef = useRef(0);
+  const lastPacketAtRef = useRef(0);
+  const lastSeenMsRef = useRef(null);
 
   useEffect(() => {
     if (!roomId) {
       setRoomData(null);
       setLoading(false);
+      setIsOnline(false);
       return;
     }
 
@@ -19,22 +24,60 @@ export const useRoomData = (roomId) => {
     // renders device A's ports/telemetry under device B's name until the first snapshot arrives.
     setRoomData(null);
     setLoading(true);
+    setIsOnline(false);
+    snapshotCountRef.current = 0;
+    lastPacketAtRef.current = 0;
+    lastSeenMsRef.current = null;
 
     const roomRef = ref(db, `devices/${roomId}`);
 
     const unsubscribeDb = onValue(roomRef, (snapshot) => {
+      const now = Date.now();
+      lastPacketAtRef.current = now;
+      snapshotCountRef.current += 1;
+
       if (snapshot.exists()) {
-        setRoomData(snapshot.val());
+        const val = snapshot.val();
+        setRoomData(val);
+        let ls = val?.last_seen ? Number(val.last_seen) : null;
+        if (ls && ls < 1e11) ls *= 1000;
+        lastSeenMsRef.current = ls;
+
+        if (ls) {
+          const age = now - ls;
+          setIsOnline(age >= -5000 && age < 10000);
+        } else if (snapshotCountRef.current > 1) {
+          setIsOnline(true);
+        } else {
+          setIsOnline(false);
+        }
       } else {
         setRoomData(null);
+        setIsOnline(false);
       }
       setLoading(false);
     }, (error) => {
       console.error("Firebase error:", error);
+      setIsOnline(false);
       setLoading(false);
     });
 
-    return () => unsubscribeDb();
+    const ticker = setInterval(() => {
+      const now = Date.now();
+      if (lastSeenMsRef.current) {
+        const age = now - lastSeenMsRef.current;
+        setIsOnline(age >= -5000 && age < 10000);
+      } else if (snapshotCountRef.current > 1) {
+        setIsOnline(now - lastPacketAtRef.current < 8000);
+      } else {
+        setIsOnline(false);
+      }
+    }, 2000);
+
+    return () => {
+      unsubscribeDb();
+      clearInterval(ticker);
+    };
   }, [roomId]);
 
   // Every action returns whether it SUCCEEDED rather than swallowing failures into console.error.
@@ -224,6 +267,7 @@ export const useRoomData = (roomId) => {
   return {
     roomData,
     loading,
+    isOnline,
     toggleMasterRelay,
     togglePortRelay,
     updateNightMode,

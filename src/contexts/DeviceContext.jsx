@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { ref, onValue } from 'firebase/database';
+import { db } from '../lib/firebase';
 import { useUserDevices } from '../hooks/useUserDevices';
 import { DeviceContext } from './deviceContextCore';
 
@@ -13,6 +15,8 @@ import { DeviceContext } from './deviceContextCore';
 export const DeviceProvider = ({ children }) => {
   const { devices, loading: devicesLoading, userId } = useUserDevices();
   const [activeDeviceId, setActiveDeviceId] = useState(null);
+  const [deviceStatuses, setDeviceStatuses] = useState({});
+  const [, setTick] = useState(0);
 
   // Auto-select the first device if none is selected, or if the selected one was removed
   useEffect(() => {
@@ -25,8 +29,73 @@ export const DeviceProvider = ({ children }) => {
     }
   }, [devices, activeDeviceId]);
 
+  // Track online/offline status for all user devices via heartbeat telemetry
+  useEffect(() => {
+    if (!devices || devices.length === 0) {
+      setDeviceStatuses({});
+      return;
+    }
+
+    const unsubs = devices.map(mac => {
+      const deviceRef = ref(db, `devices/${mac}`);
+      let packetCount = 0;
+      return onValue(deviceRef, (snapshot) => {
+        packetCount += 1;
+        const val = snapshot.exists() ? snapshot.val() : null;
+        let lastSeen = val?.last_seen ? Number(val.last_seen) : null;
+        if (lastSeen && lastSeen < 1e11) lastSeen *= 1000;
+
+        setDeviceStatuses(prev => ({
+          ...prev,
+          [mac]: {
+            lastSeen,
+            lastPacketAt: Date.now(),
+            packetCount,
+            exists: snapshot.exists()
+          }
+        }));
+      });
+    });
+
+    // Re-evaluate presence freshness every 2.5 seconds
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 2500);
+
+    return () => {
+      unsubs.forEach(unsub => unsub());
+      clearInterval(interval);
+    };
+  }, [devices]);
+
+  const isDeviceOnline = (mac) => {
+    if (!mac) return false;
+    const status = deviceStatuses[mac];
+    if (!status || !status.exists) return false;
+
+    const now = Date.now();
+    if (status.lastSeen) {
+      const age = now - status.lastSeen;
+      return age >= -5000 && age < 10000;
+    }
+
+    // Fallback if last_seen not yet written by older firmware:
+    return status.packetCount > 1 && (now - status.lastPacketAt < 8000);
+  };
+
+  const activeIsOnline = isDeviceOnline(activeDeviceId);
+
   return (
-    <DeviceContext.Provider value={{ devices, activeDeviceId, setActiveDeviceId, devicesLoading, userId }}>
+    <DeviceContext.Provider value={{
+      devices,
+      activeDeviceId,
+      setActiveDeviceId,
+      devicesLoading,
+      userId,
+      deviceStatuses,
+      isDeviceOnline,
+      activeIsOnline
+    }}>
       {children}
     </DeviceContext.Provider>
   );
