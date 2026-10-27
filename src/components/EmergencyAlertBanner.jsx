@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, ShieldCheck, Volume2, X, Loader2 } from 'lucide-react';
+import { AlertTriangle, ShieldCheck, Volume2, X, Loader2, Bell } from 'lucide-react';
 import { useRoomData } from '../hooks/useRoomData';
 import { playEmergencyAlarm } from '../lib/soundAlert';
-import { showSystemNotification } from '../lib/pushNotifications';
+import { showSystemNotification, requestNotificationPermission } from '../lib/pushNotifications';
+import { auth } from '../lib/firebase';
 
 export const EmergencyAlertBanner = ({ activeDeviceId }) => {
   const { roomData, setOverride, updateDeviceSetting } = useRoomData(activeDeviceId);
@@ -10,9 +11,13 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
   const [simulatedCountdown, setSimulatedCountdown] = useState(60);
   const [cancelling, setCancelling] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [hasPermission, setHasPermission] = useState(
+    typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+  );
   const lastAlarmTimeRef = useRef(0);
   const lastRemoteAlertUntilRef = useRef(0);
   const lastRemoteSirenAtRef = useRef(0);
+  const lastRealResponseStartRef = useRef(0);
   const simTimerRef = useRef(null);
 
   // Listen to custom demo alert events fired locally from God Mode or Demo triggers
@@ -112,6 +117,52 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
     ? simulatedCountdown
     : (roomData?.countdown_remaining_seconds ?? (roomData?.settings?.response_window_seconds || 300));
 
+  // Trigger push notification, cross-device alert, and sound on REAL hardware RESPONSE_WINDOW transition
+  useEffect(() => {
+    if (!isRealResponseWindow) {
+      lastRealResponseStartRef.current = 0;
+      return;
+    }
+
+    const now = Date.now();
+    // Only fire initial push and cross-device notification once per response window cycle (minimum 60s re-arm)
+    if (now - lastRealResponseStartRef.current > 60000) {
+      lastRealResponseStartRef.current = now;
+      const uniqueTag = `volt-sense-shutdown-real-${now}`;
+
+      // 1. Fire local system / OS notification
+      showSystemNotification('Auto-Shutdown Warning', {
+        body: `The room has been empty. Devices will shut down in ${remainingSeconds} seconds unless you keep them on.`,
+        tag: uniqueTag,
+        data: { url: '/dashboard' }
+      });
+
+      // 2. Play local siren
+      playEmergencyAlarm();
+      lastAlarmTimeRef.current = now;
+
+      // 3. Dispatch to /api/alert to push to background mobile devices
+      if (activeDeviceId) {
+        auth.currentUser?.getIdToken().then((idToken) => {
+          if (!idToken) return;
+          fetch('/api/alert', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              mac: activeDeviceId,
+              title: 'Auto-Shutdown Warning',
+              body: `The room has been empty. Devices will shut down in ${remainingSeconds} seconds unless you keep them on.`,
+              tag: uniqueTag
+            })
+          }).catch((err) => console.warn('Could not dispatch real response window push:', err));
+        }).catch(() => {});
+      }
+    }
+  }, [isRealResponseWindow, remainingSeconds, activeDeviceId]);
+
   // Sound alarm when entering response window (throttled to once every 12 seconds)
   useEffect(() => {
     if (isActive) {
@@ -184,6 +235,25 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
 
         {/* Right Side: Big Override Action Button + Dismiss */}
         <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end shrink-0">
+          {!hasPermission && typeof window !== 'undefined' && 'Notification' in window && (
+            <button
+              onClick={async () => {
+                const token = await requestNotificationPermission();
+                if (token || Notification.permission === 'granted') {
+                  setHasPermission(true);
+                  showSystemNotification('Notifications Enabled', {
+                    body: 'You will now receive instant shutdown warnings and emergency alerts.'
+                  });
+                }
+              }}
+              className="flex items-center gap-1.5 bg-yellow-400 hover:bg-yellow-300 text-black text-xs font-black uppercase tracking-wider px-3 py-2 rounded-xl shadow-md transition-all active:scale-95 shrink-0"
+              title="Allow browser notifications for auto-shutdown alerts"
+            >
+              <Bell className="w-3.5 h-3.5 fill-current" />
+              <span>Allow Alerts</span>
+            </button>
+          )}
+
           <button
             onClick={handleKeepPowerOn}
             disabled={cancelling}
