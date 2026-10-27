@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 
 /**
  * Evaluates whether an outlet is in use, energized without a load, or switched off.
- * Filters out ACS712 zero-point noise (<= 3W or <= 0.03A).
+ * Uses refined maroon brand-palette states with distinct high-contrast visibility.
  */
 const getPortConnectionState = (portData) => {
   const isRelayOn = Boolean(portData?.relay_status);
@@ -14,7 +14,9 @@ const getPortConnectionState = (portData) => {
     return {
       statusLabel: 'Switched Off',
       loadCategory: 'De-energized',
-      dotColor: 'bg-gray-300',
+      pillClass: 'bg-gray-100 text-gray-500 border-gray-200/90',
+      dotClass: 'bg-gray-300 ring-1 ring-gray-200',
+      iconClass: 'bg-gray-100 text-gray-400 border border-gray-200/60',
       isDrawing: false,
       isEnergized: false
     };
@@ -23,7 +25,7 @@ const getPortConnectionState = (portData) => {
   const watts = Number(portData?.power_watts) || 0;
   const amps = Number(portData?.current_amps) || 0;
 
-  if (watts > 1.5 || amps > 0.015) {
+  if (watts > 1.5 || amps > 0.02) {
     let category = 'Active Load';
     if (watts <= 30 || amps <= 0.15) {
       category = 'Charging / Low Power';
@@ -36,16 +38,20 @@ const getPortConnectionState = (portData) => {
     return {
       statusLabel: 'In Use',
       loadCategory: category,
-      dotColor: 'bg-emerald-500 animate-pulse',
+      pillClass: 'bg-maroon-800 text-white border-maroon-900 shadow-sm shadow-maroon-900/20',
+      dotClass: 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)] animate-pulse',
+      iconClass: 'bg-maroon-800 text-white shadow-md shadow-maroon-900/25 ring-2 ring-maroon-200/40',
       isDrawing: true,
       isEnergized: true
     };
   }
 
   return {
-    statusLabel: 'Port ON · No Device',
+    statusLabel: 'Standby',
     loadCategory: 'Empty Socket',
-    dotColor: 'bg-amber-400',
+    pillClass: 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80 shadow-2xs',
+    dotClass: 'bg-maroon-600 ring-2 ring-maroon-200',
+    iconClass: 'bg-maroon-50 text-maroon-800 border border-maroon-200/70 shadow-2xs',
     isDrawing: false,
     isEnergized: true
   };
@@ -550,7 +556,11 @@ const Dashboard = () => {
                   <div className="flex items-center gap-3 min-w-0">
                     <div 
                       className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500 ${
-                        portData.relay_status ? 'bg-maroon-50 text-maroon-800 shadow-inner' : 'bg-gray-100 text-gray-400'
+                        !portData.relay_status 
+                          ? 'bg-gray-100 text-gray-400 border border-gray-200/60' 
+                          : isDrawing 
+                          ? 'bg-maroon-800 text-white shadow-md shadow-maroon-900/25 ring-2 ring-maroon-200/40' 
+                          : 'bg-maroon-50 text-maroon-800 border border-maroon-200/70 shadow-2xs'
                       }`}
                     >
                       <Plug strokeWidth={1.5} className="w-5 h-5" />
@@ -559,12 +569,22 @@ const Dashboard = () => {
                       <h3 className="text-base font-bold text-gray-900 leading-tight">
                         {displayName}
                       </h3>
-                      <div className="flex items-center gap-1.5 mt-0.5">
-                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-500 ${isDrawing ? 'bg-emerald-500 animate-pulse' : conn.dotColor}`} />
-                        <span className={`text-[11px] font-semibold transition-colors duration-500 ${
-                          isDrawing ? 'text-emerald-700' : conn.isEnergized ? 'text-amber-600' : 'text-gray-400'
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide border transition-all duration-300 ${
+                          !portData.relay_status
+                            ? 'bg-gray-100 text-gray-500 border-gray-200/90'
+                            : isDrawing
+                            ? 'bg-maroon-800 text-white border-maroon-900 shadow-sm shadow-maroon-900/20'
+                            : 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80 shadow-2xs'
                         }`}>
-                          {!portData.relay_status ? 'Switched Off' : isDrawing ? 'In Use' : 'No Load'}
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-300 ${
+                            !portData.relay_status
+                              ? 'bg-gray-400 ring-1 ring-gray-200'
+                              : isDrawing
+                              ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)] animate-pulse'
+                              : 'bg-maroon-600 ring-2 ring-maroon-200'
+                          }`} />
+                          {!portData.relay_status ? 'Switched Off' : isDrawing ? 'In Use' : 'Standby'}
                         </span>
                       </div>
                     </div>
@@ -597,7 +617,7 @@ const Dashboard = () => {
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Power</span>
                     <div className="flex items-baseline gap-1">
                       <span className={`text-2xl md:text-3xl font-bold tracking-tight transition-colors duration-500 ${
-                        isDrawing ? 'text-gray-900' : 'text-gray-400'
+                        isDrawing ? 'text-gray-900 font-extrabold' : 'text-gray-400'
                       }`}>
                         {portData.relay_status ? displayWatts : '0.0'}
                       </span>
@@ -608,12 +628,20 @@ const Dashboard = () => {
                   <div className="flex items-center gap-3 sm:gap-4 text-right">
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Voltage</span>
-                      <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portVolts.toFixed(0)} V</span>
+                      <span className={`text-xs md:text-sm font-semibold whitespace-nowrap transition-colors duration-500 ${
+                        portData.relay_status ? 'text-gray-800' : 'text-gray-400'
+                      }`}>
+                        {portData.relay_status ? `${portVolts.toFixed(0)} V` : '0 V'}
+                      </span>
                     </div>
                     <div className="w-px h-6 bg-gray-200/80 self-center" />
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Current</span>
-                      <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portAmps.toFixed(2)} A</span>
+                      <span className={`text-xs md:text-sm font-semibold whitespace-nowrap transition-colors duration-500 ${
+                        isDrawing ? 'text-maroon-800 font-bold' : portData.relay_status ? 'text-gray-600' : 'text-gray-400'
+                      }`}>
+                        {portAmps.toFixed(2)} A
+                      </span>
                     </div>
                   </div>
                 </div>
