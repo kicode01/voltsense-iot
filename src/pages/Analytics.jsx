@@ -530,9 +530,6 @@ const Analytics = () => {
                 {rangeLabel(timeRange)}
               </span>
             </h3>
-            <p className="hidden sm:block text-[11px] text-gray-400 font-medium mt-0.5">
-              Structured telemetry summary and interval consumption logs per port.
-            </p>
           </div>
 
           {/* Segmented Filter Pills */}
