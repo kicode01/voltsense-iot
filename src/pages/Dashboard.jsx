@@ -493,33 +493,23 @@ const Dashboard = () => {
             <p className="text-sm md:text-base font-bold text-gray-900 leading-tight">
               {occupied ? 'Occupant Present' : 'Room Vacant'}
             </p>
-            <div className="grid grid-cols-2 gap-2 mt-3 pt-2.5 border-t border-gray-100/80">
-              <div className="flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full transition-colors duration-300 shrink-0 ${
-                  pirActive ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]' : 'bg-gray-300'
-                }`} />
-                <div className="min-w-0">
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block leading-none mb-0.5">PIR Motion</span>
-                  <span className={`text-xs font-semibold leading-tight block truncate ${
-                    pirActive ? 'text-gray-900 font-bold' : 'text-gray-400'
-                  }`}>
-                    {pirActive ? 'Detected' : 'Clear'}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 border-l border-gray-100 pl-2">
-                <span className={`w-2 h-2 rounded-full transition-colors duration-300 shrink-0 ${
-                  mmwaveActive ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]' : 'bg-gray-300'
-                }`} />
-                <div className="min-w-0">
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block leading-none mb-0.5">mmWave</span>
-                  <span className={`text-xs font-semibold leading-tight block truncate ${
-                    mmwaveActive ? 'text-gray-900 font-bold' : 'text-gray-400'
-                  }`}>
-                    {mmwaveActive ? 'Detected' : 'Clear'}
-                  </span>
-                </div>
-              </div>
+            <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] md:text-[11px] font-medium border transition-colors duration-300 ${
+                pirActive 
+                  ? 'bg-maroon-50 text-maroon-900 border-maroon-200/80 font-semibold' 
+                  : 'bg-white/50 text-gray-400 border-gray-200/60'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${pirActive ? 'bg-maroon-700' : 'bg-gray-300'}`} />
+                PIR Motion
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] md:text-[11px] font-medium border transition-colors duration-300 ${
+                mmwaveActive 
+                  ? 'bg-maroon-50 text-maroon-900 border-maroon-200/80 font-semibold' 
+                  : 'bg-white/50 text-gray-400 border-gray-200/60'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full transition-colors duration-300 ${mmwaveActive ? 'bg-maroon-700' : 'bg-gray-300'}`} />
+                mmWave Radar
+              </span>
             </div>
           </div>
         </div>
