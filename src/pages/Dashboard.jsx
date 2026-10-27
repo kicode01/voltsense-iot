@@ -536,7 +536,7 @@ const Dashboard = () => {
             return (
               <div 
                 key={portId} 
-                className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] p-4 md:p-5 flex flex-col justify-between transition-all duration-500 ease-apple-spring hover:shadow-lg hover:-translate-y-0.5 group animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" 
+                className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.03)] p-4 md:p-5 flex flex-col justify-between transition-all duration-500 ease-apple-spring animate-in fade-in slide-in-from-bottom-4 duration-500 fill-mode-both" 
                 style={{ animationDelay: `${400 + (index * 100)}ms` }}
               >
                 <div>
@@ -548,7 +548,7 @@ const Dashboard = () => {
                           portData.relay_status ? 'bg-maroon-50 text-maroon-800 shadow-inner' : 'bg-gray-100 text-gray-400'
                         }`}
                       >
-                        <Plug strokeWidth={1.5} className="w-5 h-5 transition-transform duration-500 ease-apple-spring group-hover:scale-110" />
+                        <Plug strokeWidth={1.5} className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
                         <h3 className="text-base font-bold text-gray-900 leading-tight">
