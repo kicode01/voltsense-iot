@@ -6,7 +6,10 @@ import { db } from '../lib/firebase';
 // chronologically as plain strings, so newest-first is a reverse key sort — no need to read `at`
 // off every entry. Entries written by api/alert.js always have an `at`, but sorting on the key
 // means a malformed entry can still be placed sensibly instead of landing at the top.
-const byKeyDesc = (a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+const byKeyDesc = (a, b) => {
+  if (a.at !== b.at) return b.at - a.at;
+  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+};
 
 /**
  * Read the alert history for a device and track which entries this user has already seen.
@@ -145,7 +148,7 @@ export const useAlerts = (deviceId, userId) => {
     // the Alerts page re-runs this once the marker resolves.
     if (markerLoading) return false;
 
-    const newest = alerts[0].at;
+    const newest = alerts.reduce((max, a) => (a.at > max ? a.at : max), 0);
     // Bail out when the marker is already current: this runs on every Alerts-page mount and a
     // redundant write would bump `updated_at` and wake every listener for no reason.
     if (lastSeenId !== null && lastSeenId >= newest) return false;
