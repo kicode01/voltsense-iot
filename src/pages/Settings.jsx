@@ -620,14 +620,15 @@ const Settings = () => {
         <div className="flex items-center gap-2">
           <button 
             onClick={toggleGodMode}
-            className={`shrink-0 flex items-center gap-1.5 px-3 md:px-4 py-2 md:py-2.5 rounded-xl md:rounded-2xl border text-[10px] md:text-sm font-bold uppercase tracking-wider transition-all duration-300 ease-apple-spring ${
+            title={godMode ? 'God Mode Active (Click to disable)' : 'Enable God Mode / Demo Suite'}
+            aria-label={godMode ? 'God Mode Active' : 'Enable God Mode'}
+            className={`shrink-0 flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-xl md:rounded-2xl border transition-all duration-300 ease-apple-spring ${
               godMode
-                ? 'bg-amber-400 text-black border-amber-500 shadow-md shadow-amber-400/20'
-                : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                ? 'bg-amber-400 text-amber-950 border-amber-500 shadow-sm shadow-amber-400/30 ring-2 ring-amber-300/60'
+                : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300'
             }`}
           >
-            <Zap className={`w-3.5 h-3.5 md:w-4 md:h-4 shrink-0 ${godMode ? 'fill-current animate-pulse' : ''}`} />
-            <span>{godMode ? 'God Mode ON' : 'God Mode'}</span>
+            <Zap className={`w-4 h-4 md:w-4.5 md:h-4.5 shrink-0 ${godMode ? 'fill-current animate-pulse text-amber-950' : 'text-amber-700'}`} />
           </button>
           <button 
             onClick={handleSignOut}
