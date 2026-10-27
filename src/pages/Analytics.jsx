@@ -593,10 +593,10 @@ const Analytics = () => {
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
                         !outlet.isRelayOn
-                          ? 'bg-gray-100 text-gray-400 border-gray-200/60'
+                          ? 'bg-gray-100/80 text-gray-400 border-gray-200/80 shadow-inner'
                           : isDrawing
-                          ? 'bg-maroon-800 text-white border-maroon-900 shadow-sm shadow-maroon-900/20'
-                          : 'bg-maroon-50 text-maroon-800 border-maroon-200/70 shadow-2xs'
+                          ? 'bg-maroon-50 text-maroon-800 border-maroon-200 shadow-inner'
+                          : 'bg-maroon-50/50 text-maroon-700 border-maroon-100 shadow-inner'
                       }`}>
                         <Plug strokeWidth={1.5} className="w-4 h-4" />
                       </div>
@@ -606,20 +606,13 @@ const Analytics = () => {
                     </div>
 
                     {/* Live Status Pill matching Dashboard */}
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 ${
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 ${
                       !outlet.isRelayOn 
                         ? 'bg-gray-100 text-gray-500 border-gray-200/90' 
                         : isDrawing
-                        ? 'bg-maroon-800 text-white border-maroon-900 shadow-sm shadow-maroon-900/20'
-                        : 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80 shadow-2xs'
+                        ? 'bg-maroon-800 text-white border-maroon-900'
+                        : 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80'
                     }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-300 ${
-                        !outlet.isRelayOn 
-                          ? 'bg-gray-400 ring-1 ring-gray-200' 
-                          : isDrawing
-                          ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)] animate-pulse'
-                          : 'bg-maroon-600 ring-2 ring-maroon-200'
-                      }`} />
                       {!outlet.isRelayOn ? 'Switched Off' : isDrawing ? 'Active' : 'Standby'}
                     </span>
                   </div>
