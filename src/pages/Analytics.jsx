@@ -535,11 +535,11 @@ const Analytics = () => {
             </p>
           </div>
 
-          {/* Segmented Filter Pills (Full-width 4-col grid on mobile, inline on desktop) */}
-          <div className="grid grid-cols-4 sm:flex items-center gap-1 bg-gray-50 p-1 rounded-2xl w-full sm:w-auto shrink-0 border border-gray-100">
+          {/* Segmented Filter Pills */}
+          <div className="flex items-center gap-1 bg-gray-50 p-1 rounded-2xl self-start sm:self-auto shrink-0 border border-gray-100">
             <button
               onClick={() => setSelectedOutletTab('all')}
-              className={`px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap text-center ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
                 selectedOutletTab === 'all'
                   ? 'bg-white text-maroon-800 shadow-2xs font-extrabold'
                   : 'text-gray-500 hover:text-gray-900'
@@ -547,18 +547,18 @@ const Analytics = () => {
             >
               All
             </button>
-            {outletList.map((outlet) => (
+            {outletList.map((outlet, idx) => (
               <button
                 key={`tab-${outlet.id}`}
                 onClick={() => setSelectedOutletTab(outlet.id)}
                 aria-label={`Filter by ${outlet.name}`}
-                className={`px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap text-center ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
                   selectedOutletTab === outlet.id
                     ? 'bg-white text-maroon-800 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                {outlet.name}
+                {idx + 1}
               </button>
             ))}
           </div>
