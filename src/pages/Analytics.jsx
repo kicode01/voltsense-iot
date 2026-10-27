@@ -581,7 +581,7 @@ const Analytics = () => {
             return (
               <div 
                 key={outlet.id} 
-                className={`border rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-lg group ${
+                className={`border rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 ${
                   isDrawing
                     ? 'bg-white border-maroon-200/90 shadow-md shadow-maroon-900/5'
                     : outlet.isRelayOn
