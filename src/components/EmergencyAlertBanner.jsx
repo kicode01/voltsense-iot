@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, ShieldCheck, Volume2, X, Loader2 } from 'lucide-react';
 import { useRoomData } from '../hooks/useRoomData';
 import { playEmergencyAlarm } from '../lib/soundAlert';
+import { showSystemNotification } from '../lib/pushNotifications';
 
 export const EmergencyAlertBanner = ({ activeDeviceId }) => {
   const { roomData, setOverride, updateDeviceSetting } = useRoomData(activeDeviceId);
@@ -17,12 +18,22 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
   // Listen to custom demo alert events fired locally from God Mode or Demo triggers
   useEffect(() => {
     const handleTriggerAlert = (event) => {
-      const countdownSec = event.detail?.seconds || 30;
+      const countdownSec = event.detail?.seconds || 15;
+      const alertUntil = event.detail?.alertUntil || Date.now() + countdownSec * 1000;
+      const uniqueTag = event.detail?.tag || `volt-sense-shutdown-${alertUntil}`;
+
+      lastRemoteAlertUntilRef.current = alertUntil;
       setSimulatedCountdown(countdownSec);
       setSimulatedAlert(true);
       setDismissed(false);
       playEmergencyAlarm();
       lastAlarmTimeRef.current = Date.now();
+
+      showSystemNotification('Auto-Shutdown Warning', {
+        body: `The room has been empty. Devices will shut down in ${countdownSec} seconds unless you keep them on.`,
+        tag: uniqueTag,
+        data: { url: '/dashboard' }
+      });
     };
 
     const handleCancelAlert = () => {
@@ -58,6 +69,12 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
         setDismissed(false);
         playEmergencyAlarm();
         lastAlarmTimeRef.current = Date.now();
+
+        showSystemNotification('Auto-Shutdown Warning', {
+          body: `The room has been empty. Devices will shut down in ${remainingSec} seconds unless you keep them on.`,
+          tag: `volt-sense-shutdown-${remoteAlertUntil}`,
+          data: { url: '/dashboard' }
+        });
       }
     }
   }, [remoteAlertUntil]);

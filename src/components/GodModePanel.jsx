@@ -162,19 +162,22 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
 
   // Trigger Response Window Banner, Audio & Cross-Device Push Notification
   const handleTriggerSimulatedAlert = async (seconds = 15) => {
+    const now = Date.now();
+    const alertUntil = now + seconds * 1000;
+    const uniqueTag = `volt-sense-shutdown-${alertUntil}`;
+
     window.dispatchEvent(
       new CustomEvent('voltsense-trigger-alert', {
-        detail: { seconds }
+        detail: { seconds, alertUntil, tag: uniqueTag }
       })
     );
     playEmergencyAlarm();
 
     if (!activeDeviceId) return;
 
-    const now = Date.now();
     // 1. Broadcast live countdown banner & siren to all open clients subscribed to this ESP32
     updateDeviceSettings({
-      simulated_alert_until: now + seconds * 1000,
+      simulated_alert_until: alertUntil,
       simulated_alert_seconds: seconds
     }).catch((err) => {
       console.warn('Could not broadcast simulated alert state:', err);
@@ -194,7 +197,7 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
             mac: activeDeviceId,
             title: 'Auto-Shutdown Warning',
             body: `The room has been empty. Devices will shut down in ${seconds} seconds unless you keep them on.`,
-            tag: 'volt-sense-shutdown'
+            tag: uniqueTag
           })
         });
       }
