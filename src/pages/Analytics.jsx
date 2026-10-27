@@ -548,9 +548,10 @@ const Analytics = () => {
               <button
                 key={`tab-${outlet.id}`}
                 onClick={() => setSelectedOutletTab(outlet.id)}
+                aria-label={`Filter by ${outlet.name}`}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
                   selectedOutletTab === outlet.id
-                    ? 'bg-white text-gray-900 shadow-2xs font-extrabold'
+                    ? 'bg-white text-maroon-800 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
@@ -574,92 +575,114 @@ const Analytics = () => {
               : 'grid grid-cols-1 max-w-xl mx-auto'
           }`}
         >
-          {displayedOutlets.map((outlet) => (
-            <div 
-              key={outlet.id} 
-              className={`bg-gray-50/50 hover:bg-white border border-gray-100 rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:border-gray-200/80 group ${
-                displayedOutlets.length > 1 ? 'w-[86vw] sm:w-[320px] md:w-auto shrink-0 snap-center' : 'w-full'
-              }`}
-            >
-              <div>
-                {/* Header: Label, Icon, Status */}
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-maroon-50 text-maroon-800 flex items-center justify-center shrink-0 border border-maroon-100/60">
-                      <Plug strokeWidth={1.5} className="w-4 h-4" />
+          {displayedOutlets.map((outlet) => {
+            const isDrawing = outlet.isRelayOn && (outlet.watts > 1.5 || outlet.amps > 0.02);
+
+            return (
+              <div 
+                key={outlet.id} 
+                className={`border rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-lg group ${
+                  isDrawing
+                    ? 'bg-white border-maroon-200/90 shadow-md shadow-maroon-900/5'
+                    : outlet.isRelayOn
+                    ? 'bg-white/80 border-gray-200/70 shadow-[0_8px_30px_rgb(0,0,0,0.02)]'
+                    : 'bg-gray-50/60 border-gray-100 opacity-90'
+                } ${
+                  displayedOutlets.length > 1 ? 'w-[86vw] sm:w-[320px] md:w-auto shrink-0 snap-center' : 'w-full'
+                }`}
+              >
+                <div>
+                  {/* Header: Label, Icon, Status */}
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
+                        !outlet.isRelayOn
+                          ? 'bg-gray-100 text-gray-400 border-gray-200/60'
+                          : isDrawing
+                          ? 'bg-maroon-800 text-white border-maroon-900 shadow-sm shadow-maroon-900/20'
+                          : 'bg-maroon-50 text-maroon-800 border-maroon-200/70 shadow-2xs'
+                      }`}>
+                        <Plug strokeWidth={1.5} className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
+                        {outlet.name}
+                      </h4>
                     </div>
-                    <h4 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
-                      {outlet.name}
-                    </h4>
-                  </div>
 
-                  {/* Live Status Pill matching Dashboard */}
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all ${
-                    !outlet.isRelayOn 
-                      ? 'bg-gray-100 text-gray-400 border-gray-200' 
-                      : (outlet.watts > 6 || outlet.amps > 0.08)
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${
+                    {/* Live Status Pill matching Dashboard */}
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 ${
                       !outlet.isRelayOn 
-                        ? 'bg-gray-400' 
-                        : (outlet.watts > 6 || outlet.amps > 0.08)
-                        ? 'bg-emerald-500 animate-pulse'
-                        : 'bg-amber-500'
-                    }`} />
-                    {!outlet.isRelayOn ? 'Off' : (outlet.watts > 6 || outlet.amps > 0.08) ? 'Active' : 'Standby'}
-                  </span>
-                </div>
-
-                {/* Energy Consumption Metric */}
-                <div className="my-3">
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                      {outlet.energyKwh.toFixed(2)}
+                        ? 'bg-gray-100 text-gray-500 border-gray-200/90' 
+                        : isDrawing
+                        ? 'bg-maroon-800 text-white border-maroon-900 shadow-sm shadow-maroon-900/20'
+                        : 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80 shadow-2xs'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors duration-300 ${
+                        !outlet.isRelayOn 
+                          ? 'bg-gray-400 ring-1 ring-gray-200' 
+                          : isDrawing
+                          ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)] animate-pulse'
+                          : 'bg-maroon-600 ring-2 ring-maroon-200'
+                      }`} />
+                      {!outlet.isRelayOn ? 'Switched Off' : isDrawing ? 'Active' : 'Standby'}
                     </span>
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
+                  </div>
+
+                  {/* Energy Consumption Metric */}
+                  <div className="my-3">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
+                        {outlet.energyKwh.toFixed(2)}
+                      </span>
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
+                    </div>
+                  </div>
+
+                  {/* Live Electrical Telemetry: 2-column stats row */}
+                  <div className="grid grid-cols-2 gap-3 py-3 border-t border-gray-100">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        Voltage
+                      </span>
+                      <span className={`text-sm font-semibold transition-colors duration-300 ${
+                        outlet.isRelayOn ? 'text-gray-800' : 'text-gray-400'
+                      }`}>
+                        {outlet.isRelayOn ? `${outlet.volts.toFixed(0)} V` : '0 V'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
+                        Current
+                      </span>
+                      <span className={`text-sm font-semibold transition-colors duration-300 ${
+                        isDrawing ? 'text-maroon-800 font-bold' : outlet.isRelayOn ? 'text-gray-600' : 'text-gray-400'
+                      }`}>
+                        {outlet.amps.toFixed(2)} A
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Live Electrical Telemetry: 2-column stats row */}
-                <div className="grid grid-cols-2 gap-3 py-3 border-t border-gray-100">
-                  <div>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-                      Voltage
-                    </span>
-                    <span className="text-sm font-semibold text-gray-800">
-                      {outlet.volts.toFixed(0)} V
+                {/* Active Power Footnote with Formula */}
+                <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-[10px] text-gray-400">P = V × I</span>
+                    <span className="font-mono text-[10px] text-gray-400 hidden sm:inline">
+                      ({outlet.isRelayOn ? outlet.volts.toFixed(0) : '0'}V × {outlet.amps.toFixed(2)}A)
                     </span>
                   </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-                      Current
+                  <div className="flex items-baseline gap-1">
+                    <span className={`text-xs font-bold transition-colors duration-300 ${
+                      isDrawing ? 'text-maroon-800 font-extrabold' : 'text-gray-400'
+                    }`}>
+                      {outlet.isRelayOn ? outlet.watts.toFixed(1) : '0.0'}
                     </span>
-                    <span className="text-sm font-semibold text-gray-800">
-                      {outlet.amps.toFixed(2)} A
-                    </span>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase">{powerUnitShort}</span>
                   </div>
                 </div>
               </div>
-
-              {/* Active Power Footnote with Formula */}
-              <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-mono text-[10px] text-gray-400">P = V × I</span>
-                  <span className="font-mono text-[10px] text-gray-400 hidden sm:inline">
-                    ({outlet.volts.toFixed(0)}V × {outlet.amps.toFixed(2)}A)
-                  </span>
-                </div>
-                <div className="flex items-baseline gap-1">
-                  <span className={`text-xs font-bold ${outlet.watts > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
-                    {outlet.watts.toFixed(1)}
-                  </span>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase">{powerUnitShort}</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Carousel Pagination Dots (Mobile Only when All are shown) */}
