@@ -372,7 +372,7 @@ const Dashboard = () => {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-5">
-        <div className="joyride-system-load lg:col-span-7 h-full bg-gradient-to-br from-maroon-800 to-maroon-950 p-5 md:p-6 rounded-3xl shadow-2xl shadow-maroon-900/30 text-white relative overflow-hidden transition-transform duration-500 hover:-translate-y-1 flex flex-col justify-between">
+        <div className="joyride-system-load lg:col-span-7 h-full bg-gradient-to-br from-maroon-800 to-maroon-950 p-5 md:p-6 rounded-3xl shadow-2xl shadow-maroon-900/30 text-white relative overflow-hidden flex flex-col justify-between">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
           <div className="absolute bottom-0 left-0 w-40 h-40 bg-maroon-500/20 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4" />
           
