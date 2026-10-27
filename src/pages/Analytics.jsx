@@ -542,24 +542,20 @@ const Analytics = () => {
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              All Ports
+              All
             </button>
-            {outletList.map((outlet) => (
+            {outletList.map((outlet, idx) => (
               <button
                 key={`tab-${outlet.id}`}
                 onClick={() => setSelectedOutletTab(outlet.id)}
                 aria-label={`Filter by ${outlet.name}`}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
                   selectedOutletTab === outlet.id
                     ? 'bg-white text-maroon-800 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                <span
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: outlet.color }}
-                />
-                {outlet.name}
+                {idx + 1}
               </button>
             ))}
           </div>
