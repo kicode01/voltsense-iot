@@ -8,7 +8,8 @@ import {
   Check,
   ShieldAlert,
   Sparkles,
-  SlidersHorizontal
+  SlidersHorizontal,
+  RotateCcw
 } from 'lucide-react';
 import { useRoomData } from '../hooks/useRoomData';
 import { playEmergencyAlarm, playSuccessChime } from '../lib/soundAlert';
@@ -18,7 +19,6 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
 
   const [savingKey, setSavingKey] = useState(null);
   const [successKey, setSuccessKey] = useState(null);
-  const [testNotificationStatus, setTestNotificationStatus] = useState('');
 
   // Local editable values initialized from roomData.settings
   const settings = roomData?.settings || {};
@@ -37,29 +37,13 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
   const forcePir = settings.force_pir !== undefined ? Number(settings.force_pir) : -1;
 
   // Calibration and Accuracy Settings
-  const acs712MvPerAmp = Number(settings.acs712_mv_per_amp ?? 123.33);
-  const currentNoiseFloorA = Number(settings.current_noise_floor_a ?? 0.03);
-  const currentCalMultiplier = Number(settings.current_cal_multiplier ?? 1.0);
-  const voltageCalMvPerV = Number(settings.voltage_cal_mv_per_v ?? 4.545);
-  const sensorFusionMode = settings.sensor_fusion_mode || 'OR';
 
   // Live sensor readings & telemetry
   const pirDetected = Boolean(roomData?.pir_detected);
   const mmwaveDetected = Boolean(roomData?.mmwave_detected);
   const isOccupied = Boolean(roomData?.is_occupied);
 
-  const liveVoltage = roomData?.voltage ?? roomData?.ports?.port1?.voltage ?? 220;
-  const livePort1A = Number(roomData?.ports?.port1?.current || 0);
-  const livePort2A = Number(roomData?.ports?.port2?.current || 0);
-  const livePort3A = Number(roomData?.ports?.port3?.current || 0);
-  const liveTotalA = Number((livePort1A + livePort2A + livePort3A).toFixed(3));
 
-  // Notification permission check
-  const [permission, setPermission] = useState(() =>
-    typeof window !== 'undefined' && typeof window.Notification !== 'undefined'
-      ? window.Notification.permission
-      : 'unsupported'
-  );
 
   const showSuccess = (key) => {
     setSuccessKey(key);
@@ -81,33 +65,7 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
     }
   };
 
-  const handleAutoCalibrateVoltage = async () => {
-    setSavingKey('auto_cal_voltage');
-    try {
-      if (activeDeviceId) {
-        await updateDeviceSetting('auto_calibrate_voltage', true);
-      }
-      showSuccess('auto_cal_voltage');
-    } catch (err) {
-      console.error('Voltage auto-cal error:', err);
-    } finally {
-      setSavingKey(null);
-    }
-  };
 
-  const handleZeroTareCurrent = async () => {
-    setSavingKey('zero_tare_current');
-    try {
-      if (activeDeviceId) {
-        await updateDeviceSetting('calibrate_current_zero', true);
-      }
-      showSuccess('zero_tare_current');
-    } catch (err) {
-      console.error('Current zero-tare error:', err);
-    } finally {
-      setSavingKey(null);
-    }
-  };
 
   // One-Tap Presets
   const applyPreset = async (presetType) => {
@@ -192,50 +150,6 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
       console.error('Failed to restore defaults:', err);
     } finally {
       setSavingKey(null);
-    }
-  };
-
-  // Push notification tester
-  const handleTestPushNotification = async () => {
-    try {
-      if (typeof window === 'undefined' || typeof window.Notification === 'undefined') {
-        setTestNotificationStatus('Notifications unsupported in this browser');
-        return;
-      }
-
-      let perm = window.Notification.permission;
-      if (perm === 'default') {
-        perm = await window.Notification.requestPermission();
-        setPermission(perm);
-      }
-
-      if (perm !== 'granted') {
-        setTestNotificationStatus('Permission not granted');
-        return;
-      }
-
-      setTestNotificationStatus('Dispatching notification…');
-      playEmergencyAlarm();
-
-      const reg = await navigator.serviceWorker?.getRegistration();
-      const payload = {
-        body: '🚨 VoltSense Demonstration: Inactivity shutdown countdown started! Open app to override.',
-        icon: '/logo.svg',
-        vibrate: [200, 100, 200],
-        tag: 'voltsense-demo-alert',
-        renotify: true
-      };
-
-      if (reg && reg.showNotification) {
-        await reg.showNotification('VoltSense Emergency Warning', payload);
-      } else {
-        new Notification('VoltSense Emergency Warning', payload);
-      }
-      setTestNotificationStatus('Notification fired successfully!');
-      setTimeout(() => setTestNotificationStatus(''), 4000);
-    } catch (err) {
-      console.error('Push test error:', err);
-      setTestNotificationStatus('Failed to display notification');
     }
   };
 
@@ -772,11 +686,6 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
           </button>
         </div>
 
-        {testNotificationStatus && (
-          <p className="mt-3 text-xs font-mono text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl animate-in fade-in">
-            {testNotificationStatus}
-          </p>
-        )}
 
         <div className="mt-4 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 gap-2">
           <span>Looking to tune permanent hardware calibration factors?</span>

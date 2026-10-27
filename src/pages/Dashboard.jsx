@@ -65,7 +65,7 @@ const Dashboard = () => {
   const [turningOn, setTurningOn] = useState(false);
   const [turningOff, setTurningOff] = useState(false);
   const [optimisticRelays, setOptimisticRelays] = useState({});
-  const [pendingPorts, setPendingPorts] = useState({});
+  const [pendingPorts] = useState({});
   const [overridePending, setOverridePending] = useState(false);
   const [actionError, setActionError] = useState(null);
 
@@ -101,9 +101,10 @@ const Dashboard = () => {
 
   // Clean up all timers on unmount
   useEffect(() => {
+    const timers = debounceTimersRef.current;
     return () => {
       clearTimeout(masterTimerRef.current);
-      Object.values(debounceTimersRef.current).forEach(t => t && clearTimeout(t));
+      Object.values(timers).forEach(t => t && clearTimeout(t));
     };
   }, []);
 
