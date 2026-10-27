@@ -632,7 +632,7 @@ const Dashboard = () => {
               ? (rawWatts > 0.5 ? rawWatts.toFixed(1) : calculatedWatts)
               : '0.0';
             const displayWatts = portWatts;
-            const portPowerUnit = 'W';
+            const portPowerUnit = powerIsMeasured ? 'W' : 'VA';
 
             return (
               <div 
