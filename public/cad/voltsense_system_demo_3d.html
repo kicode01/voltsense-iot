@@ -1936,19 +1936,7 @@
              =============================================================== -->
         <div class="pwa-tab-view active" id="pwa-view-dashboard">
 
-          <!-- Demo Notice Banner (Matches Dashboard.jsx lines 340-360) -->
-          <div class="pwa-demo-banner">
-            <div style="display:flex; align-items:center; gap:10px;">
-              <div style="padding:6px; background:#FEE2E2; color:#DC2626; border-radius:12px; display:flex; align-items:center; justify-content:center;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></svg>
-              </div>
-              <p style="font-size:12px; font-weight:700; color:#111827; margin:0;">No device paired. Showing demo data.</p>
-            </div>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <button onclick="simulateOvercurrentEvent()" style="appearance:none; border:none; background:none; font-size:11px; font-weight:700; color:#612f2f; text-decoration:underline; cursor:pointer;">Simulate Alert</button>
-              <button onclick="document.getElementById('pwa-dev-dd').classList.add('open')" style="appearance:none; border:none; background:#612f2f; color:#FFFFFF; font-size:11px; font-weight:700; padding:6px 12px; border-radius:12px; cursor:pointer;">Pair Device</button>
-            </div>
-          </div>
+
 
           <!-- Auto-Shutdown In Banner (Dashboard.jsx lines 349-383) -->
           <div id="pwa-alert-modal">
@@ -2179,7 +2167,7 @@
              TAB 2: ANALYTICS (Exact 1:1 with src/pages/Analytics.jsx)
              =============================================================== -->
         <div class="pwa-tab-view" id="pwa-view-analytics">
-          <!-- Header Card (Analytics.jsx lines 126-141) -->
+          <!-- Header Card (Analytics.jsx lines 224-240) -->
           <div class="pwa-page-hdr-card">
             <div>
               <h2 class="pwa-page-hdr-title">Analytics</h2>
@@ -2192,7 +2180,7 @@
             </button>
           </div>
 
-          <!-- Metric Stat Cards (Analytics.jsx lines 244-306) -->
+          <!-- Metric Stat Cards (Analytics.jsx lines 342-371) -->
           <div class="bento-grid-2">
             <div class="pwa-white-section-card">
               <svg class="bento-watermark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"/><path d="m2 22 3-3"/><path d="M7.5 13.5 10 11"/><path d="M10.5 16.5 13 14"/><path d="m18 3-4 4h6l-4 4"/></svg>
@@ -2215,31 +2203,9 @@
                 </div>
               </div>
             </div>
-
-            <div class="pwa-white-section-card">
-              <svg class="bento-watermark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              <div style="position:relative; z-index:10;">
-                <div class="bento-micro-heading" style="color:#6B7280; margin-bottom:10px;">Avg Active Power</div>
-                <div style="display:flex; align-items:baseline; gap:6px;">
-                  <span style="font-size:30px; font-weight:700; color:#111827; letter-spacing:-0.04em;" id="ana-live-w">112</span>
-                  <span style="font-size:12px; font-weight:700; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.1em;">Watts</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="pwa-white-section-card">
-              <svg class="bento-watermark-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-              <div style="position:relative; z-index:10;">
-                <div class="bento-micro-heading" style="color:#6B7280; margin-bottom:10px;">Room Utilization</div>
-                <div style="display:flex; align-items:baseline; gap:6px;">
-                  <span style="font-size:30px; font-weight:700; color:#111827; letter-spacing:-0.04em;">78</span>
-                  <span style="font-size:12px; font-weight:700; color:#9CA3AF; text-transform:uppercase; letter-spacing:0.1em;">% time</span>
-                </div>
-              </div>
-            </div>
           </div>
 
-          <!-- Energy Usage (kWh) AreaChart Card (Analytics.jsx lines 311-375) -->
+          <!-- Energy Usage (kWh) AreaChart Card (Analytics.jsx lines 409-473) -->
           <div class="pwa-white-section-card">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
               <h3 class="bento-micro-heading" style="color:#6B7280; margin:0;">Energy Usage (kWh)</h3>
@@ -2252,27 +2218,22 @@
                   <stop offset="95%" stop-color="#852636" stop-opacity="0"/>
                 </linearGradient>
               </defs>
-              <!-- Dashed CartesianGrid -->
               <line x1="32" y1="20" x2="330" y2="20" stroke="#f3f4f6" stroke-dasharray="3 3"/>
               <line x1="32" y1="55" x2="330" y2="55" stroke="#f3f4f6" stroke-dasharray="3 3"/>
               <line x1="32" y1="90" x2="330" y2="90" stroke="#f3f4f6" stroke-dasharray="3 3"/>
               <line x1="32" y1="125" x2="330" y2="125" stroke="#f3f4f6" stroke-dasharray="3 3"/>
-              <!-- YAxis Labels -->
               <text x="26" y="24" text-anchor="end" fill="#9ca3af" font-size="10">0.30</text>
               <text x="26" y="59" text-anchor="end" fill="#9ca3af" font-size="10">0.20</text>
               <text x="26" y="94" text-anchor="end" fill="#9ca3af" font-size="10">0.10</text>
               <text x="26" y="129" text-anchor="end" fill="#9ca3af" font-size="10">0.00</text>
-              <!-- Monotone Area & Stroke (#852636) -->
               <path d="M 42 95 C 68 92, 82 52, 100 48 C 118 44, 138 118, 158 118 C 178 118, 198 42, 216 38 C 234 34, 254 28, 274 32 C 294 36, 310 26, 324 24 L 324 125 L 42 125 Z" fill="url(#rechartsKwh)"/>
               <path d="M 42 95 C 68 92, 82 52, 100 48 C 118 44, 138 118, 158 118 C 178 118, 198 42, 216 38 C 234 34, 254 28, 274 32 C 294 36, 310 26, 324 24" fill="none" stroke="#852636" stroke-width="2.8"/>
-              <!-- Data Dots -->
               <circle cx="42" cy="95" r="3" fill="#852636"/>
               <circle cx="100" cy="48" r="3" fill="#852636"/>
               <circle cx="158" cy="118" r="3" fill="#852636"/>
               <circle cx="216" cy="38" r="3" fill="#852636"/>
               <circle cx="274" cy="32" r="3" fill="#852636"/>
               <circle cx="324" cy="24" r="3.5" fill="#852636"/>
-              <!-- XAxis Labels -->
               <text x="42" y="146" text-anchor="middle" fill="#9ca3af" font-size="10">08:00</text>
               <text x="100" y="146" text-anchor="middle" fill="#9ca3af" font-size="10">10:00</text>
               <text x="158" y="146" text-anchor="middle" fill="#9ca3af" font-size="10">12:00</text>
@@ -2282,7 +2243,7 @@
             </svg>
           </div>
 
-          <!-- Occupancy Timeline BarChart Card (Analytics.jsx lines 378-423) -->
+          <!-- Occupancy Timeline BarChart Card (Analytics.jsx lines 476-521) -->
           <div class="pwa-white-section-card">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
               <h3 class="bento-micro-heading" style="color:#6B7280; margin:0;">Occupancy Timeline</h3>
@@ -2293,7 +2254,6 @@
               <line x1="32" y1="115" x2="330" y2="115" stroke="#f3f4f6" stroke-dasharray="3 3"/>
               <text x="26" y="28" text-anchor="end" fill="#9ca3af" font-size="10">Yes</text>
               <text x="26" y="119" text-anchor="end" fill="#9ca3af" font-size="10">No</text>
-              <!-- Bars (#852636, rx=4) -->
               <rect x="32" y="24" width="22" height="91" rx="4" fill="#852636"/>
               <rect x="89" y="24" width="22" height="91" rx="4" fill="#852636"/>
               <rect x="147" y="113" width="22" height="2" rx="1" fill="#E5E7EB"/>
@@ -2309,213 +2269,135 @@
             </svg>
           </div>
 
-          <!-- Per-Outlet Monitoring & Energy Breakdown Card -->
-          <div class="pwa-white-section-card" id="analytics-per-outlet-card">
+          <!-- Per-Port Readings & History (Analytics.jsx lines 524-654) -->
+          <div class="pwa-white-section-card">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
               <div>
-                <h3 class="bento-micro-heading" style="color:#111827; margin:0; font-size:13px; display:flex; align-items:center; gap:6px;">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#612f2f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-                  Per-Port Readings &amp; History
+                <h3 class="bento-micro-heading" style="color:#6B7280; margin:0; display:flex; align-items:center; gap:6px;">
+                  <span>Per-Port Readings &amp; History</span>
+                  <span style="font-size:9.5px; font-weight:700; color:#612f2f; background:rgba(97,47,47,0.08); border:1px solid rgba(97,47,47,0.15); padding:1px 6px; border-radius:6px;">TODAY</span>
                 </h3>
               </div>
-              <span style="font-size:10px; font-weight:700; text-transform:uppercase; color:#612f2f; background:rgba(97,47,47,0.08); padding:3px 8px; border-radius:8px; border:1px solid rgba(97,47,47,0.15);">
-                Rate: ₱12.00 / kWh
-              </span>
-            </div>
-
-            <!-- Outlet Cards Stack -->
-            <div style="display:flex; flex-direction:column; gap:12px;">
-              <!-- Port 1 Outlet Card -->
-              <div style="background:#F9FAFB; border:1px solid #F3F4F6; border-radius:16px; padding:12px; border-left:4px solid #852636;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                  <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="width:36px; height:36px; border-radius:12px; background:linear-gradient(135deg, #f3f4f6, #e5e7eb); border:1px solid rgba(209,213,219,0.7); box-shadow:inset 0 2px 4px rgba(0,0,0,0.06); color:#852636; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/><circle cx="12" cy="12" r="2"/></svg>
-                    </div>
-                    <div>
-                      <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase;">Port 1</span>
-                      <div style="font-size:12px; font-weight:700; color:#111827;">Electric Stand Fan</div>
-                    </div>
-                  </div>
-                  <span style="font-size:9px; font-weight:700; text-transform:uppercase; color:#047857; background:#ECFDF5; border:1px solid #A7F3D0; padding:2px 6px; border-radius:12px;">Active</span>
-                </div>
-                <!-- Energy & Progress -->
-                <div style="background:#fff; border:1px solid #E5E7EB; border-radius:10px; padding:8px 10px; margin-bottom:8px;">
-                  <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:700; color:#6B7280; margin-bottom:4px;">
-                    <span>Energy: <b style="color:#111827; font-size:13px;">1.85 kWh</b> (58% share)</span>
-                    <span style="color:#852636;">≈ ₱22.20</span>
-                  </div>
-                  <div style="width:100%; height:6px; background:#F3F4F6; border-radius:4px; overflow:hidden;">
-                    <div style="width:58%; height:100%; background:#852636; border-radius:4px;"></div>
-                  </div>
-                </div>
-                <!-- Telemetry 4-grid -->
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; font-size:11px;">
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Voltage</span>
-                    <b>220 V</b>
-                  </div>
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Current</span>
-                    <b>0.25 A</b>
-                  </div>
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Active Power</span>
-                    <b>55.2 W</b>
-                  </div>
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Power Factor</span>
-                    <b>0.98</b>
-                  </div>
-                </div>
-                <!-- Formula badge -->
-                <div style="background:rgba(97,47,47,0.06); border:1px solid rgba(97,47,47,0.15); border-radius:8px; padding:5px 8px; font-family:monospace; font-size:9.5px; color:#612f2f;">
-                  <div style="display:flex; justify-content:space-between; font-weight:700; margin-bottom:2px;">
-                    <span>Formula: P = V × I × PF</span>
-                    <span>53.9 W</span>
-                  </div>
-                  <div style="color:#4B5563;">220V × 0.25A × 0.98 = 53.9W</div>
-                </div>
-              </div>
-
-              <!-- Port 2 Outlet Card -->
-              <div style="background:#F9FAFB; border:1px solid #F3F4F6; border-radius:16px; padding:12px; border-left:4px solid #D97706;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                  <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="width:36px; height:36px; border-radius:12px; background:linear-gradient(135deg, #f3f4f6, #e5e7eb); border:1px solid rgba(209,213,219,0.7); box-shadow:inset 0 2px 4px rgba(0,0,0,0.06); color:#D97706; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2h8l4 10H4L8 2Z"/><path d="M12 12v6"/><path d="M8 22v-2c0-1.1.9-2 2-2h4a2 2 0 0 1 2 2v2H8Z"/></svg>
-                    </div>
-                    <div>
-                      <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase;">Port 2</span>
-                      <div style="font-size:12px; font-weight:700; color:#111827;">Study Desk Lamp</div>
-                    </div>
-                  </div>
-                  <span style="font-size:9px; font-weight:700; text-transform:uppercase; color:#047857; background:#ECFDF5; border:1px solid #A7F3D0; padding:2px 6px; border-radius:12px;">Active</span>
-                </div>
-                <!-- Energy & Progress -->
-                <div style="background:#fff; border:1px solid #E5E7EB; border-radius:10px; padding:8px 10px; margin-bottom:8px;">
-                  <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:700; color:#6B7280; margin-bottom:4px;">
-                    <span>Energy: <b style="color:#111827; font-size:13px;">0.35 kWh</b> (11% share)</span>
-                    <span style="color:#D97706;">≈ ₱4.20</span>
-                  </div>
-                  <div style="width:100%; height:6px; background:#F3F4F6; border-radius:4px; overflow:hidden;">
-                    <div style="width:11%; height:100%; background:#D97706; border-radius:4px;"></div>
-                  </div>
-                </div>
-                <!-- Telemetry 4-grid -->
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; font-size:11px;">
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Voltage</span>
-                    <b>220 V</b>
-                  </div>
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Current</span>
-                    <b>0.05 A</b>
-                  </div>
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Active Power</span>
-                    <b>12.0 W</b>
-                  </div>
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Power Factor</span>
-                    <b>0.95</b>
-                  </div>
-                </div>
-                <!-- Formula badge -->
-                <div style="background:rgba(217,119,6,0.06); border:1px solid rgba(217,119,6,0.2); border-radius:8px; padding:5px 8px; font-family:monospace; font-size:9.5px; color:#B45309;">
-                  <div style="display:flex; justify-content:space-between; font-weight:700; margin-bottom:2px;">
-                    <span>Formula: P = V × I × PF</span>
-                    <span>10.5 W</span>
-                  </div>
-                  <div style="color:#4B5563;">220V × 0.05A × 0.95 = 10.5W</div>
-                </div>
-              </div>
-
-              <!-- Port 3 Outlet Card -->
-              <div style="background:#F9FAFB; border:1px solid #F3F4F6; border-radius:16px; padding:12px; border-left:4px solid #2563EB;">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                  <div style="display:flex; align-items:center; gap:10px;">
-                    <div style="width:36px; height:36px; border-radius:12px; background:linear-gradient(135deg, #f3f4f6, #e5e7eb); border:1px solid rgba(209,213,219,0.7); box-shadow:inset 0 2px 4px rgba(0,0,0,0.06); color:#2563EB; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
-                    </div>
-                    <div>
-                      <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase;">Port 3</span>
-                      <div style="font-size:12px; font-weight:700; color:#111827;">Laptop &amp; Charger</div>
-                    </div>
-                  </div>
-                  <span style="font-size:9px; font-weight:700; text-transform:uppercase; color:#047857; background:#ECFDF5; border:1px solid #A7F3D0; padding:2px 6px; border-radius:12px;">Active</span>
-                </div>
-                <!-- Energy & Progress -->
-                <div style="background:#fff; border:1px solid #E5E7EB; border-radius:10px; padding:8px 10px; margin-bottom:8px;">
-                  <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:700; color:#6B7280; margin-bottom:4px;">
-                    <span>Energy: <b style="color:#111827; font-size:13px;">1.00 kWh</b> (31% share)</span>
-                    <span style="color:#2563EB;">≈ ₱12.00</span>
-                  </div>
-                  <div style="width:100%; height:6px; background:#F3F4F6; border-radius:4px; overflow:hidden;">
-                    <div style="width:31%; height:100%; background:#2563EB; border-radius:4px;"></div>
-                  </div>
-                </div>
-                <!-- Telemetry 4-grid -->
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px; font-size:11px;">
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Voltage</span>
-                    <b>220 V</b>
-                  </div>
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Current</span>
-                    <b>0.20 A</b>
-                  </div>
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Active Power</span>
-                    <b>44.8 W</b>
-                  </div>
-                  <div style="background:#fff; border:1px solid #E5E7EB; border-radius:8px; padding:5px 8px;">
-                    <span style="font-size:8.5px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Power Factor</span>
-                    <b>0.92</b>
-                  </div>
-                </div>
-                <!-- Formula badge -->
-                <div style="background:rgba(37,99,235,0.06); border:1px solid rgba(37,99,235,0.2); border-radius:8px; padding:5px 8px; font-family:monospace; font-size:9.5px; color:#1D4ED8;">
-                  <div style="display:flex; justify-content:space-between; font-weight:700; margin-bottom:2px;">
-                    <span>Formula: P = V × I × PF</span>
-                    <span>40.5 W</span>
-                  </div>
-                  <div style="color:#4B5563;">220V × 0.20A × 0.92 = 40.5W</div>
-                </div>
+              <!-- Segmented Filter Pills -->
+              <div style="display:flex; align-items:center; gap:4px; background:#F9FAFB; padding:3px; border-radius:12px; border:1px solid #F3F4F6;">
+                <button style="padding:3px 10px; border-radius:8px; font-size:11px; font-weight:800; background:#FFFFFF; color:#612f2f; border:none; box-shadow:0 1px 2px rgba(0,0,0,0.05); cursor:pointer;">All</button>
+                <button style="padding:3px 10px; border-radius:8px; font-size:11px; font-weight:700; background:transparent; color:#6B7280; border:none; cursor:pointer;">1</button>
+                <button style="padding:3px 10px; border-radius:8px; font-size:11px; font-weight:700; background:transparent; color:#6B7280; border:none; cursor:pointer;">2</button>
+                <button style="padding:3px 10px; border-radius:8px; font-size:11px; font-weight:700; background:transparent; color:#6B7280; border:none; cursor:pointer;">3</button>
               </div>
             </div>
 
-            <!-- Outlet Consumption Comparison Horizontal Bar Chart (SVG) -->
-            <div style="margin-top:14px; padding-top:12px; border-top:1px solid #F3F4F6;">
-              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-                <span style="font-size:10px; font-weight:700; text-transform:uppercase; color:#6B7280; letter-spacing:0.05em;">Outlet Energy Share Comparison</span>
-                <span style="font-size:10px; font-weight:600; color:#9CA3AF;">Total: 3.20 kWh</span>
+            <!-- Zero-Scroll Mobile Stacked Rows (Analytics.jsx lines 567-654) -->
+            <div style="border:1px solid #F3F4F6; border-radius:16px; overflow:hidden;">
+              <!-- Port 1 Row -->
+              <div style="padding:14px; border-bottom:1px solid #F3F4F6; background:rgba(97,47,47,0.02);">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;">
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                    <div style="width:32px; height:32px; border-radius:12px; background:#fdf2f2; color:#612f2f; border:1px solid #fbd5d5; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M9 5h6M7 8h10v5a5 5 0 0 1-5 5h0a5 5 0 0 1-5-5V8zM12 18v4"/></svg>
+                    </div>
+                    <span style="font-size:14px; font-weight:700; color:#111827;">Port 1</span>
+                    <span style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:9999px; font-size:10px; font-weight:700; background:#612f2f; color:#FFFFFF; border:1px solid #4a2424;">In Use</span>
+                  </div>
+                  <div style="text-align:right;">
+                    <span style="font-size:16px; font-weight:800; color:#111827;">0.85</span>
+                    <span style="font-size:10px; font-weight:700; color:#9CA3AF; text-transform:uppercase; margin-left:2px;">kWh</span>
+                  </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; background:rgba(249,250,251,0.8); border-radius:12px; padding:8px 10px; border:1px solid rgba(243,244,246,0.8); font-size:11px;">
+                  <div>
+                    <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Live</span>
+                    <span style="font-weight:700; color:#612f2f;">220V · 0.12A</span>
+                  </div>
+                  <div>
+                    <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Runtime</span>
+                    <span style="font-weight:600; color:#374151;">6.5 hrs</span>
+                  </div>
+                  <div style="text-align:right;">
+                    <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Avg Load</span>
+                    <span style="font-weight:600; color:#374151;">26 W</span>
+                  </div>
+                </div>
               </div>
-              <svg viewBox="0 0 340 90" style="width:100%; height:90px; overflow:visible;">
-                <!-- Port 1 Bar -->
-                <text x="0" y="16" fill="#4B5563" font-size="10" font-weight="600">Port 1 (Fan)</text>
-                <rect x="90" y="6" width="180" height="14" rx="4" fill="#852636"/>
-                <text x="278" y="17" fill="#852636" font-size="10" font-weight="700">1.85 kWh</text>
 
-                <!-- Port 2 Bar -->
-                <text x="0" y="44" fill="#4B5563" font-size="10" font-weight="600">Port 2 (Lamp)</text>
-                <rect x="90" y="34" width="34" height="14" rx="4" fill="#D97706"/>
-                <text x="132" y="45" fill="#D97706" font-size="10" font-weight="700">0.35 kWh</text>
+              <!-- Port 2 Row -->
+              <div style="padding:14px; border-bottom:1px solid #F3F4F6; background:rgba(97,47,47,0.02);">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;">
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                    <div style="width:32px; height:32px; border-radius:12px; background:#fdf2f2; color:#612f2f; border:1px solid #fbd5d5; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M9 5h6M7 8h10v5a5 5 0 0 1-5 5h0a5 5 0 0 1-5-5V8zM12 18v4"/></svg>
+                    </div>
+                    <span style="font-size:14px; font-weight:700; color:#111827;">Port 2</span>
+                    <span style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:9999px; font-size:10px; font-weight:700; background:#612f2f; color:#FFFFFF; border:1px solid #4a2424;">In Use</span>
+                  </div>
+                  <div style="text-align:right;">
+                    <span style="font-size:16px; font-weight:800; color:#111827;">0.42</span>
+                    <span style="font-size:10px; font-weight:700; color:#9CA3AF; text-transform:uppercase; margin-left:2px;">kWh</span>
+                  </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; background:rgba(249,250,251,0.8); border-radius:12px; padding:8px 10px; border:1px solid rgba(243,244,246,0.8); font-size:11px;">
+                  <div>
+                    <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Live</span>
+                    <span style="font-weight:700; color:#612f2f;">220V · 1.20A</span>
+                  </div>
+                  <div>
+                    <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Runtime</span>
+                    <span style="font-weight:600; color:#374151;">3.5 hrs</span>
+                  </div>
+                  <div style="text-align:right;">
+                    <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Avg Load</span>
+                    <span style="font-weight:600; color:#374151;">264 W</span>
+                  </div>
+                </div>
+              </div>
 
-                <!-- Port 3 Bar -->
-                <text x="0" y="72" fill="#4B5563" font-size="10" font-weight="600">Port 3 (Laptop)</text>
-                <rect x="90" y="62" width="97" height="14" rx="4" fill="#2563EB"/>
-                <text x="195" y="73" fill="#2563EB" font-size="10" font-weight="700">1.00 kWh</text>
-              </svg>
+              <!-- Port 3 Row -->
+              <div style="padding:14px; border-bottom:1px solid #F3F4F6;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;">
+                  <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                    <div style="width:32px; height:32px; border-radius:12px; background:rgba(243,244,246,0.8); color:#9CA3AF; border:1px solid rgba(229,231,235,0.8); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M9 5h6M7 8h10v5a5 5 0 0 1-5 5h0a5 5 0 0 1-5-5V8zM12 18v4"/></svg>
+                    </div>
+                    <span style="font-size:14px; font-weight:700; color:#111827;">Port 3</span>
+                    <span style="display:inline-flex; align-items:center; padding:2px 8px; border-radius:9999px; font-size:10px; font-weight:700; background:#F3F4F6; color:#6B7280; border:1px solid #E5E7EB;">Switched Off</span>
+                  </div>
+                  <div style="text-align:right;">
+                    <span style="font-size:16px; font-weight:800; color:#9CA3AF;">0.15</span>
+                    <span style="font-size:10px; font-weight:700; color:#9CA3AF; text-transform:uppercase; margin-left:2px;">kWh</span>
+                  </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; background:rgba(249,250,251,0.8); border-radius:12px; padding:8px 10px; border:1px solid rgba(243,244,246,0.8); font-size:11px;">
+                  <div>
+                    <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Live</span>
+                    <span style="font-weight:500; color:#9CA3AF;">0V · 0.00A</span>
+                  </div>
+                  <div>
+                    <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Runtime</span>
+                    <span style="font-weight:600; color:#374151;">1.2 hrs</span>
+                  </div>
+                  <div style="text-align:right;">
+                    <span style="font-size:9px; font-weight:700; color:#9CA3AF; text-transform:uppercase; display:block;">Avg Load</span>
+                    <span style="font-weight:600; color:#374151;">45 W</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Combined Summary Footer -->
+              <div style="background:#F9FAFB; padding:12px 14px; display:flex; align-items:center; justify-content:space-between; font-size:12px;">
+                <div>
+                  <span style="font-weight:700; color:#4B5563; display:block;">Total Combined (Today)</span>
+                  <span style="font-size:10px; font-weight:600; color:#9CA3AF;">11.2 hrs · 112 W avg</span>
+                </div>
+                <span style="font-size:14px; font-weight:800; color:#111827;">1.42 <span style="font-size:10px; font-weight:700; color:#9CA3AF; text-transform:uppercase;">kWh</span></span>
+              </div>
             </div>
           </div>
         </div>
-
-        <!-- ===============================================================
+<!-- ===============================================================
              TAB 3: ALERTS (Exact 1:1 with src/pages/Alerts.jsx)
              =============================================================== -->
         <div class="pwa-tab-view" id="pwa-view-alerts">
-          <!-- Header Card (Alerts.jsx lines 175-196) -->
+          <!-- Header Card (Alerts.jsx lines 154-175) -->
           <div class="pwa-page-hdr-card">
             <div>
               <h2 class="pwa-page-hdr-title">Alerts</h2>
@@ -2527,69 +2409,63 @@
             </button>
           </div>
 
-          <!-- Category Filter Pills (Alerts.jsx lines 199-220) -->
-          <div style="display:flex; align-items:center; gap:8px; overflow-x:auto; padding-bottom:2px;">
-            <button style="padding:6px 12px; border-radius:12px; font-family:'Outfit',sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; background:#612f2f; color:#FFFFFF; border:none; white-space:nowrap;">All</button>
-            <button style="padding:6px 12px; border-radius:12px; font-family:'Outfit',sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; background:rgba(255,255,255,0.8); color:#6B7280; border:1px solid #F3F4F6; white-space:nowrap;">Auto-Shutdown</button>
-            <button style="padding:6px 12px; border-radius:12px; font-family:'Outfit',sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; background:rgba(255,255,255,0.8); color:#6B7280; border:1px solid #F3F4F6; white-space:nowrap;">Overcurrent</button>
-            <button style="padding:6px 12px; border-radius:12px; font-family:'Outfit',sans-serif; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; background:rgba(255,255,255,0.8); color:#6B7280; border:1px solid #F3F4F6; white-space:nowrap;">System Notice</button>
-          </div>
-
-          <!-- Grouped Alerts List (Alerts.jsx lines 303-380) -->
-          <div>
-            <h2 class="bento-micro-heading" style="margin-bottom:8px; padding-left:4px;">Today</h2>
-            <div id="pwa-alerts-list" style="display:flex; flex-direction:column; gap:10px;">
-              <article style="border-radius:16px; border:1px solid rgba(229,205,205,0.8); background:#FFFFFF; box-shadow:0 4px 20px rgba(128,0,0,0.04); padding:16px; display:flex; align-items:flex-start; gap:14px;">
-                <div style="width:40px; height:40px; border-radius:16px; background:#f9f2f2; color:#612f2f; border:1px solid #f4e5e5; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+          <!-- Unified Event Log Container (Alerts.jsx lines 254-380) -->
+          <div class="pwa-white-section-card" style="padding:16px;">
+            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+              <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                <div>
+                  <h3 style="font-size:15px; font-weight:700; color:#111827; margin:0;">System Event Log</h3>
+                  <p style="font-size:11px; color:#6B7280; font-weight:500; margin:2px 0 0 0;">2 entries shown · newest first</p>
                 </div>
-                <div style="min-width:0; flex:1;">
-                  <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
-                    <div style="display:flex; align-items:center; gap:8px; min-width:0;">
-                      <h3 style="font-size:14px; font-weight:700; color:#111827; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Auto-Shutdown Warning</h3>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                      <span style="font-size:11px; font-weight:500; color:#9CA3AF;">12:15 PM</span>
-                      <span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; border:1px solid rgba(167,243,208,0.7); background:#ECFDF5; color:#047857; font-size:10px; font-weight:700;">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                        Delivered
-                      </span>
-                    </div>
+                <!-- Category Filter Pills (Alerts.jsx lines 263-281) -->
+                <div style="display:flex; align-items:center; gap:4px; background:#f2eeed; padding:3px; border-radius:12px; border:1px solid rgba(0,0,0,0.06);">
+                  <button style="padding:4px 10px; border-radius:8px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; background:#612f2f; color:#FFFFFF; border:none; box-shadow:0 1px 2px rgba(0,0,0,0.15); cursor:pointer;">All (2)</button>
+                  <button style="padding:4px 10px; border-radius:8px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; background:transparent; color:#6B7280; border:none; cursor:pointer;">Shutdown</button>
+                  <button style="padding:4px 10px; border-radius:8px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; background:transparent; color:#6B7280; border:none; cursor:pointer;">Overcurrent</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Stacked Log Rows (Alerts.jsx lines 295-350) -->
+            <div style="border:1px solid #F3F4F6; border-radius:16px; overflow:hidden; display:flex; flex-direction:column;">
+              <!-- Alert Row 1: Inactivity Shutdown Warning -->
+              <div style="padding:14px; border-bottom:1px solid #F3F4F6; display:flex; align-items:flex-start; gap:12px;">
+                <div style="width:36px; height:36px; border-radius:14px; background:rgba(97,47,47,0.08); color:#612f2f; border:1px solid rgba(97,47,47,0.15); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+                </div>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:2px;">
+                    <h4 style="font-size:13px; font-weight:700; color:#111827; margin:0;">Auto-Shutdown Warning</h4>
+                    <span style="font-size:11px; font-weight:600; color:#9CA3AF; white-space:nowrap;">Today · Just now</span>
                   </div>
-                  <p style="font-size:12px; color:#4B5563; line-height:1.5; margin:0;">
-                    Room 204 was unoccupied for 15 minutes at 12:15 PM. Stand Fan and Study Desk Lamp were automatically de-energized.
+                  <p style="font-size:11.5px; color:#4B5563; line-height:1.45; margin:0;">
+                    Room was unoccupied for 15 minutes. Power will shut off in 5 minutes unless you tap Keep Power On.
                   </p>
                 </div>
-              </article>
+              </div>
 
-              <article style="border-radius:16px; border:1px solid rgba(255,255,255,0.6); background:rgba(255,255,255,0.7); padding:16px; display:flex; align-items:flex-start; gap:14px;">
-                <div style="width:40px; height:40px; border-radius:16px; background:#F9FAFB; color:#6B7280; border:1px solid #F3F4F6; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" x2="12" y1="2" y2="12"/></svg>
+              <!-- Alert Row 2: Overcurrent Trip Notice -->
+              <div style="padding:14px; display:flex; align-items:flex-start; gap:12px;">
+                <div style="width:36px; height:36px; border-radius:14px; background:#FEF2F2; color:#DC2626; border:1px solid #FEE2E2; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                 </div>
-                <div style="min-width:0; flex:1;">
-                  <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
-                    <h3 style="font-size:14px; font-weight:700; color:#111827; margin:0;">System Notice</h3>
-                    <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
-                      <span style="font-size:11px; font-weight:500; color:#9CA3AF;">08:00 AM</span>
-                      <span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; border:1px solid rgba(167,243,208,0.7); background:#ECFDF5; color:#047857; font-size:10px; font-weight:700;">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
-                        Delivered
-                      </span>
-                    </div>
+                <div style="flex:1; min-width:0;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:2px;">
+                    <h4 style="font-size:13px; font-weight:700; color:#111827; margin:0;">Overcurrent Trip</h4>
+                    <span style="font-size:11px; font-weight:600; color:#9CA3AF; white-space:nowrap;">Today · 08:30 AM</span>
                   </div>
-                  <p style="font-size:12px; color:#4B5563; line-height:1.5; margin:0;">
-                    VoltSense unit A8:42:E3:91:04:BC online with HC-SR501 PIR and HLK-LD2410C 24GHz mmWave Radar active.
+                  <p style="font-size:11.5px; color:#4B5563; line-height:1.45; margin:0;">
+                    Port 2 exceeded the current threshold (10.0A limit). Hardware relay isolated load safely.
                   </p>
                 </div>
-              </article>
+              </div>
             </div>
             <p style="font-size:10px; color:#9CA3AF; text-align:center; padding-top:12px; margin:0;">
               The newest 200 alerts are kept. Older entries are removed automatically.
             </p>
           </div>
         </div>
-
-        <!-- ===============================================================
+<!-- ===============================================================
              TAB 4: SETTINGS (Exact 1:1 with src/pages/Settings.jsx)
              =============================================================== -->
         <div class="pwa-tab-view" id="pwa-view-settings">
