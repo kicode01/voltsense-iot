@@ -411,7 +411,7 @@ const Analytics = () => {
             <div className="flex items-center justify-between">
               <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Energy Usage (kWh)</h3>
               <span className="text-[9px] md:text-[10px] font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
-                {timeRange === 'Today' ? 'Hourly (24h)' : timeRange === 'Yesterday' ? 'Daily Rollup' : 'Daily Trend'}
+                {(timeRange === 'Today' || (timeRange === 'Yesterday' && dataToRender?.energy?.length > 1)) ? 'Hourly (24h)' : timeRange === 'Yesterday' ? 'Daily Rollup' : 'Daily Trend'}
               </span>
             </div>
             {!activeDeviceId && (
@@ -478,7 +478,7 @@ const Analytics = () => {
             <div className="flex items-center justify-between">
               <h3 className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-widest">Occupancy Timeline</h3>
               <span className="text-[9px] md:text-[10px] font-semibold text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">
-                {timeRange === 'Today' ? 'Hourly Activity' : timeRange === 'Yesterday' ? 'Daily Status' : 'Daily Activity'}
+                {(timeRange === 'Today' || (timeRange === 'Yesterday' && dataToRender?.occupancy?.length > 1)) ? 'Hourly Activity' : timeRange === 'Yesterday' ? 'Daily Status' : 'Daily Activity'}
               </span>
             </div>
             {!activeDeviceId && (
@@ -497,7 +497,7 @@ const Analytics = () => {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dataToRender.occupancy} barSize={dataToRender.occupancy.length === 1 ? 48 : 24} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <BarChart data={dataToRender.occupancy} barSize={dataToRender.occupancy.length === 1 ? 48 : (dataToRender.occupancy.length > 20 ? 10 : 24)} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                       <XAxis dataKey="label" stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
                       <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} ticks={[0, 1]} tickFormatter={(val) => val ? 'Yes' : 'No'} width={40} />

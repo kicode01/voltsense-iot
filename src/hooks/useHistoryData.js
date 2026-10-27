@@ -25,10 +25,12 @@ export const generateMockData = (range) => {
     return {
       totals: { energy: 4.1, hours: 14.2 },
       energy: [
-        { label: "Yesterday", kwh: 4.1 }
+        { label: "00:00", kwh: 0.1 }, { label: "04:00", kwh: 0.3 }, { label: "08:00", kwh: 1.1 },
+        { label: "12:00", kwh: 1.4 }, { label: "16:00", kwh: 0.7 }, { label: "20:00", kwh: 0.5 }
       ],
       occupancy: [
-        { label: "Yesterday", occupied: 1 }
+        { label: "00:00", occupied: 0 }, { label: "04:00", occupied: 0 }, { label: "08:00", occupied: 1 },
+        { label: "12:00", occupied: 1 }, { label: "16:00", occupied: 1 }, { label: "20:00", occupied: 0 }
       ],
       usage: [
         { name: "Workstation", percentage: 75 }, { name: "Appliance", percentage: 15 }, { name: "Light", percentage: 10 }

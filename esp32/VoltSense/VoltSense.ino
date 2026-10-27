@@ -418,6 +418,9 @@ int dailyCount = 0;
 
 float todayHourlyKwh[24];
 bool todayHourlyOccupied[24];
+float yesterdayHourlyKwh[24];
+bool yesterdayHourlyOccupied[24];
+bool hasYesterdayHourly = false;
 String historyDayDate = ""; // which day the hourly buckets belong to
 
 // Database Settings & Hardware Calibration (NVS Backed)
@@ -2161,6 +2164,13 @@ void rolloverDayIfNeeded() {
   Serial.printf("Day rollover: %s -> %s (%.3f kWh, %d min occupied)\n",
                 historyDayDate.c_str(), today.c_str(), dayEnergy, occupiedMin);
 
+  // Archive completed day's 24-hour profile for Yesterday before resetting
+  for (int h = 0; h < 24; h++) {
+    yesterdayHourlyKwh[h] = todayHourlyKwh[h];
+    yesterdayHourlyOccupied[h] = todayHourlyOccupied[h];
+  }
+  hasYesterdayHourly = true;
+
   historyDayDate = today;
   for (int h = 0; h < 24; h++) {
     todayHourlyKwh[h] = 0.0f;
@@ -2255,7 +2265,34 @@ void publishHistoryRanges() {
   }
 
   // ---------------- daily ranges ----------------
-  publishDailyRange("yesterday", 1, 1);
+  if (hasYesterdayHourly) {
+    FirebaseJson yJson;
+    FirebaseJsonArray yEnergy;
+    FirebaseJsonArray yOcc;
+    float yTotal = 0;
+    int yOccupiedMin = 0;
+    for (int h = 0; h < 24; h++) {
+      FirebaseJson e;
+      e.set("label", hourLabel(h));
+      e.set("kwh", yesterdayHourlyKwh[h]);
+      yEnergy.add(e);
+
+      FirebaseJson o;
+      o.set("label", hourLabel(h));
+      o.set("occupied", yesterdayHourlyOccupied[h] ? 1 : 0);
+      yOcc.add(o);
+
+      yTotal += yesterdayHourlyKwh[h];
+      if (yesterdayHourlyOccupied[h]) yOccupiedMin += 60;
+    }
+    yJson.set("energy", yEnergy);
+    yJson.set("occupancy", yOcc);
+    yJson.set("totals/energy", yTotal);
+    yJson.set("totals/hours", yOccupiedMin / 60.0);
+    rtdbPutJson(roomPath + "/history/yesterday", yJson);
+  } else {
+    publishDailyRange("yesterday", 1, 1);
+  }
   publishDailyRange("last_7_days", 6, 0);
   publishDailyRange("this_month", getLocalDayOfMonth() - 1, 0);
 
