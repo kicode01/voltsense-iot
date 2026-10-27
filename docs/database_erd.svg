@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700">
+  <defs>
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#800000" />
+      <stop offset="100%" stop-color="#4a0404" />
+    </linearGradient>
+    <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.08" />
+    </filter>
+  </defs>
+
+  <rect width="1000" height="700" fill="#f8fafc" />
+
+  <!-- Title -->
+  <text x="500" y="45" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="800" fill="#1e293b">VoltSense Firebase RTDB Schema Architecture</text>
+  <text x="500" y="70" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="600" fill="#64748b">Unified Real-time IoT Digital Twin &amp; Telemetry Hierarchy</text>
+
+  <!-- Node: USERS -->
+  <g transform="translate(50, 100)" filter="url(#cardShadow)">
+    <rect width="260" height="150" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+    <path d="M 0 12 A 12 12 0 0 1 12 0 L 248 0 A 12 12 0 0 1 260 12 L 260 38 L 0 38 Z" fill="url(#headerGrad)" />
+    <text x="130" y="24" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#ffffff">/users/{uid}</text>
+    <text x="15" y="65" font-family="monospace" font-size="11" fill="#334155">• owned_devices/{mac}</text>
+    <text x="35" y="82" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">Map of claimed hardware MACs</text>
+    <text x="15" y="105" font-family="monospace" font-size="11" fill="#334155">• email</text>
+    <text x="35" y="122" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">Account email address</text>
+  </g>
+
+  <!-- Node: PUSH TOKENS -->
+  <g transform="translate(50, 280)" filter="url(#cardShadow)">
+    <rect width="260" height="160" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+    <path d="M 0 12 A 12 12 0 0 1 12 0 L 248 0 A 12 12 0 0 1 260 12 L 260 38 L 0 38 Z" fill="url(#headerGrad)" />
+    <text x="130" y="24" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#ffffff">/pushTokens/{uid}</text>
+    <text x="15" y="65" font-family="monospace" font-size="11" fill="#334155">• devices/{slot}/token</text>
+    <text x="35" y="82" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">FCM Web Push Registration Token</text>
+    <text x="15" y="105" font-family="monospace" font-size="11" fill="#334155">• devices/{slot}/updated_at</text>
+    <text x="15" y="125" font-family="monospace" font-size="11" fill="#334155">• devices/{slot}/ua</text>
+    <text x="35" y="142" font-family="system-ui, sans-serif" font-size="10" fill="#64748b">Multi-device browser client slot</text>
+  </g>
+
+  <!-- Node: PAIRING CODES -->
+  <g transform="translate(50, 470)" filter="url(#cardShadow)">
+    <rect width="260" height="150" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+    <path d="M 0 12 A 12 12 0 0 1 12 0 L 248 0 A 12 12 0 0 1 260 12 L 260 38 L 0 38 Z" fill="url(#headerGrad)" />
+    <text x="130" y="24" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#ffffff">/pairingCodes/{code}</text>
+    <text x="15" y="65" font-family="monospace" font-size="11" fill="#334155">• mac (target device)</text>
+    <text x="15" y="85" font-family="monospace" font-size="11" fill="#334155">• created_at (epoch ms)</text>
+    <text x="15" y="105" font-family="monospace" font-size="11" fill="#334155">• expires_at (+30 mins)</text>
+    <text x="15" y="128" font-family="system-ui, sans-serif" font-size="10" fill="#dc2626">Single-use Crockford Base32 token</text>
+  </g>
+
+  <!-- Central Node: DEVICES -->
+  <g transform="translate(370, 100)" filter="url(#cardShadow)">
+    <rect width="270" height="520" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+    <path d="M 0 12 A 12 12 0 0 1 12 0 L 258 0 A 12 12 0 0 1 270 12 L 270 38 L 0 38 Z" fill="url(#headerGrad)" />
+    <text x="135" y="24" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#ffffff">/devices/{mac}</text>
+    
+    <text x="15" y="62" font-family="monospace" font-size="11" font-weight="bold" fill="#0f172a">• state</text>
+    <text x="15" y="80" font-family="monospace" font-size="11" fill="#334155">• is_occupied (bool)</text>
+    <text x="15" y="98" font-family="monospace" font-size="11" fill="#334155">• pir_detected (bool)</text>
+    <text x="15" y="116" font-family="monospace" font-size="11" fill="#334155">• mmwave_detected (bool)</text>
+    <text x="15" y="134" font-family="monospace" font-size="11" fill="#334155">• countdown_remaining_seconds</text>
+    <text x="15" y="152" font-family="monospace" font-size="11" fill="#334155">• total_current_amps (A)</text>
+    <text x="15" y="170" font-family="monospace" font-size="11" fill="#334155">• total_power_watts (W)</text>
+    <text x="15" y="188" font-family="monospace" font-size="11" fill="#334155">• voltage_source (measured)</text>
+    <text x="15" y="206" font-family="monospace" font-size="11" fill="#334155">• overcurrent_limit_a (4.5A)</text>
+    <text x="15" y="224" font-family="monospace" font-size="11" fill="#334155">• night_mode_active (bool)</text>
+    <text x="15" y="242" font-family="monospace" font-size="11" fill="#334155">• override (bool)</text>
+    <text x="15" y="260" font-family="monospace" font-size="11" fill="#334155">• bench_mode (bool)</text>
+    <text x="15" y="278" font-family="monospace" font-size="11" fill="#334155">• last_seen (timestamp ms)</text>
+    <text x="15" y="296" font-family="monospace" font-size="11" fill="#334155">• owner (auth uid)</text>
+    <text x="15" y="314" font-family="monospace" font-size="11" fill="#334155">• alert_secret_hash (sha256)</text>
+    <text x="15" y="332" font-family="monospace" font-size="11" fill="#334155">• radar_uart_connected (bool)</text>
+    <text x="15" y="350" font-family="monospace" font-size="11" fill="#334155">• radar_distance_cm (int)</text>
+    <text x="15" y="368" font-family="monospace" font-size="11" fill="#334155">• radar_static_energy (int)</text>
+    <text x="15" y="386" font-family="monospace" font-size="11" fill="#334155">• radar_moving_energy (int)</text>
+
+    <line x1="15" y1="404" x2="255" y2="404" stroke="#e2e8f0" stroke-dasharray="4" />
+
+    <text x="15" y="425" font-family="system-ui, sans-serif" font-size="11" font-weight="700" fill="#800000">Child Collections:</text>
+    <text x="25" y="445" font-family="monospace" font-size="11" fill="#0f172a">→ ports/port_01..03</text>
+    <text x="25" y="465" font-family="monospace" font-size="11" fill="#0f172a">→ settings/*</text>
+    <text x="25" y="485" font-family="monospace" font-size="11" fill="#0f172a">→ history/days/*</text>
+    <text x="25" y="505" font-family="monospace" font-size="11" fill="#0f172a">→ alerts/*</text>
+  </g>
+
+  <!-- Right Node: PORTS -->
+  <g transform="translate(690, 100)" filter="url(#cardShadow)">
+    <rect width="260" height="230" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+    <path d="M 0 12 A 12 12 0 0 1 12 0 L 248 0 A 12 12 0 0 1 260 12 L 260 38 L 0 38 Z" fill="url(#headerGrad)" />
+    <text x="130" y="24" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#ffffff">ports/{portId} (1, 2, 3)</text>
+    <text x="15" y="65" font-family="monospace" font-size="11" font-weight="bold" fill="#0f172a">• relay_status (bool ON/OFF)</text>
+    <text x="15" y="85" font-family="monospace" font-size="11" fill="#334155">• current_amps (RMS A)</text>
+    <text x="15" y="105" font-family="monospace" font-size="11" fill="#334155">• power_watts (Real W)</text>
+    <text x="15" y="125" font-family="monospace" font-size="11" fill="#334155">• power_va (Apparent VA)</text>
+    <text x="15" y="145" font-family="monospace" font-size="11" fill="#334155">• power_factor (0.00-1.00)</text>
+    <text x="15" y="165" font-family="monospace" font-size="11" fill="#334155">• energy_kwh (Active kWh)</text>
+    <text x="15" y="185" font-family="monospace" font-size="11" fill="#334155">• voltage (RMS AC V)</text>
+    <text x="15" y="205" font-family="monospace" font-size="11" fill="#334155">• policy (occupancy | always_on)</text>
+  </g>
+
+  <!-- Right Node: SETTINGS -->
+  <g transform="translate(690, 360)" filter="url(#cardShadow)">
+    <rect width="260" height="260" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+    <path d="M 0 12 A 12 12 0 0 1 12 0 L 248 0 A 12 12 0 0 1 260 12 L 260 38 L 0 38 Z" fill="url(#headerGrad)" />
+    <text x="130" y="24" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="700" fill="#ffffff">settings/*</text>
+    <text x="15" y="62" font-family="monospace" font-size="11" fill="#334155">• inactivity_limit_seconds</text>
+    <text x="15" y="80" font-family="monospace" font-size="11" fill="#334155">• response_window_seconds</text>
+    <text x="15" y="98" font-family="monospace" font-size="11" fill="#334155">• pir_delay_seconds</text>
+    <text x="15" y="116" font-family="monospace" font-size="11" fill="#334155">• mmwave_delay_seconds</text>
+    <text x="15" y="134" font-family="monospace" font-size="11" fill="#334155">• mmwave_enabled (bool)</text>
+    <text x="15" y="152" font-family="monospace" font-size="11" fill="#334155">• night_mode_enabled (bool)</text>
+    <text x="15" y="170" font-family="monospace" font-size="11" fill="#334155">• night_mode_start / end</text>
+    <text x="15" y="188" font-family="monospace" font-size="11" fill="#334155">• nominal_voltage (220V)</text>
+    <text x="15" y="206" font-family="monospace" font-size="11" fill="#334155">• voltage_cal_mv_per_v</text>
+    <text x="15" y="224" font-family="monospace" font-size="11" fill="#334155">• acs712_mv_per_amp</text>
+    <text x="15" y="242" font-family="monospace" font-size="11" fill="#334155">• sensor_fusion_mode (OR)</text>
+  </g>
+
+  <!-- Connectors -->
+  <path d="M 310 170 L 370 170" stroke="#800000" stroke-width="2" stroke-dasharray="4" marker-end="url(#arrow)" />
+  <path d="M 640 210 L 690 210" stroke="#800000" stroke-width="2" />
+  <path d="M 640 450 L 690 450" stroke="#800000" stroke-width="2" />
+</svg>
