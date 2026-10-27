@@ -584,15 +584,15 @@ const Analytics = () => {
                   <div className="flex items-center justify-between gap-2 mb-2.5">
                     <div className="flex items-center gap-2 min-w-0">
                       <div
-                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
                           !outlet.isRelayOn
-                            ? 'bg-gray-100 text-gray-400 border-gray-200/70'
+                            ? 'bg-gray-100/80 text-gray-400 border-gray-200/80 shadow-inner'
                             : isDrawing
-                            ? 'bg-maroon-800 text-white border-maroon-900 shadow-2xs'
-                            : 'bg-maroon-50 text-maroon-800 border-maroon-200/70'
+                            ? 'bg-maroon-50 text-maroon-800 border-maroon-200 shadow-inner'
+                            : 'bg-maroon-50/50 text-maroon-700 border-maroon-100 shadow-inner'
                         }`}
                       >
-                        <Plug strokeWidth={1.75} className="w-3.5 h-3.5" />
+                        <Plug strokeWidth={1.5} className="w-4 h-4" />
                       </div>
                       <span className="font-bold text-sm text-gray-900 truncate">{outlet.name}</span>
                       <span
@@ -686,15 +686,15 @@ const Analytics = () => {
                       <td className="py-3.5 px-4 whitespace-nowrap">
                         <div className="flex items-center gap-2.5">
                           <div
-                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
+                            className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
                               !outlet.isRelayOn
-                                ? 'bg-gray-100 text-gray-400 border-gray-200/70'
+                                ? 'bg-gray-100/80 text-gray-400 border-gray-200/80 shadow-inner'
                                 : isDrawing
-                                ? 'bg-maroon-800 text-white border-maroon-900 shadow-2xs'
-                                : 'bg-maroon-50 text-maroon-800 border-maroon-200/70'
+                                ? 'bg-maroon-50 text-maroon-800 border-maroon-200 shadow-inner'
+                                : 'bg-maroon-50/50 text-maroon-700 border-maroon-100 shadow-inner'
                             }`}
                           >
-                            <Plug strokeWidth={1.75} className="w-3.5 h-3.5" />
+                            <Plug strokeWidth={1.5} className="w-4 h-4" />
                           </div>
                           <span className="font-bold text-gray-900">{outlet.name}</span>
                         </div>
