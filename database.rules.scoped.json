@@ -144,6 +144,15 @@
           },
           "bench_mode": {
             ".validate": "newData.isBoolean()"
+          },
+          "radar_max_gate": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 8"
+          },
+          "radar_static_threshold": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
+          },
+          "radar_moving_threshold": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100"
           }
         },
         "history": {
@@ -181,6 +190,21 @@
         "last_seen": {
           ".write": "auth != null",
           ".validate": "newData.isNumber()"
+        },
+        "radar_uart_connected": {
+          ".validate": "newData.isBoolean()"
+        },
+        "radar_distance_cm": {
+          ".validate": "newData.isNumber()"
+        },
+        "radar_static_energy": {
+          ".validate": "newData.isNumber()"
+        },
+        "radar_moving_energy": {
+          ".validate": "newData.isNumber()"
+        },
+        "radar_target_state": {
+          ".validate": "newData.isString()"
         }
       }
     }

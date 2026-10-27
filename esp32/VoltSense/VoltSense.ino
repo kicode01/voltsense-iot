@@ -126,6 +126,9 @@ const int CURRENT_SENSOR_PINS[NUM_PORTS] = {34, 35, 32};
 // plain digital input, so the ADC2/Wi-Fi limitation above does not apply. Enabling the read is the
 // only extra step: see HAS_MMWAVE in the mmWave section below.
 #define MMWAVE_PIN 14
+// HLK-LD2410C 24GHz mmWave radar HardwareSerial (UART2) pins
+#define LD2410_RX_PIN 16
+#define LD2410_TX_PIN 17
 
 // Voltage-sense channel (ZMPT101B or equivalent). ANALOG, so it MUST be an ADC1 pin for the same
 // reason the current sensors are: ADC2 is dead while Wi-Fi is up, and a dead voltage channel would
@@ -426,6 +429,20 @@ int pirDelaySec = 5;
 int mmwaveDelaySec = 3;
 int forcePir = -1;
 int forceMmwave = -1;
+
+// Phase 1: 24GHz mmWave Radar Gating & Telemetry (HLK-LD2410 UART)
+bool ld2410UartConnected = false;
+unsigned long ld2410LastFrameMs = 0;
+uint8_t ld2410TargetState = 0;        // 0: None, 1: Moving, 2: Stationary, 3: Both
+uint16_t ld2410MovingDistanceCm = 0;
+uint8_t ld2410MovingEnergy = 0;
+uint16_t ld2410StaticDistanceCm = 0;
+uint8_t ld2410StaticEnergy = 0;
+uint16_t ld2410DetectionDistanceCm = 0;
+
+int radarMaxGate = 3;                 // Gate 1..8 (each gate ~75cm, default 3 = ~2.25m - 3.0m)
+int radarStaticThreshold = 20;        // 0..100 min energy for breathing/stillness
+int radarMovingThreshold = 30;        // 0..100 min energy for gross motion
 String sensorFusionMode = "OR";
 String nightModeStart = "22:00";
 String nightModeEnd = "06:00";
@@ -2701,6 +2718,27 @@ void applyRemoteChange(const RemoteChangeT& data) {
   } else if (path == "/settings/force_mmwave") {
     forceMmwave = data.intData();
     Serial.printf("Force mmWave set to %d\n", forceMmwave);
+  } else if (path == "/settings/radar_max_gate") {
+    int g = data.intData();
+    if (g >= 1 && g <= 8) {
+      radarMaxGate = g;
+      setNvsString("rad_max_g", String(g));
+      Serial.printf("Radar max gate set to %d (~%d cm)\n", g, g * 75);
+    }
+  } else if (path == "/settings/radar_static_threshold") {
+    int t = data.intData();
+    if (t >= 0 && t <= 100) {
+      radarStaticThreshold = t;
+      setNvsString("rad_stat_th", String(t));
+      Serial.printf("Radar static threshold set to %d\n", t);
+    }
+  } else if (path == "/settings/radar_moving_threshold") {
+    int t = data.intData();
+    if (t >= 0 && t <= 100) {
+      radarMovingThreshold = t;
+      setNvsString("rad_move_th", String(t));
+      Serial.printf("Radar moving threshold set to %d\n", t);
+    }
   } else if (path == "/settings/sensor_fusion_mode") {
     String mode = data.stringData();
     if (mode == "OR" || mode == "AND" || mode == "PIR_WAKE_MMWAVE_HOLD") {
@@ -2828,6 +2866,12 @@ void applyRemoteChange(const RemoteChangeT& data) {
     if (result.success) forcePir = result.intValue;
     json.get(result, "settings/force_mmwave");
     if (result.success) forceMmwave = result.intValue;
+    json.get(result, "settings/radar_max_gate");
+    if (result.success && result.intValue >= 1 && result.intValue <= 8) radarMaxGate = result.intValue;
+    json.get(result, "settings/radar_static_threshold");
+    if (result.success && result.intValue >= 0 && result.intValue <= 100) radarStaticThreshold = result.intValue;
+    json.get(result, "settings/radar_moving_threshold");
+    if (result.success && result.intValue >= 0 && result.intValue <= 100) radarMovingThreshold = result.intValue;
     json.get(result, "settings/sensor_fusion_mode");
     if (result.success && result.stringValue.length() > 0) sensorFusionMode = result.stringValue;
     json.get(result, "settings/voltage_cal_mv_per_v");
@@ -3050,6 +3094,27 @@ void pollRemoteChanges(bool force = false) {
     applyRemoteChange(c);
   }
 
+  json.get(field, "settings/radar_max_gate");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/radar_max_gate";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
+  json.get(field, "settings/radar_static_threshold");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/radar_static_threshold";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
+  json.get(field, "settings/radar_moving_threshold");
+  if (field.success) {
+    RemoteChange c;
+    c._path = "/settings/radar_moving_threshold";
+    c._int = field.intValue;
+    applyRemoteChange(c);
+  }
   json.get(field, "settings/sensor_fusion_mode");
   if (field.success) {
     RemoteChange c;
@@ -3583,6 +3648,81 @@ void checkWiFiRecovery() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// HLK-LD2410C 24GHz mmWave Radar Non-Blocking UART Stream Parser (Phase 1)
+// ---------------------------------------------------------------------------
+static uint8_t ldBuffer[64];
+static uint8_t ldIdx = 0;
+static uint16_t ldExpectedLen = 0;
+static uint8_t ldState = 0; // 0: find header, 1: read len, 2: read payload + tail
+
+const char* ld2410TargetStateToString(uint8_t s) {
+  switch (s) {
+    case 1: return "moving";
+    case 2: return "stationary";
+    case 3: return "both";
+    default: return "none";
+  }
+}
+
+void processLd2410Serial() {
+  while (Serial2.available() > 0) {
+    uint8_t b = Serial2.read();
+
+    if (ldState == 0) {
+      if (ldIdx == 0 && b == 0xF4) { ldBuffer[0] = b; ldIdx = 1; }
+      else if (ldIdx == 1 && b == 0xF3) { ldBuffer[1] = b; ldIdx = 2; }
+      else if (ldIdx == 2 && b == 0xF2) { ldBuffer[2] = b; ldIdx = 3; }
+      else if (ldIdx == 3 && b == 0xF1) {
+        ldBuffer[3] = b;
+        ldIdx = 0;
+        ldState = 1;
+      } else {
+        ldIdx = (b == 0xF4) ? 1 : 0;
+      }
+    } else if (ldState == 1) {
+      ldBuffer[ldIdx++] = b;
+      if (ldIdx == 2) {
+        ldExpectedLen = (uint16_t)ldBuffer[0] | ((uint16_t)ldBuffer[1] << 8);
+        if (ldExpectedLen > 48 || ldExpectedLen < 8) {
+          ldState = 0;
+          ldIdx = 0;
+        } else {
+          ldIdx = 0;
+          ldState = 2;
+        }
+      }
+    } else if (ldState == 2) {
+      ldBuffer[ldIdx++] = b;
+      if (ldIdx >= (ldExpectedLen + 4)) {
+        uint8_t t0 = ldBuffer[ldExpectedLen];
+        uint8_t t1 = ldBuffer[ldExpectedLen + 1];
+        uint8_t t2 = ldBuffer[ldExpectedLen + 2];
+        uint8_t t3 = ldBuffer[ldExpectedLen + 3];
+
+        if (t0 == 0xF8 && t1 == 0xF7 && t2 == 0xF6 && t3 == 0xF5) {
+          if (ldExpectedLen >= 12 && ldBuffer[1] == 0xAA && ldBuffer[11] == 0x55) {
+            ld2410TargetState = ldBuffer[2];
+            ld2410MovingDistanceCm = (uint16_t)ldBuffer[3] | ((uint16_t)ldBuffer[4] << 8);
+            ld2410MovingEnergy = ldBuffer[5];
+            ld2410StaticDistanceCm = (uint16_t)ldBuffer[6] | ((uint16_t)ldBuffer[7] << 8);
+            ld2410StaticEnergy = ldBuffer[8];
+            ld2410DetectionDistanceCm = (uint16_t)ldBuffer[9] | ((uint16_t)ldBuffer[10] << 8);
+            ld2410LastFrameMs = millis();
+            ld2410UartConnected = true;
+          }
+        }
+        ldState = 0;
+        ldIdx = 0;
+      }
+    }
+  }
+
+  if (ld2410UartConnected && (millis() - ld2410LastFrameMs > 2500)) {
+    ld2410UartConnected = false;
+  }
+}
+
 void setup() {
   Serial.begin(115200);
 
@@ -3594,6 +3734,8 @@ void setup() {
   factoryResetIfRequested();
 
   pinMode(PIR_PIN, INPUT);
+  // Initialize Hardware UART2 for LD2410 24GHz mmWave radar (RX2=GPIO 16, TX2=GPIO 17 @ 256k baud)
+  Serial2.begin(256000, SERIAL_8N1, LD2410_RX_PIN, LD2410_TX_PIN);
   pinMode(MMWAVE_PIN, INPUT);
   pinMode(MMWAVE_PIN, INPUT_PULLDOWN);
 
@@ -3706,6 +3848,21 @@ void setup() {
     if (savedIdle.length() > 0) {
       unsigned long s = savedIdle.toInt();
       if (s >= 5) idleTimeoutMs = s * 1000UL;
+    }
+    String savedRadG = getNvsString("rad_max_g");
+    if (savedRadG.length() > 0) {
+      int g = savedRadG.toInt();
+      if (g >= 1 && g <= 8) radarMaxGate = g;
+    }
+    String savedRadStat = getNvsString("rad_stat_th");
+    if (savedRadStat.length() > 0) {
+      int t = savedRadStat.toInt();
+      if (t >= 0 && t <= 100) radarStaticThreshold = t;
+    }
+    String savedRadMove = getNvsString("rad_move_th");
+    if (savedRadMove.length() > 0) {
+      int t = savedRadMove.toInt();
+      if (t >= 0 && t <= 100) radarMovingThreshold = t;
     }
     String savedResp = getNvsString("resp_window_s");
     if (savedResp.length() > 0) {
@@ -3996,7 +4153,23 @@ void loop() {
   if (forcePir == 1) rawPir = true;
   else if (forcePir == 0) rawPir = false;
 
-  bool rawMmw = (digitalRead(MMWAVE_PIN) == (mmwaveInverted ? LOW : HIGH));
+  processLd2410Serial();
+
+  // Phase 1: Spatial Radar Gating & Micro-Motion Thresholding
+  bool rawMmw = false;
+  if (ld2410UartConnected) {
+    int maxAllowedDistanceCm = radarMaxGate * 75; // e.g., Gate 3 = ~225-300cm
+    bool movingValid = (ld2410TargetState == 1 || ld2410TargetState == 3) &&
+                       (ld2410MovingDistanceCm <= maxAllowedDistanceCm) &&
+                       (ld2410MovingEnergy >= radarMovingThreshold);
+    bool staticValid = (ld2410TargetState == 2 || ld2410TargetState == 3) &&
+                       (ld2410StaticDistanceCm <= maxAllowedDistanceCm) &&
+                       (ld2410StaticEnergy >= radarStaticThreshold);
+    rawMmw = (movingValid || staticValid);
+  } else {
+    // Graceful fallback to digital GPIO pin when UART is disconnected / not wired
+    rawMmw = (digitalRead(MMWAVE_PIN) == (mmwaveInverted ? LOW : HIGH));
+  }
   if (forceMmwave == 1) rawMmw = true;
   else if (forceMmwave == 0) rawMmw = false;
 
@@ -4264,6 +4437,11 @@ void loop() {
     json.set("is_occupied", motionDetected);
     json.set("pir_detected", pirActive);
     json.set("mmwave_detected", mmwaveActive);
+    json.set("radar_uart_connected", ld2410UartConnected);
+    json.set("radar_distance_cm", ld2410UartConnected ? (int)ld2410DetectionDistanceCm : 0);
+    json.set("radar_static_energy", ld2410UartConnected ? (int)ld2410StaticEnergy : 0);
+    json.set("radar_moving_energy", ld2410UartConnected ? (int)ld2410MovingEnergy : 0);
+    json.set("radar_target_state", ld2410TargetStateToString(ld2410TargetState));
     json.set("state", stateToString(currentState));
     json.set("total_current_amps", totalAmps);
     json.set("total_power_watts", totalWatts);
