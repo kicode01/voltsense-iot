@@ -44,8 +44,9 @@ const Analytics = () => {
 
   // Same rule as the Dashboard: W only when the firmware says it measured a voltage waveform,
   // VA otherwise. Analytics used to label everything "Watts" regardless.
-  const powerUnitLong = 'Watts';
-  const powerUnitShort = 'W';
+  const powerIsMeasured = roomData?.voltage_source === 'measured';
+  const powerUnitLong = powerIsMeasured ? 'Watts' : 'VA';
+  const powerUnitShort = powerIsMeasured ? 'W' : 'VA';
 
 
 
