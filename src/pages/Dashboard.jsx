@@ -390,11 +390,11 @@ const Dashboard = () => {
             <div className="flex items-baseline gap-2 relative z-10">
               <span className="text-5xl md:text-6xl font-bold tracking-tighter drop-shadow-sm">{computedTotalWatts.toFixed(0)}</span>
               <span className="text-base md:text-lg font-bold text-maroon-200 uppercase tracking-widest">
-                W
+                {powerIsMeasured ? 'W' : 'VA'}
               </span>
             </div>
             <p className="text-[10px] text-maroon-200/80 mt-2 font-medium uppercase tracking-widest relative z-10">
-              Active Power · All Active Ports
+              {powerIsMeasured ? `Real power • System PF ${systemAvgPf.toFixed(2)}` : 'Apparent power, all active ports'}
             </p>
           </div>
         </div>
@@ -597,7 +597,7 @@ const Dashboard = () => {
                   </div>
 
                   {/* Clean 2-Column Metrics Row */}
-                  <div className="grid grid-cols-2 gap-3 py-2.5 border-t border-gray-100">
+                  <div className="grid grid-cols-2 gap-3 pt-2.5 border-t border-gray-100">
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">Voltage</span>
                       <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portVolts.toFixed(0)} V</span>
@@ -607,14 +607,6 @@ const Dashboard = () => {
                       <span className="text-xs md:text-sm font-semibold text-gray-800 whitespace-nowrap">{portAmps.toFixed(2)} A</span>
                     </div>
                   </div>
-                </div>
-
-                {/* Formula Footnote */}
-                <div className="pt-2.5 border-t border-gray-100/70 flex items-center justify-between text-[10px] font-mono text-gray-400">
-                  <span className="font-semibold text-gray-400">P = V × I</span>
-                  <span className="text-gray-500 font-medium">
-                    {portVolts.toFixed(0)}V × {portAmps.toFixed(2)}A = <strong className="text-gray-900 font-bold">{portData.relay_status ? (isDrawing ? `${displayWatts}W` : '0W') : '0W'}</strong>
-                  </span>
                 </div>
               </div>
             );
