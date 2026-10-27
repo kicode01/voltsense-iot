@@ -21,7 +21,8 @@ import {
   RotateCcw,
   Activity,
   Crosshair,
-  Radio
+  Radio,
+  Plug
 } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { enablePushForUser, clearPushToken, showSystemNotification } from '../lib/pushNotifications';
@@ -957,35 +958,99 @@ const Settings = () => {
             </div>
 
             {/* Per-port shutdown policy */}
-            <div className="mt-5 pt-5 border-t border-gray-100">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
-                When the room empties
-              </p>
-              <p className="text-[10px] text-gray-400 mb-3 leading-snug">
-                The device cannot tell a lamp from a charger by current alone, so say what each port is
-                for. Default is to cut — that is what the device is for.
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <div className="flex items-center justify-between gap-2 mb-1.5 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-maroon-50 text-maroon-800 flex items-center justify-center">
+                    <Plug className="w-3.5 h-3.5" />
+                  </div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-gray-800">
+                    Smart Vacancy Policy
+                  </h4>
+                </div>
+                <span className="text-[10px] font-semibold text-gray-400 bg-gray-50 border border-gray-200/60 px-2 py-0.5 rounded-full">
+                  Autonomous Cutoff Rules
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-500 mb-4 leading-relaxed">
+                Choose how each outlet behaves when the room empties. Unattended high-draw appliances cut off to save energy, while chargers can stay active until charging completes.
               </p>
 
-              <div className="space-y-2">
-                {(roomData?.ports ? Object.keys(roomData.ports) : []).map((portId) => {
-                  const label = roomData.ports[portId]?.name || portId;
-                  const value = roomData.ports[portId]?.policy || 'occupancy';
+              <div className="grid grid-cols-1 gap-2.5">
+                {(roomData?.ports ? Object.keys(roomData.ports) : ['port_01', 'port_02', 'port_03']).map((portId, index) => {
+                  const portNumber = index + 1;
+                  const rawName = roomData?.ports?.[portId]?.name;
+                  const displayName = rawName && rawName !== portId ? rawName : `Port ${portNumber}`;
+                  const value = roomData?.ports?.[portId]?.policy || 'occupancy';
+                  const isSaving = savingLimit === portId;
+
+                  const policyConfig = {
+                    occupancy: {
+                      badge: 'Auto-Cut',
+                      badgeClass: 'bg-maroon-50 text-maroon-700 border-maroon-200/70',
+                      desc: 'Cuts power when room idle timeout expires'
+                    },
+                    keep_while_drawing: {
+                      badge: 'Smart Charge',
+                      badgeClass: 'bg-amber-50 text-amber-700 border-amber-200/70',
+                      desc: 'Stays energized until charging draw finishes'
+                    },
+                    always_on: {
+                      badge: 'Always On',
+                      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200/70',
+                      desc: 'Bypasses vacancy cutoff (e.g. router, fridge)'
+                    }
+                  }[value] || {
+                    badge: 'Auto-Cut',
+                    badgeClass: 'bg-maroon-50 text-maroon-700 border-maroon-200/70',
+                    desc: 'Cuts power when vacant'
+                  };
+
                   return (
-                    <div key={portId} className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold text-gray-700 truncate flex-1 min-w-0">
-                        {label}
-                      </span>
-                      {savingLimit === portId && <Loader2 className="w-3.5 h-3.5 animate-spin text-maroon-800 shrink-0" />}
-                      <select
-                        value={value}
-                        onChange={(e) => handlePolicyChange(portId, e.target.value)}
-                        aria-label={`Shutdown policy for ${label}`}
-                        className="text-[11px] font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-maroon-300 shrink-0"
-                      >
-                        <option value="occupancy">Cut when empty</option>
-                        <option value="always_on">Never cut</option>
-                        <option value="keep_while_drawing">Keep while drawing</option>
-                      </select>
+                    <div 
+                      key={portId} 
+                      className="bg-gray-50/70 hover:bg-white border border-gray-200/70 hover:border-maroon-200/80 rounded-2xl p-3 md:p-3.5 transition-all duration-300 shadow-2xs hover:shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      {/* Left: Port identity & description */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-white text-maroon-800 border border-gray-200/80 flex items-center justify-center shadow-2xs shrink-0">
+                          <Plug className="w-5 h-5 text-maroon-800" strokeWidth={1.75} />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h5 className="text-xs md:text-sm font-bold text-gray-900 leading-tight truncate">
+                              {displayName}
+                            </h5>
+                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border ${policyConfig.badgeClass}`}>
+                              {policyConfig.badge}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-gray-400 mt-0.5 truncate">
+                            {policyConfig.desc}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right: Policy Selector with live save indicator */}
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                        {isSaving && (
+                          <div className="flex items-center gap-1 text-[10px] text-maroon-700 font-bold">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving…</span>
+                          </div>
+                        )}
+                        <select
+                          value={value}
+                          onChange={(e) => handlePolicyChange(portId, e.target.value)}
+                          disabled={isSaving}
+                          aria-label={`Shutdown policy for ${displayName}`}
+                          className="text-xs font-bold text-gray-800 bg-white border border-gray-200 hover:border-maroon-300 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-maroon-500/20 shadow-2xs transition-all cursor-pointer"
+                        >
+                          <option value="occupancy">⚡ Cut when empty</option>
+                          <option value="keep_while_drawing">⏳ Keep while drawing</option>
+                          <option value="always_on">🛡️ Never cut (Always On)</option>
+                        </select>
+                      </div>
                     </div>
                   );
                 })}
