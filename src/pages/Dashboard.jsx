@@ -445,7 +445,7 @@ const Dashboard = () => {
              }}
              disabled={overridePending}
              aria-label="Keep Power On (Override Shutdown)"
-             className="relative z-10 bg-white text-red-600 px-8 py-3 rounded-full font-bold text-lg shadow-lg hover:scale-105 active:scale-95 transition-all uppercase tracking-wider focus:outline-none focus-visible:ring-4 focus-visible:ring-white/50 disabled:opacity-70 disabled:hover:scale-100 flex items-center justify-center gap-2"
+             className="relative z-10 bg-white text-red-600 px-8 py-3 rounded-full font-bold text-lg shadow-lg active:scale-95 transition-all uppercase tracking-wider focus:outline-none focus-visible:ring-4 focus-visible:ring-white/50 disabled:opacity-70 flex items-center justify-center gap-2"
            >
              {overridePending ? <><Loader2 className="w-5 h-5 animate-spin" /> Cancelling…</> : 'Keep Power On'}
            </button>

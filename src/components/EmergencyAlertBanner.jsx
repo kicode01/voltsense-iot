@@ -257,7 +257,7 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
           <button
             onClick={handleKeepPowerOn}
             disabled={cancelling}
-            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-white text-red-600 hover:bg-yellow-50 active:scale-95 font-black text-xs md:text-sm uppercase tracking-wider px-5 py-2.5 rounded-xl md:rounded-2xl shadow-lg transition-all duration-300 ease-apple-spring border border-white/80 disabled:opacity-70"
+            className="flex-1 sm:flex-initial flex items-center justify-center gap-2 bg-white text-red-600 active:scale-95 font-black text-xs md:text-sm uppercase tracking-wider px-5 py-2.5 rounded-xl md:rounded-2xl shadow-lg transition-all duration-300 ease-apple-spring border border-white/80 disabled:opacity-70"
           >
             {cancelling ? (
               <>
