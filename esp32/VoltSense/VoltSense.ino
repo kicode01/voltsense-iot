@@ -3564,8 +3564,7 @@ void displayPairingPortal() {
       "<h2>VoltSense Paired!</h2>" +
       "<p>Enter this code in the VoltSense app to link this device:</p>" +
       "<div class='code'>" + provisioningCode + "</div>" +
-      "<a href='https://voltsense-iot.vercel.app/settings?claim=" + provisioningCode + "' style='display:block;margin-bottom:0.75rem;padding:0.75rem;background:#612f2f;color:#fff;border-radius:1rem;text-decoration:none;font-weight:bold;font-size:0.9rem;'>Open App & Auto-Claim</a>" +
-      "<p style='color: #6b7280; font-size: 0.875rem; margin-bottom: 0.75rem;'>Code expires in 30 minutes.</p>" +
+      "<p style='color: #6b7280; font-size: 0.875rem; '>Code expires in 30 minutes.</p>" +
       "<form action='/done' method='POST'><button type='submit'>Finish Setup</button></form>" +
       "</div></body></html>";
     server.send(200, "text/html", html);
