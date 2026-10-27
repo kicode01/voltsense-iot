@@ -1,0 +1,20 @@
+{
+  "board": {
+    "design_settings": {
+      "rules": {
+        "clearance": 0.2,
+        "track_width": 0.25
+      }
+    }
+  },
+  "meta": {
+    "filename": "VoltSense.kicad_pro",
+    "version": 1
+  },
+  "sheets": [
+    [
+      "99999999-0000-0000-0000-000000000001",
+      ""
+    ]
+  ]
+}

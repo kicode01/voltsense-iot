@@ -1,0 +1,209 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="VoltSense_SLD" name="Single-Line Diagram">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title Block Frame -->
+        <mxCell id="frame" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#0F172A;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1560" height="920" as="geometry" />
+        </mxCell>
+
+        <!-- Header -->
+        <mxCell id="hdr_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="60" y="60" width="1520" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr_title" value="VOLTSENSE: SYSTEM SINGLE-LINE DIAGRAM (SLD) / POWER FLOW ARCHITECTURE&#xa;Philippine Electrical Code (PEC 2017) &amp; IEEE 141 Compliant 1-Phase Radial Power Distribution, Dual Metering &amp; Actuation" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=13;fontStyle=1;fontColor=#0F172A;" vertex="1" parent="1">
+          <mxGeometry x="80" y="70" width="1200" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Utility Source -->
+        <mxCell id="util_src" value="&lt;b&gt;UTILITY&lt;/b&gt;&lt;br&gt;220V 1Φ 60Hz&lt;br&gt;&lt;font color=&quot;#dc2626&quot;&gt;&lt;b&gt;AC MAINS ENTRY&lt;/b&gt;&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#F8FAFC;strokeColor=#0F172A;strokeWidth=2;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="80" y="260" width="90" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Main Feed Wire to Fuse -->
+        <mxCell id="w_util_fuse" value="2x 2.0mm² THHN&#xa;+ 1x 2.0mm² G" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=3;fontSize=10;fontColor=#64748B;" edge="1" parent="1" source="util_src" target="fuse_f1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Fuse F1 -->
+        <mxCell id="fuse_f1" value="&lt;b&gt;&lt;font color=&quot;#dc2626&quot;&gt;F1: 5A&lt;/font&gt;&lt;/b&gt;&lt;br&gt;250V Slow-Blow&lt;br&gt;Cartridge Fuse" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#DC2626;strokeWidth=2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="240" y="275" width="80" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Feed to MOV -->
+        <mxCell id="w_fuse_mov" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=3;" edge="1" parent="1" source="fuse_f1" target="mov_shunt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- MOV Varistor Shunt -->
+        <mxCell id="mov_shunt" value="&lt;b&gt;MOV1&lt;/b&gt;&lt;br&gt;10D471K&lt;br&gt;(470V Surge)" style="shape=mxgraph.electrical.resistors.varistor;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.8;fontSize=9;fontColor=#B45309;" vertex="1" parent="1">
+          <mxGeometry x="380" y="275" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Feed to PT -->
+        <mxCell id="w_mov_pt" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=3;" edge="1" parent="1" source="mov_shunt" target="pt_zmpt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- PT ZMPT101B -->
+        <mxCell id="pt_zmpt" value="&lt;b&gt;PT&lt;/b&gt;&lt;br&gt;ZMPT101B&lt;br&gt;(Voltage Sensor)" style="shape=mxgraph.electrical.inductors.transformer_2;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#1D4ED8;strokeWidth=2;fontSize=9;fontColor=#1D4ED8;" vertex="1" parent="1">
+          <mxGeometry x="490" y="275" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Feed to Busbar -->
+        <mxCell id="w_pt_bus" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=3;" edge="1" parent="1" source="pt_zmpt" target="main_bus">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Main 220V AC Busbar -->
+        <mxCell id="main_bus" value="&lt;b&gt;220V AC 1Φ 60Hz BUSBAR&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DC2626;strokeColor=#B91C1C;strokeWidth=1;fontColor=#FFFFFF;fontSize=10;fontStyle=1;rotation=90;" vertex="1" parent="1">
+          <mxGeometry x="380" y="440" width="500" height="18" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- BRANCH 0: AUX POWER & EMBEDDED SUBSYSTEM   -->
+        <!-- ========================================== -->
+        <mxCell id="ps_hlk" value="&lt;b&gt;HLK-5M05&lt;/b&gt;&lt;br&gt;220V AC In&lt;br&gt;&lt;font color=&quot;#ea580c&quot;&gt;&lt;b&gt;5V 1A DC Out&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F172A;strokeWidth=1.8;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="690" y="210" width="100" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w_bus_ps" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" target="ps_hlk">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="630" y="235" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Embedded Control Subsystem -->
+        <mxCell id="ctrl_subsystem" value="&lt;b&gt;&lt;font color=&quot;#ea580c&quot; size=&quot;3&quot;&gt;EMBEDDED CONTROL &amp;amp; TELEMETRY SUBSYSTEM&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;b&gt;ESP32 Dual-Core MCU • HLK-LD2410C mmWave Radar • HC-SR501 PIR • 3x LEDs&lt;/b&gt;&lt;br&gt;FreeRTOS Dual-Task • Wi-Fi 802.11b/g/n • Firebase Realtime DB • Vercel Web Dashboard&lt;br&gt;&lt;font color=&quot;#0369a1&quot;&gt;&lt;b&gt;Galvanically Isolated 5V DC Domain (Safety Compliant)&lt;/b&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#EA580C;strokeWidth=2;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="840" y="190" width="600" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="w_ps_ctrl" value="+5V DC" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#EA580C;strokeWidth=2.5;fontColor=#EA580C;fontSize=9;fontStyle=1;" edge="1" parent="1" source="ps_hlk" target="ctrl_subsystem">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- PT Signal Line to ESP32 -->
+        <mxCell id="w_pt_esp" value="ZMPT101B Voltage Sensing (ADC1 GPIO 33)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7C3AED;strokeWidth=2;dashed=1;fontColor=#7C3AED;fontSize=9;fontStyle=1;" edge="1" parent="1" source="pt_zmpt" target="ctrl_subsystem">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="520" y="160" />
+              <mxPoint x="900" y="160" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- BRANCH 1: OUTLET 1                         -->
+        <!-- ========================================== -->
+        <mxCell id="k1" value="&lt;b&gt;K1 (RELAY 1)&lt;/b&gt;&lt;br&gt;10A SPDT Contact&#xa;GPIO 23 Trigger" style="shape=mxgraph.electrical.electro-mechanical.relay;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#0284C7;strokeWidth=1.8;fontSize=9;fontColor=#0284C7;" vertex="1" parent="1">
+          <mxGeometry x="690" y="340" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w_bus_k1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" target="k1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="630" y="365" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="ct1" value="&lt;b&gt;CT1: ACS712&lt;/b&gt;&lt;br&gt;Hall-Effect 185mV/A&#xa;GPIO 34 (ADC1)" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=2;fontSize=9;fontColor=#059669;" vertex="1" parent="1">
+          <mxGeometry x="860" y="335" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="w_k1_ct1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" source="k1" target="ct1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="j1" value="&lt;b&gt;OUTLET 1 (J1)&lt;/b&gt;&lt;br&gt;Switched AC Load&#xa;(Max 5A / 1,100W)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2;fontSize=10;fontColor=#0F172A;" vertex="1" parent="1">
+          <mxGeometry x="980" y="340" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w_ct1_j1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" source="ct1" target="j1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- BRANCH 2: OUTLET 2                         -->
+        <!-- ========================================== -->
+        <mxCell id="k2" value="&lt;b&gt;K2 (RELAY 2)&lt;/b&gt;&lt;br&gt;10A SPDT Contact&#xa;GPIO 21 Trigger" style="shape=mxgraph.electrical.electro-mechanical.relay;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#0284C7;strokeWidth=1.8;fontSize=9;fontColor=#0284C7;" vertex="1" parent="1">
+          <mxGeometry x="690" y="470" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w_bus_k2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" target="k2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="630" y="495" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="ct2" value="&lt;b&gt;CT2: ACS712&lt;/b&gt;&lt;br&gt;Hall-Effect 185mV/A&#xa;GPIO 35 (ADC1)" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=2;fontSize=9;fontColor=#059669;" vertex="1" parent="1">
+          <mxGeometry x="860" y="465" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="w_k2_ct2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" source="k2" target="ct2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="j2" value="&lt;b&gt;OUTLET 2 (J2)&lt;/b&gt;&lt;br&gt;Switched AC Load&#xa;(Max 5A / 1,100W)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2;fontSize=10;fontColor=#0F172A;" vertex="1" parent="1">
+          <mxGeometry x="980" y="470" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w_ct2_j2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" source="ct2" target="j2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- BRANCH 3: OUTLET 3                         -->
+        <!-- ========================================== -->
+        <mxCell id="k3" value="&lt;b&gt;K3 (RELAY 3)&lt;/b&gt;&lt;br&gt;10A SPDT Contact&#xa;GPIO 19 Trigger" style="shape=mxgraph.electrical.electro-mechanical.relay;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#0284C7;strokeWidth=1.8;fontSize=9;fontColor=#0284C7;" vertex="1" parent="1">
+          <mxGeometry x="690" y="600" width="110" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w_bus_k3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" target="k3">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="630" y="625" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="ct3" value="&lt;b&gt;CT3: ACS712&lt;/b&gt;&lt;br&gt;Hall-Effect 185mV/A&#xa;GPIO 32 (ADC1)" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=2;fontSize=9;fontColor=#059669;" vertex="1" parent="1">
+          <mxGeometry x="860" y="595" width="60" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="w_k3_ct3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" source="k3" target="ct3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="j3" value="&lt;b&gt;OUTLET 3 (J3)&lt;/b&gt;&lt;br&gt;Switched AC Load&#xa;(Max 5A / 1,100W)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#1E293B;strokeWidth=2;fontSize=10;fontColor=#0F172A;" vertex="1" parent="1">
+          <mxGeometry x="980" y="600" width="140" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="w_ct3_j3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0F172A;strokeWidth=2.5;" edge="1" parent="1" source="ct3" target="j3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ========================================== -->
+        <!-- CONTROL & SENSING SIGNALS                  -->
+        <!-- ========================================== -->
+        <!-- Relay Controls (Dashed Blue) -->
+        <mxCell id="w_ctrl_k1" value="GPIO 23" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284C7;strokeWidth=1.5;dashed=1;fontColor=#0284C7;fontSize=8;" edge="1" parent="1" source="ctrl_subsystem" target="k1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="320" />
+              <mxPoint x="745" y="320" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Current Sensing Lines (Dashed Green) -->
+        <mxCell id="w_ct1_ctrl" value="GPIO 34 (ADC1)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#059669;strokeWidth=1.5;dashed=1;fontColor=#059669;fontSize=8;" edge="1" parent="1" source="ct1" target="ctrl_subsystem">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w_ct2_ctrl" value="GPIO 35 (ADC1)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#059669;strokeWidth=1.5;dashed=1;fontColor=#059669;fontSize=8;" edge="1" parent="1" source="ct2" target="ctrl_subsystem">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w_ct3_ctrl" value="GPIO 32 (ADC1)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#059669;strokeWidth=1.5;dashed=1;fontColor=#059669;fontSize=8;" edge="1" parent="1" source="ct3" target="ctrl_subsystem">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Standard Title Block -->
+        <mxCell id="tblk_box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#0F172A;strokeWidth=1.5;" vertex="1" parent="1">
+          <mxGeometry x="1100" y="780" width="480" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="tblk_text" value="&lt;b&gt;&lt;font size=&quot;3&quot;&gt;VOLTSENSE ENERGY MONITORING SYSTEM&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#1e40af&quot;&gt;&lt;b&gt;SINGLE-LINE DIAGRAM (SLD) - RADIAL DISTRIBUTION&lt;/b&gt;&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;table width=&quot;100%&quot;&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;DOC NO:&lt;/b&gt; VS-SLD-002&lt;/td&gt;&lt;td&gt;&lt;b&gt;REV:&lt;/b&gt; 2.1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;DATE:&lt;/b&gt; 2026-10-17&lt;/td&gt;&lt;td&gt;&lt;b&gt;STATUS:&lt;/b&gt; &lt;font color=&quot;#059669&quot;&gt;APPROVED&lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td colspan=&quot;2&quot;&gt;&lt;b&gt;COMPLIANCE:&lt;/b&gt; PEC 2017 Art 2.10 / IEEE 141&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1115" y="795" width="450" height="130" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

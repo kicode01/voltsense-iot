@@ -1,0 +1,496 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1100" width="100%" height="100%" style="background:#0f172a; font-family:'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;">
+  <defs>
+    <filter id="glow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+
+  <!-- Outer Board Border -->
+  <rect x="15" y="15" width="1570" height="1070" fill="#1e293b" stroke="#334155" stroke-width="2" rx="10"/>
+
+  <!-- Header Banner -->
+  <g transform="translate(50, 45)">
+    <text x="0" y="24" font-size="20" font-weight="bold" fill="#f8fafc">VOLTSENSE: POINT-TO-POINT PHYSICAL WIRING DIAGRAM</text>
+    <text x="0" y="48" font-size="12" fill="#94a3b8">Complete Hardware Interconnect Map Matching 3D Enclosure Internal Assembly (Rev 2.1 Precision Aligned)</text>
+  </g>
+
+  <!-- Color Legend -->
+  <g transform="translate(880, 35)">
+    <rect width="660" height="48" rx="6" fill="#0f172a" stroke="#334155"/>
+    <line x1="20" y1="24" x2="45" y2="24" stroke="#ef4444" stroke-width="4"/>
+    <text x="55" y="28" font-size="10" font-weight="bold" fill="#f8fafc">220V Live (16 AWG)</text>
+
+    <line x1="175" y1="24" x2="200" y2="24" stroke="#3b82f6" stroke-width="4"/>
+    <text x="210" y="28" font-size="10" font-weight="bold" fill="#f8fafc">220V Neutral</text>
+
+    <line x1="295" y1="24" x2="320" y2="24" stroke="#22c55e" stroke-width="3" stroke-dasharray="4,2"/>
+    <text x="330" y="28" font-size="10" font-weight="bold" fill="#f8fafc">Earth Ground</text>
+
+    <line x1="415" y1="24" x2="440" y2="24" stroke="#f97316" stroke-width="3"/>
+    <text x="450" y="28" font-size="10" font-weight="bold" fill="#f8fafc">+5V DC (22 AWG)</text>
+
+    <line x1="555" y1="24" x2="580" y2="24" stroke="#94a3b8" stroke-width="3"/>
+    <text x="590" y="28" font-size="10" font-weight="bold" fill="#f8fafc">GND (Black)</text>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- 1. AC MAINS ENTRY & PROTECTION (X = 60, Y = 110)         -->
+  <!-- ======================================================== -->
+  <g transform="translate(60, 110)" filter="url(#glow)">
+    <rect width="180" height="130" rx="8" fill="#334155" stroke="#475569" stroke-width="2"/>
+    <text x="90" y="25" font-size="12" font-weight="bold" fill="#f8fafc" text-anchor="middle">AC MAINS ENTRY</text>
+    <rect x="20" y="45" width="40" height="25" rx="4" fill="#ef4444"/>
+    <text x="40" y="62" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">L</text>
+    <rect x="70" y="45" width="40" height="25" rx="4" fill="#3b82f6"/>
+    <text x="90" y="62" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">N</text>
+    <rect x="120" y="45" width="40" height="25" rx="4" fill="#22c55e"/>
+    <text x="140" y="62" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">E</text>
+
+    <!-- Fuse Holder -->
+    <rect x="20" y="85" width="140" height="30" rx="4" fill="#1e293b" stroke="#dc2626" stroke-width="1.5"/>
+    <text x="90" y="104" font-size="10" font-weight="bold" fill="#ef4444" text-anchor="middle">5A FUSE + 10D471K MOV</text>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- 2. HLK-5M05 POWER SUPPLY (X = 60, Y = 280)               -->
+  <!-- ======================================================== -->
+  <g transform="translate(60, 280)" filter="url(#glow)">
+    <rect width="180" height="130" rx="8" fill="#0f172a" stroke="#64748b" stroke-width="2"/>
+    <text x="90" y="28" font-size="12" font-weight="bold" fill="#f8fafc" text-anchor="middle">HLK-5M05</text>
+    <text x="90" y="45" font-size="9" fill="#94a3b8" text-anchor="middle">AC-DC 5W Power Supply</text>
+    <!-- AC Pins -->
+    <circle cx="25" cy="80" r="6" fill="#ef4444"/>
+    <text x="38" y="84" font-size="10" font-weight="bold" fill="#ef4444">AC (L)</text>
+    <circle cx="25" cy="105" r="6" fill="#3b82f6"/>
+    <text x="38" y="109" font-size="10" font-weight="bold" fill="#3b82f6">AC (N)</text>
+    <!-- DC Pins -->
+    <circle cx="155" cy="80" r="6" fill="#f97316"/>
+    <text x="142" y="84" font-size="10" font-weight="bold" fill="#f97316" text-anchor="end">+5V (Vo)</text>
+    <circle cx="155" cy="105" r="6" fill="#94a3b8"/>
+    <text x="142" y="109" font-size="10" font-weight="bold" fill="#94a3b8" text-anchor="end">GND (Vo)</text>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- 3. ZMPT101B VOLTAGE SENSOR (X = 60, Y = 450)             -->
+  <!-- ======================================================== -->
+  <g transform="translate(60, 450)" filter="url(#glow)">
+    <rect width="180" height="140" rx="8" fill="#1e3a8a" stroke="#3b82f6" stroke-width="2"/>
+    <text x="90" y="25" font-size="12" font-weight="bold" fill="#ffffff" text-anchor="middle">ZMPT101B VOLTAGE</text>
+    <rect x="65" y="38" width="50" height="35" rx="3" fill="#1e293b" stroke="#60a5fa"/>
+    <text x="90" y="60" font-size="9" fill="#93c5fd" text-anchor="middle">TRANSFORMER</text>
+    <!-- Terminals -->
+    <circle cx="25" cy="100" r="6" fill="#ef4444"/>
+    <text x="38" y="104" font-size="10" font-weight="bold" fill="#f87171">L</text>
+    <circle cx="25" cy="122" r="6" fill="#3b82f6"/>
+    <text x="38" y="126" font-size="10" font-weight="bold" fill="#60a5fa">N</text>
+    <!-- Low Voltage Pins -->
+    <circle cx="155" cy="90" r="5" fill="#f97316"/>
+    <text x="142" y="94" font-size="9" fill="#fed7aa" text-anchor="end">VCC</text>
+    <circle cx="155" cy="108" r="5" fill="#a855f7"/>
+    <text x="142" y="112" font-size="9" font-weight="bold" fill="#c084fc" text-anchor="end">OUT (D33)</text>
+    <circle cx="155" cy="126" r="5" fill="#94a3b8"/>
+    <text x="142" y="130" font-size="9" fill="#cbd5e1" text-anchor="end">GND</text>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- 4. 4-CHANNEL RELAY BOARD (X = 300, Y = 110)              -->
+  <!-- ======================================================== -->
+  <g transform="translate(300, 110)" filter="url(#glow)">
+    <rect width="250" height="480" rx="8" fill="#1e293b" stroke="#0284c7" stroke-width="2.5"/>
+    <text x="125" y="28" font-size="14" font-weight="bold" fill="#38bdf8" text-anchor="middle">4-CHANNEL 5V RELAY BOARD</text>
+    <text x="125" y="45" font-size="9" fill="#94a3b8" text-anchor="middle">Songle 10A 250VAC Coils (Active-LOW)</text>
+
+    <!-- Blue Relay Cubes -->
+    <!-- Relay 1 -->
+    <rect x="25" y="60" width="110" height="75" rx="4" fill="#0284c7" stroke="#38bdf8"/>
+    <text x="80" y="95" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">RELAY 1</text>
+    <text x="80" y="110" font-size="9" fill="#e0f2fe" text-anchor="middle">K1 (Outlet 1)</text>
+
+    <!-- Relay 2 -->
+    <rect x="25" y="155" width="110" height="75" rx="4" fill="#0284c7" stroke="#38bdf8"/>
+    <text x="80" y="190" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">RELAY 2</text>
+    <text x="80" y="205" font-size="9" fill="#e0f2fe" text-anchor="middle">K2 (Outlet 2)</text>
+
+    <!-- Relay 3 -->
+    <rect x="25" y="250" width="110" height="75" rx="4" fill="#0284c7" stroke="#38bdf8"/>
+    <text x="80" y="285" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">RELAY 3</text>
+    <text x="80" y="300" font-size="9" fill="#e0f2fe" text-anchor="middle">K3 (Outlet 3)</text>
+
+    <!-- Relay 4 (Unused) -->
+    <rect x="25" y="345" width="110" height="75" rx="4" fill="#334155" stroke="#64748b"/>
+    <text x="80" y="380" font-size="11" font-weight="bold" fill="#94a3b8" text-anchor="middle">RELAY 4</text>
+    <text x="80" y="395" font-size="9" fill="#64748b" text-anchor="middle">SPARE / UNUSED</text>
+
+    <!-- Control Pins Header (Right side of relay board) -->
+    <g transform="translate(225, 140)">
+      <circle cx="10" cy="0" r="5" fill="#f97316"/>
+      <text x="0" y="4" font-size="9" fill="#fed7aa" text-anchor="end">VCC</text>
+      <circle cx="10" cy="30" r="5" fill="#22c55e"/>
+      <text x="0" y="34" font-size="9" font-weight="bold" fill="#86efac" text-anchor="end">IN1 (D23)</text>
+      <circle cx="10" cy="60" r="5" fill="#22c55e"/>
+      <text x="0" y="64" font-size="9" font-weight="bold" fill="#86efac" text-anchor="end">IN2 (D21)</text>
+      <circle cx="10" cy="90" r="5" fill="#22c55e"/>
+      <text x="0" y="94" font-size="9" font-weight="bold" fill="#86efac" text-anchor="end">IN3 (D19)</text>
+      <circle cx="10" cy="120" r="4" fill="#64748b"/>
+      <text x="0" y="124" font-size="9" fill="#64748b" text-anchor="end">IN4 (NC)</text>
+      <circle cx="10" cy="150" r="5" fill="#94a3b8"/>
+      <text x="0" y="154" font-size="9" fill="#cbd5e1" text-anchor="end">GND</text>
+    </g>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- 5. THREE ACS712 CURRENT SENSORS (X = 610, Y = 110)       -->
+  <!-- ======================================================== -->
+  <g transform="translate(610, 110)">
+    <!-- Sensor 1 -->
+    <g transform="translate(0, 0)" filter="url(#glow)">
+      <rect width="180" height="120" rx="6" fill="#065f46" stroke="#10b981" stroke-width="2"/>
+      <text x="90" y="24" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">ACS712-05B (#1)</text>
+      <rect x="15" y="40" width="30" height="60" rx="3" fill="#22c55e" stroke="#16a34a"/>
+      <circle cx="30" cy="55" r="5" fill="#065f46"/>
+      <circle cx="30" cy="85" r="5" fill="#065f46"/>
+      <!-- Header Pins -->
+      <circle cx="165" cy="50" r="5" fill="#f97316"/>
+      <text x="152" y="54" font-size="9" fill="#fed7aa" text-anchor="end">VCC</text>
+      <circle cx="165" cy="75" r="5" fill="#3b82f6"/>
+      <text x="152" y="79" font-size="9" font-weight="bold" fill="#93c5fd" text-anchor="end">OUT (D34)</text>
+      <circle cx="165" cy="100" r="5" fill="#94a3b8"/>
+      <text x="152" y="104" font-size="9" fill="#cbd5e1" text-anchor="end">GND</text>
+    </g>
+
+    <!-- Sensor 2 -->
+    <g transform="translate(0, 150)" filter="url(#glow)">
+      <rect width="180" height="120" rx="6" fill="#065f46" stroke="#10b981" stroke-width="2"/>
+      <text x="90" y="24" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">ACS712-05B (#2)</text>
+      <rect x="15" y="40" width="30" height="60" rx="3" fill="#22c55e" stroke="#16a34a"/>
+      <circle cx="30" cy="55" r="5" fill="#065f46"/>
+      <circle cx="30" cy="85" r="5" fill="#065f46"/>
+      <circle cx="165" cy="50" r="5" fill="#f97316"/>
+      <text x="152" y="54" font-size="9" fill="#fed7aa" text-anchor="end">VCC</text>
+      <circle cx="165" cy="75" r="5" fill="#3b82f6"/>
+      <text x="152" y="79" font-size="9" font-weight="bold" fill="#93c5fd" text-anchor="end">OUT (D35)</text>
+      <circle cx="165" cy="100" r="5" fill="#94a3b8"/>
+      <text x="152" y="104" font-size="9" fill="#cbd5e1" text-anchor="end">GND</text>
+    </g>
+
+    <!-- Sensor 3 -->
+    <g transform="translate(0, 300)" filter="url(#glow)">
+      <rect width="180" height="120" rx="6" fill="#065f46" stroke="#10b981" stroke-width="2"/>
+      <text x="90" y="24" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">ACS712-05B (#3)</text>
+      <rect x="15" y="40" width="30" height="60" rx="3" fill="#22c55e" stroke="#16a34a"/>
+      <circle cx="30" cy="55" r="5" fill="#065f46"/>
+      <circle cx="30" cy="85" r="5" fill="#065f46"/>
+      <circle cx="165" cy="50" r="5" fill="#f97316"/>
+      <text x="152" y="54" font-size="9" fill="#fed7aa" text-anchor="end">VCC</text>
+      <circle cx="165" cy="75" r="5" fill="#3b82f6"/>
+      <text x="152" y="79" font-size="9" font-weight="bold" fill="#93c5fd" text-anchor="end">OUT (D32)</text>
+      <circle cx="165" cy="100" r="5" fill="#94a3b8"/>
+      <text x="152" y="104" font-size="9" fill="#cbd5e1" text-anchor="end">GND</text>
+    </g>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- 6. THREE AC OUTLETS J1, J2, J3 (X = 850, Y = 110)        -->
+  <!-- ======================================================== -->
+  <g transform="translate(850, 110)">
+    <!-- Outlet 1 -->
+    <g transform="translate(0, 0)" filter="url(#glow)">
+      <rect width="150" height="100" rx="6" fill="#334155" stroke="#cbd5e1" stroke-width="2"/>
+      <text x="75" y="24" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">AC OUTLET 1</text>
+      <rect x="35" y="45" width="8" height="25" fill="#0f172a"/>
+      <rect x="65" y="45" width="8" height="25" fill="#0f172a"/>
+      <circle cx="54" cy="80" r="6" fill="#0f172a"/>
+      <text x="135" y="55" font-size="10" font-weight="bold" fill="#ef4444">L</text>
+      <text x="135" y="75" font-size="10" font-weight="bold" fill="#3b82f6">N</text>
+      <text x="135" y="92" font-size="10" font-weight="bold" fill="#22c55e">E</text>
+    </g>
+
+    <!-- Outlet 2 -->
+    <g transform="translate(0, 150)" filter="url(#glow)">
+      <rect width="150" height="100" rx="6" fill="#334155" stroke="#cbd5e1" stroke-width="2"/>
+      <text x="75" y="24" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">AC OUTLET 2</text>
+      <rect x="35" y="45" width="8" height="25" fill="#0f172a"/>
+      <rect x="65" y="45" width="8" height="25" fill="#0f172a"/>
+      <circle cx="54" cy="80" r="6" fill="#0f172a"/>
+      <text x="135" y="55" font-size="10" font-weight="bold" fill="#ef4444">L</text>
+      <text x="135" y="75" font-size="10" font-weight="bold" fill="#3b82f6">N</text>
+      <text x="135" y="92" font-size="10" font-weight="bold" fill="#22c55e">E</text>
+    </g>
+
+    <!-- Outlet 3 -->
+    <g transform="translate(0, 300)" filter="url(#glow)">
+      <rect width="150" height="100" rx="6" fill="#334155" stroke="#cbd5e1" stroke-width="2"/>
+      <text x="75" y="24" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">AC OUTLET 3</text>
+      <rect x="35" y="45" width="8" height="25" fill="#0f172a"/>
+      <rect x="65" y="45" width="8" height="25" fill="#0f172a"/>
+      <circle cx="54" cy="80" r="6" fill="#0f172a"/>
+      <text x="135" y="55" font-size="10" font-weight="bold" fill="#ef4444">L</text>
+      <text x="135" y="75" font-size="10" font-weight="bold" fill="#3b82f6">N</text>
+      <text x="135" y="92" font-size="10" font-weight="bold" fill="#22c55e">E</text>
+    </g>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- 7. ESP32 CONTROLLER BOARD (X = 1080, Y = 110)            -->
+  <!-- ======================================================== -->
+  <g transform="translate(1080, 110)" filter="url(#glow)">
+    <rect width="250" height="520" rx="10" fill="#0f172a" stroke="#38bdf8" stroke-width="2.5"/>
+    <text x="125" y="32" font-size="15" font-weight="bold" fill="#38bdf8" text-anchor="middle">ESP32-WROOM-32</text>
+    <text x="125" y="50" font-size="10" fill="#94a3b8" text-anchor="middle">DevKit V1 Microcontroller</text>
+
+    <!-- Antenna area -->
+    <rect x="80" y="65" width="90" height="40" rx="3" fill="#1e293b" stroke="#64748b"/>
+    <text x="125" y="90" font-size="9" fill="#94a3b8" text-anchor="middle">2.4GHz Wi-Fi / BLE</text>
+
+    <!-- Left Header Pins -->
+    <g transform="translate(25, 120)">
+      <circle cx="0" cy="30" r="5" fill="#38bdf8"/>
+      <text x="15" y="34" font-size="10" font-weight="bold" fill="#f8fafc">GPIO 4 (mmWave)</text>
+
+      <circle cx="0" cy="70" r="5" fill="#3b82f6"/>
+      <text x="15" y="74" font-size="10" font-weight="bold" fill="#f8fafc">GPIO 2 (Status LED)</text>
+
+      <circle cx="0" cy="115" r="5" fill="#22c55e"/>
+      <text x="15" y="119" font-size="10" font-weight="bold" fill="#86efac">GPIO 19 (Relay 3)</text>
+
+      <circle cx="0" cy="160" r="5" fill="#22c55e"/>
+      <text x="15" y="164" font-size="10" font-weight="bold" fill="#86efac">GPIO 21 (Relay 2)</text>
+
+      <circle cx="0" cy="205" r="5" fill="#ea580c"/>
+      <text x="15" y="209" font-size="10" font-weight="bold" fill="#fed7aa">GPIO 22 (PIR Motion)</text>
+
+      <circle cx="0" cy="250" r="5" fill="#22c55e"/>
+      <text x="15" y="254" font-size="10" font-weight="bold" fill="#86efac">GPIO 23 (Relay 1)</text>
+
+      <circle cx="0" cy="310" r="6" fill="#94a3b8"/>
+      <text x="15" y="314" font-size="11" font-weight="bold" fill="#cbd5e1">GND</text>
+    </g>
+
+    <!-- Right Header Pins -->
+    <g transform="translate(225, 120)">
+      <circle cx="0" cy="30" r="6" fill="#f97316"/>
+      <text x="-15" y="34" font-size="11" font-weight="bold" fill="#fdba74" text-anchor="end">VIN (5V In)</text>
+
+      <circle cx="0" cy="70" r="5" fill="#eab308"/>
+      <text x="-15" y="74" font-size="10" font-weight="bold" fill="#fef08a" text-anchor="end">GPIO 25 (WiFi LED)</text>
+
+      <circle cx="0" cy="115" r="5" fill="#ef4444"/>
+      <text x="-15" y="119" font-size="10" font-weight="bold" fill="#fca5a5" text-anchor="end">GPIO 26 (Load LED)</text>
+
+      <circle cx="0" cy="165" r="5" fill="#a855f7"/>
+      <text x="-15" y="169" font-size="10" font-weight="bold" fill="#d8b4fe" text-anchor="end">GPIO 33 (ZMPT101B)</text>
+
+      <circle cx="0" cy="210" r="5" fill="#3b82f6"/>
+      <text x="-15" y="214" font-size="10" font-weight="bold" fill="#93c5fd" text-anchor="end">GPIO 32 (ACS #3)</text>
+
+      <circle cx="0" cy="255" r="5" fill="#3b82f6"/>
+      <text x="-15" y="259" font-size="10" font-weight="bold" fill="#93c5fd" text-anchor="end">GPIO 35 (ACS #2)</text>
+
+      <circle cx="0" cy="300" r="5" fill="#3b82f6"/>
+      <text x="-15" y="304" font-size="10" font-weight="bold" fill="#93c5fd" text-anchor="end">GPIO 34 (ACS #1)</text>
+
+      <circle cx="0" cy="350" r="6" fill="#94a3b8"/>
+      <text x="-15" y="354" font-size="11" font-weight="bold" fill="#cbd5e1" text-anchor="end">GND</text>
+    </g>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- 8. OCCUPANCY SENSORS & LEDS (X = 1370, Y = 110)          -->
+  <!-- ======================================================== -->
+  <g transform="translate(1370, 110)">
+    <!-- PIR Sensor -->
+    <g transform="translate(0, 0)" filter="url(#glow)">
+      <rect width="180" height="150" rx="8" fill="#1e293b" stroke="#ea580c" stroke-width="2"/>
+      <text x="90" y="24" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">HC-SR501 PIR</text>
+      <!-- Dome -->
+      <circle cx="90" cy="65" r="30" fill="#f8fafc" stroke="#cbd5e1"/>
+      <circle cx="30" cy="125" r="5" fill="#f97316"/>
+      <text x="42" y="129" font-size="9" fill="#fed7aa">VCC</text>
+      <circle cx="90" cy="125" r="5" fill="#ea580c"/>
+      <text x="90" y="112" font-size="9" font-weight="bold" fill="#fdba74" text-anchor="middle">OUT (D22)</text>
+      <circle cx="150" cy="125" r="5" fill="#94a3b8"/>
+      <text x="138" y="129" font-size="9" fill="#cbd5e1" text-anchor="end">GND</text>
+    </g>
+
+    <!-- mmWave Radar -->
+    <g transform="translate(0, 180)" filter="url(#glow)">
+      <rect width="180" height="190" rx="8" fill="#0284c7" stroke="#38bdf8" stroke-width="2"/>
+      <text x="90" y="24" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">HLK-LD2410C MMWAVE</text>
+      <!-- Golden Antennas -->
+      <rect x="25" y="45" width="45" height="35" rx="2" fill="#eab308"/>
+      <rect x="110" y="45" width="45" height="35" rx="2" fill="#eab308"/>
+      <rect x="75" y="60" width="30" height="30" rx="2" fill="#0f172a"/>
+      <!-- Header Pins -->
+      <g transform="translate(15, 140)">
+        <text x="10" y="-10" font-size="8" fill="#e0f2fe">TX</text>
+        <circle cx="15" cy="0" r="4" fill="#64748b"/>
+        <text x="38" y="-10" font-size="8" fill="#e0f2fe">RX</text>
+        <circle cx="43" cy="0" r="4" fill="#64748b"/>
+        <text x="68" y="-10" font-size="8" font-weight="bold" fill="#ffffff">OUT</text>
+        <circle cx="75" cy="0" r="5" fill="#38bdf8"/>
+        <text x="100" y="-10" font-size="8" font-weight="bold" fill="#cbd5e1">GND</text>
+        <circle cx="110" cy="0" r="5" fill="#94a3b8"/>
+        <text x="132" y="-10" font-size="8" font-weight="bold" fill="#fdba74">VCC</text>
+        <circle cx="140" cy="0" r="5" fill="#f97316"/>
+      </g>
+      <text x="90" y="175" font-size="9" fill="#e0f2fe" text-anchor="middle">Pin 5 = VCC (5V) | Pin 3 = D4</text>
+    </g>
+
+    <!-- 3x 10mm Panel LEDs -->
+    <g transform="translate(0, 400)" filter="url(#glow)">
+      <rect width="180" height="150" rx="8" fill="#1e293b" stroke="#64748b" stroke-width="2"/>
+      <text x="90" y="24" font-size="11" font-weight="bold" fill="#ffffff" text-anchor="middle">10mm PANEL LEDS</text>
+
+      <circle cx="35" cy="65" r="14" fill="#3b82f6" stroke="#60a5fa" stroke-width="2"/>
+      <text x="35" y="98" font-size="9" font-weight="bold" fill="#93c5fd" text-anchor="middle">STATUS</text>
+      <text x="35" y="112" font-size="8" fill="#94a3b8" text-anchor="middle">GPIO 2</text>
+
+      <circle cx="90" cy="65" r="14" fill="#eab308" stroke="#fde047" stroke-width="2"/>
+      <text x="90" y="98" font-size="9" font-weight="bold" fill="#fef08a" text-anchor="middle">WIFI</text>
+      <text x="90" y="112" font-size="8" fill="#94a3b8" text-anchor="middle">GPIO 25</text>
+
+      <circle cx="145" cy="65" r="14" fill="#ef4444" stroke="#f87171" stroke-width="2"/>
+      <text x="145" y="98" font-size="9" font-weight="bold" fill="#fca5a5" text-anchor="middle">LOAD</text>
+      <text x="145" y="112" font-size="8" fill="#94a3b8" text-anchor="middle">GPIO 26</text>
+
+      <text x="90" y="136" font-size="8" fill="#cbd5e1" text-anchor="middle">Each has 330Ω series resistor to GND</text>
+    </g>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- 9. PHYSICAL POINT-TO-POINT HARNESS TRACES (CONNECTED)    -->
+  <!-- ======================================================== -->
+  <!-- 220V AC Live Bus (Red / Brown): Mains -> PS1, ZMPT, Relays K1..K3 -->
+  <path d="M 100 170 L 100 240 L 40 240 L 40 700 L 320 700" fill="none" stroke="#ef4444" stroke-width="3"/>
+  <circle cx="40" cy="360" r="4" fill="#ef4444"/>
+  <line x1="40" y1="360" x2="85" y2="360" stroke="#ef4444" stroke-width="3"/>
+  <circle cx="40" cy="550" r="4" fill="#ef4444"/>
+  <line x1="40" y1="550" x2="85" y2="550" stroke="#ef4444" stroke-width="3"/>
+
+  <!-- Relay to ACS712 High-Current Switched Lines -->
+  <!-- Branch 1: Relay 1 NO to ACS712 #1 -->
+  <line x1="435" y1="170" x2="625" y2="170" stroke="#ef4444" stroke-width="3"/>
+  <!-- Branch 2: Relay 2 NO to ACS712 #2 -->
+  <line x1="435" y1="315" x2="625" y2="315" stroke="#ef4444" stroke-width="3"/>
+  <!-- Branch 3: Relay 3 NO to ACS712 #3 -->
+  <line x1="435" y1="460" x2="625" y2="460" stroke="#ef4444" stroke-width="3"/>
+
+  <!-- ACS712 to AC Outlets Lines -->
+  <!-- ACS #1 to Outlet 1 L -->
+  <line x1="655" y1="170" x2="850" y2="170" stroke="#ef4444" stroke-width="3"/>
+  <!-- ACS #2 to Outlet 2 L -->
+  <line x1="655" y1="315" x2="850" y2="315" stroke="#ef4444" stroke-width="3"/>
+  <!-- ACS #3 to Outlet 3 L -->
+  <line x1="655" y1="460" x2="850" y2="460" stroke="#ef4444" stroke-width="3"/>
+
+  <!-- 220V AC Neutral Bus (Blue): Mains -> PS1, ZMPT, Outlets 1..3 -->
+  <path d="M 150 170 L 150 210 L 270 210 L 270 650 L 1020 650 L 1020 185" fill="none" stroke="#3b82f6" stroke-width="3"/>
+  <circle cx="270" cy="385" r="4" fill="#3b82f6"/>
+  <line x1="270" y1="385" x2="85" y2="385" stroke="#3b82f6" stroke-width="3"/>
+  <circle cx="270" cy="572" r="4" fill="#3b82f6"/>
+  <line x1="270" y1="572" x2="85" y2="572" stroke="#3b82f6" stroke-width="3"/>
+  <!-- Neutral taps into Outlets 1, 2, 3 -->
+  <circle cx="1020" cy="185" r="4" fill="#3b82f6"/>
+  <line x1="1000" y1="185" x2="1020" y2="185" stroke="#3b82f6" stroke-width="3"/>
+  <circle cx="1020" cy="335" r="4" fill="#3b82f6"/>
+  <line x1="1000" y1="335" x2="1020" y2="335" stroke="#3b82f6" stroke-width="3"/>
+  <circle cx="1020" cy="485" r="4" fill="#3b82f6"/>
+  <line x1="1000" y1="485" x2="1020" y2="485" stroke="#3b82f6" stroke-width="3"/>
+
+  <!-- Earth Ground Bus (Green Dashed) -->
+  <path d="M 200 170 L 200 190 L 1050 190 L 1050 502" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-dasharray="5,3"/>
+  <circle cx="1050" cy="202" r="3.5" fill="#22c55e"/>
+  <line x1="1000" y1="202" x2="1050" y2="202" stroke="#22c55e" stroke-width="2.5" stroke-dasharray="5,3"/>
+  <circle cx="1050" cy="352" r="3.5" fill="#22c55e"/>
+  <line x1="1000" y1="352" x2="1050" y2="352" stroke="#22c55e" stroke-width="2.5" stroke-dasharray="5,3"/>
+  <circle cx="1050" cy="502" r="3.5" fill="#22c55e"/>
+  <line x1="1000" y1="502" x2="1050" y2="502" stroke="#22c55e" stroke-width="2.5" stroke-dasharray="5,3"/>
+
+  <!-- ======================================================== -->
+  <!-- 10. LOW-VOLTAGE HARNESSES (5V DC, GND, & GPIO JUMPERS)    -->
+  <!-- ======================================================== -->
+  <!-- +5V DC Distribution Bus (Orange): HLK-5M05 Vo -> ESP32 VIN, Relays, Sensors -->
+  <path d="M 215 360 L 280 360 L 280 90 L 1315 90 L 1315 150" fill="none" stroke="#f97316" stroke-width="2.5"/>
+  <circle cx="535" cy="90" r="3.5" fill="#f97316"/>
+  <line x1="535" y1="90" x2="535" y2="140" stroke="#f97316" stroke-width="2.5"/>
+  <circle cx="775" cy="90" r="3.5" fill="#f97316"/>
+  <line x1="775" y1="90" x2="775" y2="160" stroke="#f97316" stroke-width="2.5"/>
+  <circle cx="1400" cy="90" r="3.5" fill="#f97316"/>
+  <line x1="1400" y1="90" x2="1400" y2="235" stroke="#f97316" stroke-width="2.5"/>
+
+  <!-- GND Common Rail (Slate / Black) -->
+  <path d="M 215 385 L 260 385 L 260 70 L 1345 70 L 1345 470" fill="none" stroke="#94a3b8" stroke-width="2.5"/>
+  <circle cx="535" cy="70" r="3.5" fill="#94a3b8"/>
+  <line x1="535" y1="70" x2="535" y2="290" stroke="#94a3b8" stroke-width="2.5"/>
+  <circle cx="775" cy="70" r="3.5" fill="#94a3b8"/>
+  <line x1="775" y1="70" x2="775" y2="210" stroke="#94a3b8" stroke-width="2.5"/>
+
+  <!-- Relay GPIO Controls (IN1, IN2, IN3 to ESP32 D23, D21, D19) -->
+  <path d="M 535 170 L 580 170 L 580 370 L 1105 370" fill="none" stroke="#22c55e" stroke-width="2"/>
+  <text x="590" y="365" font-size="8" font-weight="bold" fill="#86efac">IN1 → GPIO 23</text>
+
+  <path d="M 535 200 L 565 200 L 565 280 L 1105 280" fill="none" stroke="#22c55e" stroke-width="2"/>
+  <text x="590" y="275" font-size="8" font-weight="bold" fill="#86efac">IN2 → GPIO 21</text>
+
+  <path d="M 535 230 L 550 230 L 550 235 L 1105 235" fill="none" stroke="#22c55e" stroke-width="2"/>
+  <text x="590" y="230" font-size="8" font-weight="bold" fill="#86efac">IN3 → GPIO 19</text>
+
+  <!-- ACS712 Analog Signals to ESP32 ADC1 -->
+  <!-- ACS #1 -> GPIO 34 -->
+  <path d="M 775 185 L 810 185 L 810 420 L 1305 420" fill="none" stroke="#3b82f6" stroke-width="2"/>
+  <text x="815" y="415" font-size="8" font-weight="bold" fill="#93c5fd">ACS #1 OUT → GPIO 34</text>
+
+  <!-- ACS #2 -> GPIO 35 -->
+  <path d="M 775 335 L 825 335 L 825 375 L 1305 375" fill="none" stroke="#3b82f6" stroke-width="2"/>
+  <text x="830" y="370" font-size="8" font-weight="bold" fill="#93c5fd">ACS #2 OUT → GPIO 35</text>
+
+  <!-- ACS #3 -> GPIO 32 -->
+  <path d="M 775 485 L 840 485 L 840 330 L 1305 330" fill="none" stroke="#3b82f6" stroke-width="2"/>
+  <text x="845" y="325" font-size="8" font-weight="bold" fill="#93c5fd">ACS #3 OUT → GPIO 32</text>
+
+  <!-- ZMPT101B OUT -> GPIO 33 -->
+  <path d="M 215 558 L 290 558 L 290 620 L 1280 620 L 1280 285 L 1305 285" fill="none" stroke="#a855f7" stroke-width="2"/>
+  <text x="300" y="615" font-size="9" font-weight="bold" fill="#d8b4fe">ZMPT101B OUT → ESP32 GPIO 33 (ADC1)</text>
+
+  <!-- Occupancy Sensors & LEDs to ESP32 -->
+  <!-- PIR OUT -> GPIO 22 -->
+  <path d="M 1460 235 L 1460 325 L 1105 325" fill="none" stroke="#ea580c" stroke-width="2"/>
+  <text x="1380" y="320" font-size="8" font-weight="bold" fill="#fed7aa" text-anchor="end">PIR OUT → GPIO 22</text>
+
+  <!-- mmWave OUT -> GPIO 4 -->
+  <path d="M 1445 430 L 1445 150 L 1105 150" fill="none" stroke="#38bdf8" stroke-width="2"/>
+  <text x="1380" y="145" font-size="8" font-weight="bold" fill="#38bdf8" text-anchor="end">mmWave OUT → GPIO 4</text>
+
+  <!-- Status LED -> GPIO 2 -->
+  <path d="M 1405 510 L 1405 190 L 1105 190" fill="none" stroke="#3b82f6" stroke-width="2"/>
+  <text x="1380" y="185" font-size="8" font-weight="bold" fill="#93c5fd" text-anchor="end">Status LED ← GPIO 2</text>
+
+  <!-- WiFi LED <- GPIO 25 -->
+  <path d="M 1305 190 L 1360 190 L 1360 510 L 1460 510" fill="none" stroke="#eab308" stroke-width="2"/>
+  <text x="1380" y="205" font-size="8" font-weight="bold" fill="#fde047">WiFi LED ← GPIO 25</text>
+
+  <!-- Load LED <- GPIO 26 -->
+  <path d="M 1305 235 L 1350 235 L 1350 510 L 1515 510" fill="none" stroke="#ef4444" stroke-width="2"/>
+  <text x="1380" y="230" font-size="8" font-weight="bold" fill="#fca5a5">Load LED ← GPIO 26</text>
+
+
+  <!-- ======================================================== -->
+  <!-- 11. ENCLOSURE WIRING SPECIFICATIONS & ASSEMBLY NOTES     -->
+  <!-- ======================================================== -->
+  <g transform="translate(60, 680)">
+    <rect width="1490" height="150" rx="8" fill="#0f172a" stroke="#334155" stroke-width="1.8"/>
+    <text x="25" y="30" font-size="13" font-weight="bold" fill="#38bdf8">PHYSICAL WIRE SPECIFICATIONS &amp; ENCLOSURE ASSEMBLY GUIDE:</text>
+
+    <text x="25" y="60" font-size="11" fill="#e2e8f0">• 220V AC Power Harness (Mains Entry → Fuse → Relays → ACS712 → Outlets):</text>
+    <text x="660" y="60" font-size="11" font-weight="bold" fill="#f87171">Use 16 AWG or 18 AWG stranded copper wire (rated 300V/600V, 105°C).</text>
+
+    <text x="25" y="85" font-size="11" fill="#e2e8f0">• Low-Voltage 5V DC Bus (HLK-5M05 → ESP32, Relays, Sensors):</text>
+    <text x="660" y="85" font-size="11" font-weight="bold" fill="#fdba74">Use 22 AWG hookup wire. Solder 470µF electrolytic cap directly across 5V and GND.</text>
+
+    <text x="25" y="110" font-size="11" fill="#e2e8f0">• Microcontroller Logic &amp; Sensor Signals (GPIO to Relays, ACS712, ZMPT101B, mmWave):</text>
+    <text x="660" y="110" font-size="11" font-weight="bold" fill="#93c5fd">Use standard 2.54mm pitch DuPont jumper wires (keep lengths under 15 cm for low noise).</text>
+
+    <text x="25" y="135" font-size="11" fill="#e2e8f0">• Occupancy Radar Placement:</text>
+    <text x="660" y="135" font-size="11" font-weight="bold" fill="#38bdf8">Mount HLK-LD2410C on front enclosure wall (facing room center) away from 220V AC relays.</text>
+  </g>
+</svg>

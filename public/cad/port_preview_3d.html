@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VoltSense External Port Pod — Interactive 3D Model</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #090d16;
+      color: #f1f5f9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      padding: 12px 24px;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #1e293b;
+      z-index: 10;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #f8fafc;
+    }
+    .badge {
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .controls-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn-group {
+      display: flex;
+      background: #1e293b;
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+    }
+    button {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      padding: 6px 14px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    button:hover {
+      color: #f8fafc;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    button.active {
+      background: #2563eb;
+      color: #ffffff;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+    }
+    button.sec-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+    }
+    button.sec-btn:hover {
+      background: #334155;
+      color: #fff;
+    }
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    #info-panel {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      background: rgba(15, 23, 42, 0.92);
+      backdrop-filter: blur(14px);
+      border: 1px solid #1e293b;
+      padding: 18px 22px;
+      border-radius: 12px;
+      max-width: 400px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+    }
+    #info-panel h2 {
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .specs-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      column-gap: 14px;
+      row-gap: 6px;
+      font-size: 0.80rem;
+    }
+    .specs-label { color: #64748b; font-weight: 500; }
+    .specs-val { color: #e2e8f0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    #view-helper {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid #1e293b;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      color: #94a3b8;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      pointer-events: none;
+    }
+    .highlight-pill {
+      display: inline-block;
+      padding: 2px 7px;
+      background: #0284c7;
+      color: #fff;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 0.75rem;
+    }
+    #loading-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(15, 23, 42, 0.9);
+      padding: 14px 24px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #38bdf8;
+      display: none;
+      z-index: 20;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>VoltSense Port Pod</h1>
+      <span class="badge">Belkin Wemo Form Factor • 3D CAD</span>
+    </div>
+
+    <div class="controls-row">
+      <!-- Port Selector -->
+      <div class="btn-group">
+        <button id="btn-p1" class="active" onclick="setPort(1)">Port 1</button>
+        <button id="btn-p2" onclick="setPort(2)">Port 2</button>
+        <button id="btn-p3" onclick="setPort(3)">Port 3</button>
+      </div>
+
+      <!-- Part Mode Selector -->
+      <div class="btn-group">
+        <button id="btn-view-assembled" class="active" onclick="setViewMode('assembled')">Assembled Pod</button>
+        <button id="btn-view-exploded" onclick="setViewMode('exploded')">Exploded View</button>
+        <button id="btn-view-case" onclick="setViewMode('case')">Chassis Only</button>
+        <button id="btn-view-lid" onclick="setViewMode('lid')">Rear Lid Only</button>
+        <button id="btn-view-socket" onclick="setViewMode('socket')">SS-6B Socket</button>
+      </div>
+
+      <!-- View Controls -->
+      <button class="sec-btn" id="btn-autorotate" onclick="toggleAutoRotate()">Auto-Rotate</button>
+      <button class="sec-btn" onclick="toggleWireframe()">Wireframe</button>
+      <button class="sec-btn" onclick="frontCamera()">Front</button>
+      <button class="sec-btn" onclick="isoCamera()">Isometric</button>
+      <button class="sec-btn" onclick="rearCamera()">Rear</button>
+      <button class="sec-btn" onclick="topCamera()">Top</button>
+      <button class="sec-btn" onclick="rightCamera()">Right Side</button>
+      <button class="sec-btn" onclick="leftCamera()">Left Side</button>
+      <button class="sec-btn" onclick="bottomCamera()">Bottom</button>
+    </div>
+  </header>
+
+  <div id="canvas-container">
+    <div id="loading-indicator">Loading 3D STL Model...</div>
+    <div id="view-helper">
+      <div>🖱️ <strong>Left Click + Drag:</strong> Orbit / Rotate 360°</div>
+      <div>🖱️ <strong>Right Click + Drag:</strong> Pan</div>
+      <div>⚙️ <strong>Scroll Wheel:</strong> Zoom In / Out</div>
+    </div>
+
+    <div id="info-panel">
+      <h2><span class="highlight-pill" id="port-pill">PORT 1</span> Pod Specification</h2>
+      <div class="specs-grid">
+        <span class="specs-label">Envelope (W×H×D):</span>
+        <span class="specs-val">64.0 × 64.0 × 38.0 mm</span>
+        <span class="specs-label">Form Factor:</span>
+        <span class="specs-val">Belkin Wemo Squircle (R13.5 mm)</span>
+        <span class="specs-label">Front Face:</span>
+        <span class="specs-val">Monolithic Satin-White (R2.0 Fillet)</span>
+        <span class="specs-label">Receptacle:</span>
+        <span class="specs-val">Tong Long SS-6B (15A 250V)</span>
+        <span class="specs-label">Mounting:</span>
+        <span class="specs-val">Option 1: Front Snap-In Bezel</span>
+        <span class="specs-label">Bezel Cutout:</span>
+        <span class="specs-val">24.5 × 22.2 mm (1.6 mm snap lip)</span>
+        <span class="specs-label">Flange Recess:</span>
+        <span class="specs-val">27.2 × 27.2 × 0.8 mm flush pocket</span>
+        <span class="specs-label">Pinout:</span>
+        <span class="specs-val">NEMA 5-15R (Ground at TOP, GREEN)</span>
+        <span class="specs-label">Terminals:</span>
+        <span class="specs-val">3× 0.250" (6.3 mm) Spade Tabs</span>
+        <span class="specs-label">Top Logo:</span>
+        <span class="specs-val">Debossed [⚡] VoltSense (0.60 mm)</span>
+        <span class="specs-label">Bottom Label:</span>
+        <span class="specs-val" id="spec-port-label">Debossed "PORT 1"</span>
+        <span class="specs-label">Top Cable Entry:</span>
+        <span class="specs-val">Ø 12.5 mm Grommet + Royal Cord</span>
+        <span class="specs-label">Cable Specification:</span>
+        <span class="specs-val">Powerflex Royal Cord SJT 16/3 (8.5mm OD)</span>
+        <span class="specs-label">Wall Thickness:</span>
+        <span class="specs-val">3.0 mm Uniform ABS / Polycarbonate</span>
+        <span class="specs-label">Fasteners:</span>
+        <span class="specs-val">4× M3 × 16 mm into Solid Bosses (Ø 2.8mm)</span>
+        <span class="specs-label">Rear Lid:</span>
+        <span class="specs-val">3.5 mm Plate + 3.5 mm Inner Skirt</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Three.js Scene Setup ---
+    const container = document.getElementById('canvas-container');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x090d16);
+
+    const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 1000);
+    camera.position.set(0, 10, 175);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 35;
+    controls.maxDistance = 450;
+    controls.autoRotate = false;
+    controls.autoRotateSpeed = 2.0;
+
+    // --- Studio Lighting Setup ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85);
+    scene.add(ambientLight);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.25);
+    keyLight.position.set(90, 140, 160);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0x93c5fd, 0.7);
+    fillLight.position.set(-100, -20, 90);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.65);
+    rimLight.position.set(0, 120, -120);
+    scene.add(rimLight);
+
+    // --- High-Quality PBR Materials ---
+    const whitePlasticMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xf8fafc,
+      roughness: 0.24,
+      metalness: 0.02,
+      clearcoat: 0.35,
+      clearcoatRoughness: 0.2
+    });
+
+    const lidMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0xf1f5f9,
+      roughness: 0.32,
+      metalness: 0.02
+    });
+
+    const socketMaterial = new THREE.MeshStandardMaterial({
+      color: 0x18181b,
+      roughness: 0.38,
+      metalness: 0.12
+    });
+
+    const nylonSubChassisMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      roughness: 0.75,
+      metalness: 0.05
+    });
+
+    const cordMaterial = new THREE.MeshStandardMaterial({
+      color: 0x18181b,
+      roughness: 0.65
+    });
+
+    const grommetMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0f172a,
+      roughness: 0.85
+    });
+
+    // --- Scene Model Hierarchy ---
+    const modelRoot = new THREE.Group();
+    scene.add(modelRoot);
+
+    // Sub-groups
+    const assembledGroup = new THREE.Group(); // Single assembled STL
+    const caseGroup = new THREE.Group();      // Modular base chassis
+    const lidGroup = new THREE.Group();       // Modular rear lid plate
+    const socketGroup = new THREE.Group();    // Internal brass contacts
+    const cordGroup = new THREE.Group();      // Top cable & grommet
+    const fallbackGroup = new THREE.Group();  // Procedural geometric fallback
+
+    modelRoot.add(assembledGroup);
+    modelRoot.add(caseGroup);
+    modelRoot.add(lidGroup);
+    modelRoot.add(socketGroup);
+    modelRoot.add(cordGroup);
+    modelRoot.add(fallbackGroup);
+
+    // Offset modelRoot so the pod center sits directly at (0, 0, 0)
+    // In OpenSCAD: X is [-32, 32], Y is [-32, 32] (cable extends to +82), Z is [-3.5, 34.5]
+    // Pivot center of body: X=0, Y=0, Z=15.5
+    modelRoot.position.set(0, -10, -15.5);
+
+    // --- Build Top Cable & Grommet Assembly ---
+    function buildCableAssembly() {
+      while (cordGroup.children.length > 0) cordGroup.remove(cordGroup.children[0]);
+
+      // Synthetic Rubber Grommet (OD 16.0 mm, ID 8.5 mm, Flange thickness 4.5 mm)
+      const grommetGeo = new THREE.CylinderGeometry(8.0, 8.0, 4.5, 36);
+      const grommet = new THREE.Mesh(grommetGeo, grommetMaterial);
+      grommet.position.set(0, 32.0, 17.25);
+      cordGroup.add(grommet);
+
+      // Powerflex Royal Cord SJT 16/3 (8.5 mm OD, 50 mm length straight exit)
+      const cordGeo = new THREE.CylinderGeometry(4.25, 4.25, 50, 36);
+      const cord = new THREE.Mesh(cordGeo, cordMaterial);
+      cord.position.set(0, 32.0 + 25.0, 17.25);
+      cordGroup.add(cord);
+    }
+    buildCableAssembly();
+
+    // --- Procedural Fallback Geometry (Exact Belkin Wemo Form Factor) ---
+    function createRoundedRectShape(w, h, r) {
+      const shape = new THREE.Shape();
+      const hw = w / 2, hh = h / 2;
+      shape.moveTo(-hw + r, -hh);
+      shape.lineTo(hw - r, -hh);
+      shape.quadraticCurveTo(hw, -hh, hw, -hh + r);
+      shape.lineTo(hw, hh - r);
+      shape.quadraticCurveTo(hw, hh, hw - r, hh);
+      shape.lineTo(-hw + r, hh);
+      shape.quadraticCurveTo(-hw, hh, -hw, hh - r);
+      shape.lineTo(-hw, -hh + r);
+      shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+      return shape;
+    }
+
+    function buildProceduralModel(pNum) {
+      while (fallbackGroup.children.length > 0) fallbackGroup.remove(fallbackGroup.children[0]);
+
+      // 1. Monolithic Squircle Body (64 x 64 x 34.5 mm with R13.5 corners and smooth waterfall fillet)
+      const bodyShape = createRoundedRectShape(64, 64, 13.5);
+      const bodyExtrude = {
+        depth: 34.5,
+        bevelEnabled: true,
+        bevelThickness: 2.0,
+        bevelSize: 1.8,
+        bevelSegments: 6
+      };
+      const bodyGeo = new THREE.ExtrudeGeometry(bodyShape, bodyExtrude);
+      const bodyMesh = new THREE.Mesh(bodyGeo, whitePlasticMaterial);
+      bodyMesh.position.set(0, 0, 0);
+      bodyMesh.castShadow = true;
+      bodyMesh.receiveShadow = true;
+      fallbackGroup.add(bodyMesh);
+
+      // 2. Rear Lid Plate (3.5 mm)
+      const lidGeo = new THREE.ExtrudeGeometry(bodyShape, { depth: 3.5, bevelEnabled: false });
+      const lidMesh = new THREE.Mesh(lidGeo, lidMaterial);
+      lidMesh.position.set(0, 0, -3.5);
+      fallbackGroup.add(lidMesh);
+
+      // 3. Perimeter Accent Groove (Matches Belkin front styling groove)
+      const grooveShape = createRoundedRectShape(55, 55, 9.0);
+      const innerGroove = createRoundedRectShape(53.6, 53.6, 8.3);
+      grooveShape.holes.push(innerGroove);
+      const grooveGeo = new THREE.ExtrudeGeometry(grooveShape, { depth: 0.7, bevelEnabled: false });
+      const grooveMesh = new THREE.Mesh(grooveGeo, new THREE.MeshStandardMaterial({ color: 0xd1d5db, roughness: 0.5 }));
+      grooveMesh.position.set(0, 0, 34.51);
+      fallbackGroup.add(grooveMesh);
+
+      // 4. Debossed [⚡] VoltSense Logo Canvas Texture
+      const vsCanvas = document.createElement('canvas');
+      vsCanvas.width = 512; vsCanvas.height = 128;
+      const ctx = vsCanvas.getContext('2d');
+      ctx.clearRect(0, 0, 512, 128);
+      ctx.fillStyle = "#475569";
+      // Badge
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(88, 32, 64, 64, 14); else ctx.rect(88, 32, 64, 64);
+      ctx.fill();
+      // Lightning cutout
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath();
+      const sc = 64/256;
+      ctx.moveTo(120 + 30*sc, 64 - 135*sc);
+      ctx.lineTo(120 - 90*sc, 64 + 15*sc);
+      ctx.lineTo(120 - 10*sc, 64 + 15*sc);
+      ctx.lineTo(120 - 30*sc, 64 + 135*sc);
+      ctx.lineTo(120 + 90*sc, 64 - 15*sc);
+      ctx.lineTo(120 + 10*sc, 64 - 15*sc);
+      ctx.closePath();
+      ctx.fill();
+      // Wordmark
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = "#475569";
+      ctx.font = 'bold 50px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText("VoltSense", 175, 66);
+
+      const vsTexture = new THREE.CanvasTexture(vsCanvas);
+      const vsPlane = new THREE.Mesh(new THREE.PlaneGeometry(32, 8.0), new THREE.MeshBasicMaterial({ map: vsTexture, transparent: true }));
+      vsPlane.position.set(0, 15.0, 34.52);
+      fallbackGroup.add(vsPlane);
+
+      // 5. Debossed "PORT <N>" Identifier Below Ground Pin
+      const pCanvas = document.createElement('canvas');
+      pCanvas.width = 512; pCanvas.height = 128;
+      const pCtx = pCanvas.getContext('2d');
+      pCtx.fillStyle = "#475569";
+      pCtx.font = 'bold 56px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      pCtx.textAlign = 'center';
+      pCtx.textBaseline = 'middle';
+      pCtx.fillText(`PORT ${pNum}`, 256, 64);
+
+      const pTexture = new THREE.CanvasTexture(pCanvas);
+      const pPlane = new THREE.Mesh(new THREE.PlaneGeometry(28, 7.0), new THREE.MeshBasicMaterial({ map: pTexture, transparent: true }));
+      pPlane.position.set(0, -16.0, 34.52);
+      fallbackGroup.add(pPlane);
+
+      // 6. NEMA 5-15R Slots (Ground at BOTTOM, Neutral on LEFT, Line on RIGHT)
+      const slotMat = new THREE.MeshBasicMaterial({ color: 0x09090b });
+      // Neutral (Left, 1.8 x 9.0 mm)
+      const nSlot = new THREE.Mesh(new THREE.BoxGeometry(1.8, 9.0, 5), slotMat);
+      nSlot.position.set(-6.0, 2.0, 33.0);
+      fallbackGroup.add(nSlot);
+
+      // Line (Right, 1.6 x 7.2 mm)
+      const lSlot = new THREE.Mesh(new THREE.BoxGeometry(1.6, 7.2, 5), slotMat);
+      lSlot.position.set(6.0, 2.0, 33.0);
+      fallbackGroup.add(lSlot);
+
+      // Ground (Bottom, Arched D-shape 4.8 mm)
+      const gHole = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 5, 32), slotMat);
+      gHole.rotation.x = Math.PI / 2;
+      gHole.position.set(0, -6.5, 33.0);
+      fallbackGroup.add(gHole);
+
+      // Brass Contacts recessed inside
+      const brassN = new THREE.Mesh(new THREE.BoxGeometry(1.2, 7.5, 6), brassMaterial);
+      brassN.position.set(-6.0, 2.0, 27.0);
+      fallbackGroup.add(brassN);
+
+      const brassL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 6.5, 6), brassMaterial);
+      brassL.position.set(6.0, 2.0, 27.0);
+      fallbackGroup.add(brassL);
+
+      const brassG = new THREE.Mesh(new THREE.CylinderGeometry(2.0, 2.0, 6, 24), brassMaterial);
+      brassG.rotation.x = Math.PI / 2;
+      brassG.position.set(0, -6.5, 27.0);
+      fallbackGroup.add(brassG);
+    }
+
+    // --- Robust STL Model Loader System ---
+    let currentPort = 1;
+    let currentMode = 'assembled';
+    let wireframe = false;
+    const loader = (typeof THREE.STLLoader !== 'undefined') ? new THREE.STLLoader() : null;
+
+    function loadPortModel(portNum) {
+      currentPort = portNum;
+      document.getElementById('port-pill').innerText = `PORT ${portNum}`;
+      document.getElementById('spec-port-label').innerText = `Debossed "PORT ${portNum}"`;
+
+      [1, 2, 3].forEach(n => {
+        document.getElementById(`btn-p${n}`).classList.toggle('active', n === portNum);
+      });
+
+      // Clear previous dynamic meshes
+      while (assembledGroup.children.length > 0) assembledGroup.remove(assembledGroup.children[0]);
+      while (caseGroup.children.length > 0) caseGroup.remove(caseGroup.children[0]);
+      while (lidGroup.children.length > 0) lidGroup.remove(lidGroup.children[0]);
+      while (socketGroup.children.length > 0) socketGroup.remove(socketGroup.children[0]);
+
+      if (loader) {
+        loadingIndicator.style.display = 'block';
+        const cacheBuster = `?t=${Date.now()}`;
+
+        // 1. Load Complete Assembled Pod STL
+        const asmUrl = `/cad/voltsense_port_${portNum}_pod.stl${cacheBuster}`;
+        loader.load(asmUrl, (geo) => {
+          geo.computeVertexNormals();
+          const mesh = new THREE.Mesh(geo, whitePlasticMaterial);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          assembledGroup.add(mesh);
+
+          fallbackGroup.visible = false;
+          loadingIndicator.style.display = 'none';
+        }, undefined, (err) => {
+          console.warn("Primary assembled STL load failed, using fallback:", err);
+          fallbackGroup.visible = true;
+          loadingIndicator.style.display = 'none';
+          buildProceduralModel(portNum);
+        });
+
+        // 2. Load Modular Base Chassis
+        const caseUrl = `/cad/voltsense_port_pod_case_p${portNum}.stl${cacheBuster}`;
+        loader.load(caseUrl, (geo) => {
+          geo.computeVertexNormals();
+          const mesh = new THREE.Mesh(geo, whitePlasticMaterial);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          caseGroup.add(mesh);
+        });
+
+        // 3. Load Rear Lid Plate
+        const lidUrl = `/cad/voltsense_port_pod_lid.stl${cacheBuster}`;
+        loader.load(lidUrl, (geo) => {
+          geo.computeVertexNormals();
+          const mesh = new THREE.Mesh(geo, lidMaterial);
+          mesh.receiveShadow = true;
+          lidGroup.add(mesh);
+        });
+
+        // 4. Load Tong Long SS-6B Receptacle Core STL
+        const socketUrl = `/cad/voltsense_ss6b_socket.stl${cacheBuster}`;
+        loader.load(socketUrl, (geo) => {
+          geo.computeVertexNormals();
+          const mesh = new THREE.Mesh(geo, socketMaterial);
+          socketGroup.add(mesh);
+        });
+      } else {
+        fallbackGroup.visible = true;
+        buildProceduralModel(portNum);
+      }
+
+      // Re-apply view mode visibility
+      setViewMode(currentMode);
+    }
+
+    // --- View Mode Controller ---
+    function setViewMode(mode) {
+      currentMode = mode;
+      ['assembled', 'exploded', 'case', 'lid', 'socket'].forEach(m => {
+        const btn = document.getElementById(`btn-view-${m}`);
+        if (btn) btn.classList.toggle('active', m === mode);
+      });
+
+      // Reset transforms
+      caseGroup.position.set(0, 0, 0);
+      caseGroup.rotation.set(0, 0, 0);
+
+      lidGroup.position.set(0, 0, 0);
+      lidGroup.rotation.set(0, 0, 0);
+
+      socketGroup.position.set(0, 0, 0);
+      socketGroup.rotation.set(0, 0, 0);
+
+      cordGroup.position.set(0, 0, 0);
+      cordGroup.rotation.set(0, 0, 0);
+
+      if (mode === 'assembled') {
+        assembledGroup.visible = true;
+        caseGroup.visible = false;
+        lidGroup.visible = false;
+        socketGroup.visible = false;
+        cordGroup.visible = false; // Cable is already physically inside assembled STL
+      } else if (mode === 'exploded') {
+        assembledGroup.visible = false;
+        caseGroup.visible = true;
+        lidGroup.visible = true;
+        socketGroup.visible = true;
+        cordGroup.visible = true;
+
+        // Spread parts along axes for Option 1 snap-in assembly:
+        // Case stays centered at (0, 0, 0)
+        caseGroup.position.set(0, 0, 0);
+        // Tong Long SS-6B socket is pulled 35mm forward (positive Z) from its seated pocket (Z = 33.7)
+        socketGroup.position.set(0, -0.5, 33.7 + 35.0);
+        // Rear lid is pulled 45mm backward (negative Z)
+        lidGroup.position.set(0, 0, -45.0);
+        // Top cable & grommet are pulled 30mm upward (positive Y)
+        cordGroup.position.set(0, 30.0, 0);
+      } else if (mode === 'case') {
+        assembledGroup.visible = false;
+        caseGroup.visible = true;
+        lidGroup.visible = false;
+        socketGroup.visible = false;
+        cordGroup.visible = false;
+      } else if (mode === 'lid') {
+        assembledGroup.visible = false;
+        caseGroup.visible = false;
+        lidGroup.visible = true;
+        socketGroup.visible = false;
+        cordGroup.visible = false;
+
+        // Rotate lid to face camera directly (inner skirt view)
+        lidGroup.position.set(0, 0, 15);
+        lidGroup.rotation.y = Math.PI;
+      } else if (mode === 'socket') {
+        assembledGroup.visible = false;
+        caseGroup.visible = false;
+        lidGroup.visible = false;
+        socketGroup.visible = true;
+        cordGroup.visible = false;
+      }
+    }
+
+    function setPort(p) {
+      loadPortModel(p);
+    }
+
+    function toggleWireframe() {
+      wireframe = !wireframe;
+      whitePlasticMaterial.wireframe = wireframe;
+      lidMaterial.wireframe = wireframe;
+      brassMaterial.wireframe = wireframe;
+    }
+
+    function toggleAutoRotate() {
+      controls.autoRotate = !controls.autoRotate;
+      document.getElementById('btn-autorotate').classList.toggle('active', controls.autoRotate);
+    }
+
+    function frontCamera() {
+      controls.reset();
+      camera.position.set(0, 0, 155);
+      controls.target.set(0, 0, 0);
+    }
+
+    function isoCamera() {
+      controls.reset();
+      camera.position.set(90, 65, 120);
+      controls.target.set(0, 0, 0);
+    }
+
+    function rearCamera() {
+      controls.reset();
+      camera.position.set(0, 0, -155);
+      controls.target.set(0, 0, 0);
+    }
+
+    function topCamera() {
+      controls.reset();
+      camera.position.set(0, 160, 0);
+      controls.target.set(0, 0, 0);
+    }
+
+    function rightCamera() {
+      controls.reset();
+      camera.position.set(165, 0, 0);
+      controls.target.set(0, 0, 0);
+    }
+
+    function leftCamera() {
+      controls.reset();
+      camera.position.set(-165, 0, 0);
+      controls.target.set(0, 0, 0);
+    }
+
+    function bottomCamera() {
+      controls.reset();
+      camera.position.set(0, -160, 0);
+      controls.target.set(0, 0, 0);
+    }
+
+    // Initialize Port 1 and default isometric view
+    loadPortModel(1);
+    isoCamera();
+
+    // --- Animation Loop ---
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // --- Resize Handler ---
+    window.addEventListener('resize', () => {
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    });
+  </script>
+</body>
+</html>

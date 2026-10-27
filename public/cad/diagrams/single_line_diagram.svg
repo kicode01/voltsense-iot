@@ -1,0 +1,267 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="100%" height="100%" style="background:#ffffff; font-family:'Segoe UI', Arial, sans-serif;">
+  <defs>
+    <pattern id="sldGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <circle cx="20" cy="20" r="0.6" fill="#e2e8f0"/>
+    </pattern>
+  </defs>
+
+  <rect width="100%" height="100%" fill="url(#sldGrid)"/>
+
+  <!-- Border -->
+  <rect x="25" y="25" width="1550" height="950" fill="none" stroke="#0f172a" stroke-width="2.5"/>
+  <rect x="32" y="32" width="1536" height="936" fill="none" stroke="#64748b" stroke-width="1.2"/>
+
+  <!-- Header Banner -->
+  <g transform="translate(60, 50)">
+    <rect width="1480" height="60" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" rx="6"/>
+    <text x="25" y="28" font-size="16" font-weight="bold" fill="#0f172a">VOLTSENSE: SINGLE-LINE DIAGRAM (SLD) / POWER FLOW &amp; CONTROL ARCHITECTURE</text>
+    <text x="25" y="48" font-size="11" fill="#64748b">Philippine Electrical Code (PEC 2017) &amp; IEEE 141 Compliant 1-Phase Radial Power Distribution, Dual Metering &amp; Actuation</text>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- POWER FLOW: MAINS INCOMER → FUSE → MOV → PT → BUSBAR     -->
+  <!-- ======================================================== -->
+  <!-- Utility Incomer Source -->
+  <g transform="translate(80, 250)">
+    <circle cx="0" cy="0" r="35" fill="#f8fafc" stroke="#0f172a" stroke-width="2.2"/>
+    <text x="0" y="-6" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">UTILITY</text>
+    <text x="0" y="10" font-size="9" fill="#64748b" text-anchor="middle">220V 1Φ 60Hz</text>
+    <text x="0" y="55" font-size="10" font-weight="bold" fill="#dc2626" text-anchor="middle">AC MAINS INCOMER</text>
+    <text x="0" y="70" font-size="8" fill="#64748b" text-anchor="middle">2-Wire + Ground</text>
+  </g>
+
+  <!-- Main Feed Line to Fuse F1 -->
+  <line x1="115" y1="250" x2="200" y2="250" stroke="#0f172a" stroke-width="3"/>
+  <line x1="150" y1="240" x2="160" y2="260" stroke="#0f172a" stroke-width="2"/>
+  <line x1="156" y1="240" x2="166" y2="260" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="166" cy="242" r="2.5" fill="#0f172a"/>
+  <text x="160" y="278" font-size="8" fill="#64748b" text-anchor="middle">2x 2.0mm² THHN + 1x G</text>
+
+  <!-- 1. Main Fuse F1 -->
+  <g transform="translate(200, 220)">
+    <rect width="60" height="60" rx="4" fill="#ffffff" stroke="#dc2626" stroke-width="2"/>
+    <line x1="0" y1="30" x2="60" y2="30" stroke="#dc2626" stroke-width="2" stroke-dasharray="4,2"/>
+    <text x="30" y="20" font-size="11" font-weight="bold" fill="#dc2626" text-anchor="middle">F1: 5A</text>
+    <text x="30" y="48" font-size="8" fill="#64748b" text-anchor="middle">CARTRIDGE</text>
+    <text x="30" y="76" font-size="9" font-weight="bold" fill="#0f172a" text-anchor="middle">MAIN FUSE</text>
+    <text x="30" y="88" font-size="8" fill="#64748b" text-anchor="middle">250V Slow-Blow</text>
+  </g>
+
+  <!-- Feed Line to MOV1 -->
+  <line x1="260" y1="250" x2="330" y2="250" stroke="#0f172a" stroke-width="3"/>
+
+  <!-- 2. Surge Protection Device (MOV1 Shunt) -->
+  <g transform="translate(330, 250)">
+    <circle cx="0" cy="0" r="4" fill="#0f172a"/>
+    <line x1="0" y1="0" x2="0" y2="45" stroke="#0f172a" stroke-width="2"/>
+    <rect x="-18" y="45" width="36" height="34" fill="#fef3c7" stroke="#d97706" stroke-width="1.8"/>
+    <line x1="-22" y1="75" x2="22" y2="49" stroke="#d97706" stroke-width="1.8"/>
+    <text x="0" y="96" font-size="9" font-weight="bold" fill="#b45309" text-anchor="middle">MOV1: SURGE</text>
+    <text x="0" y="108" font-size="8" fill="#64748b" text-anchor="middle">10D471K (470V)</text>
+    <line x1="-10" y1="118" x2="10" y2="118" stroke="#0f172a" stroke-width="1.8"/>
+    <line x1="-6" y1="122" x2="6" y2="122" stroke="#0f172a" stroke-width="1.5"/>
+    <line x1="-2" y1="126" x2="2" y2="126" stroke="#0f172a" stroke-width="1.2"/>
+  </g>
+
+  <!-- Feed Line to Potential Transformer (PT) -->
+  <line x1="330" y1="250" x2="430" y2="250" stroke="#0f172a" stroke-width="3"/>
+
+  <!-- 3. Potential Transformer (PT: ZMPT101B) -->
+  <g transform="translate(430, 250)">
+    <circle cx="0" cy="0" r="4" fill="#0f172a"/>
+    <line x1="0" y1="0" x2="0" y2="45" stroke="#0f172a" stroke-width="2"/>
+    <circle cx="0" cy="58" r="13" fill="none" stroke="#1d4ed8" stroke-width="2.2"/>
+    <circle cx="0" cy="72" r="13" fill="none" stroke="#1d4ed8" stroke-width="2.2"/>
+    <text x="0" y="102" font-size="10" font-weight="bold" fill="#1d4ed8" text-anchor="middle">PT: ZMPT101B</text>
+    <text x="0" y="114" font-size="8" fill="#64748b" text-anchor="middle">IEEE Dev 27/59</text>
+  </g>
+
+  <!-- Feed Line to 220V AC Main Busbar -->
+  <line x1="430" y1="250" x2="540" y2="250" stroke="#0f172a" stroke-width="3"/>
+
+  <!-- ======================================================== -->
+  <!-- 4. MAIN 220V AC DISTRIBUTION BUSBAR (X = 540)            -->
+  <!-- Busbar runs from Y = 180 to Y = 680                      -->
+  <!-- ======================================================== -->
+  <line x1="540" y1="180" x2="540" y2="680" stroke="#dc2626" stroke-width="7"/>
+  <rect x="475" y="148" width="130" height="24" fill="#fef2f2" stroke="#dc2626" stroke-width="1.5" rx="4"/>
+  <text x="540" y="164" font-size="10" font-weight="bold" fill="#dc2626" text-anchor="middle">220V AC MAIN BUS</text>
+
+  <!-- ======================================================== -->
+  <!-- BRANCH 0: AUXILIARY CONTROL POWER (Y = 205)              -->
+  <!-- ======================================================== -->
+  <g transform="translate(540, 205)">
+    <circle cx="0" cy="0" r="4.5" fill="#dc2626"/>
+    <line x1="0" y1="0" x2="70" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- AC-DC Converter Module HLK-5M05 -->
+    <rect x="70" y="-24" width="90" height="48" rx="4" fill="#ffffff" stroke="#0f172a" stroke-width="1.8"/>
+    <text x="115" y="-6" font-size="9" font-weight="bold" fill="#0f172a" text-anchor="middle">HLK-5M05</text>
+    <text x="115" y="8" font-size="7" fill="#64748b" text-anchor="middle">220V AC IN</text>
+    <text x="115" y="18" font-size="7" font-weight="bold" fill="#ea580c" text-anchor="middle">5V 1A DC OUT</text>
+
+    <!-- DC Power Line to Embedded Control Subsystem -->
+    <line x1="160" y1="0" x2="230" y2="0" stroke="#ea580c" stroke-width="2.5"/>
+    <polygon points="230,-4 240,0 230,4" fill="#ea580c"/>
+
+    <!-- Embedded Control & Telemetry Subsystem Block -->
+    <rect x="240" y="-60" width="460" height="95" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2"/>
+    <text x="470" y="-38" font-size="12" font-weight="bold" fill="#ea580c" text-anchor="middle">EMBEDDED CONTROL &amp; TELEMETRY SUBSYSTEM</text>
+    <text x="470" y="-20" font-size="10" font-weight="bold" fill="#0f172a" text-anchor="middle">ESP32 Dual-Core MCU • HLK-LD2410C mmWave Radar • HC-SR501 PIR • 3x LEDs</text>
+    <text x="470" y="-4" font-size="9" fill="#64748b" text-anchor="middle">FreeRTOS Dual-Task / Wi-Fi 802.11b/g/n / Firebase Realtime DB / Vercel API</text>
+    <text x="470" y="14" font-size="9" font-weight="bold" fill="#0369a1" text-anchor="middle">Galvanically Isolated 5V DC Domain (Safety Compliant)</text>
+  </g>
+
+  <!-- Clean Signal Line from ZMPT101B PT to ESP32 (ROUTED AT Y = 135: COMPLETELY ABOVE BUSBAR!) -->
+  <path d="M 430 250 L 430 135 L 780 135 L 780 150" fill="none" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="5,3"/>
+  <polygon points="780,150 776,142 784,142" fill="#7c3aed"/>
+  <text x="440" y="128" font-size="9" font-weight="bold" fill="#7c3aed">ZMPT101B SENSING → GPIO 33 (ADC1 CH5)</text>
+
+  <!-- ======================================================== -->
+  <!-- BRANCHES 1, 2, 3: THREE SWITCHED & METERED LOAD BRANCHES -->
+  <!-- Clean, standard IEEE single-line layout with ZERO crossing lines -->
+  <!-- ======================================================== -->
+
+  <!-- BRANCH 1: OUTLET 1 (Y = 330) -->
+  <g transform="translate(540, 330)">
+    <circle cx="0" cy="0" r="4.5" fill="#dc2626"/>
+    <line x1="0" y1="0" x2="80" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- Relay Contact K1 -->
+    <circle cx="80" cy="0" r="3.5" fill="#0f172a"/>
+    <line x1="80" y1="0" x2="115" y2="-18" stroke="#0284c7" stroke-width="2.5"/>
+    <circle cx="120" cy="0" r="3.5" fill="#0f172a"/>
+    <text x="100" y="-24" font-size="10" font-weight="bold" fill="#0284c7" text-anchor="middle">DEV 52-1: RELAY K1</text>
+    <text x="100" y="18" font-size="8" fill="#64748b" text-anchor="middle">GPIO 23 Trigger</text>
+
+    <line x1="120" y1="0" x2="200" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- Current Transformer CT1: ACS712 -->
+    <circle cx="225" cy="0" r="18" fill="none" stroke="#059669" stroke-width="2.2"/>
+    <line x1="200" y1="0" x2="250" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+    <text x="225" y="-24" font-size="10" font-weight="bold" fill="#059669" text-anchor="middle">CT-1: ACS712</text>
+    <text x="225" y="28" font-size="8" fill="#64748b" text-anchor="middle">GPIO 34 (ADC1 CH6)</text>
+
+    <line x1="250" y1="0" x2="330" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- Outlet J1 Load -->
+    <circle cx="350" cy="0" r="18" fill="#f8fafc" stroke="#1e293b" stroke-width="2"/>
+    <line x1="345" y1="-8" x2="345" y2="8" stroke="#1e293b" stroke-width="2.2"/>
+    <line x1="355" y1="-8" x2="355" y2="8" stroke="#1e293b" stroke-width="2.2"/>
+    <text x="380" y="4" font-size="11" font-weight="bold" fill="#0f172a">OUTLET 1 (J1)</text>
+    <text x="380" y="20" font-size="8" fill="#64748b">Switched AC Load (Max 5A / 1,100W)</text>
+  </g>
+
+  <!-- BRANCH 2: OUTLET 2 (Y = 470) -->
+  <g transform="translate(540, 470)">
+    <circle cx="0" cy="0" r="4.5" fill="#dc2626"/>
+    <line x1="0" y1="0" x2="80" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- Relay Contact K2 -->
+    <circle cx="80" cy="0" r="3.5" fill="#0f172a"/>
+    <line x1="80" y1="0" x2="115" y2="-18" stroke="#0284c7" stroke-width="2.5"/>
+    <circle cx="120" cy="0" r="3.5" fill="#0f172a"/>
+    <text x="100" y="-24" font-size="10" font-weight="bold" fill="#0284c7" text-anchor="middle">DEV 52-2: RELAY K2</text>
+    <text x="100" y="18" font-size="8" fill="#64748b" text-anchor="middle">GPIO 21 Trigger</text>
+
+    <line x1="120" y1="0" x2="200" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- Current Transformer CT2: ACS712 -->
+    <circle cx="225" cy="0" r="18" fill="none" stroke="#059669" stroke-width="2.2"/>
+    <line x1="200" y1="0" x2="250" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+    <text x="225" y="-24" font-size="10" font-weight="bold" fill="#059669" text-anchor="middle">CT-2: ACS712</text>
+    <text x="225" y="28" font-size="8" fill="#64748b" text-anchor="middle">GPIO 35 (ADC1 CH7)</text>
+
+    <line x1="250" y1="0" x2="330" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- Outlet J2 Load -->
+    <circle cx="350" cy="0" r="18" fill="#f8fafc" stroke="#1e293b" stroke-width="2"/>
+    <line x1="345" y1="-8" x2="345" y2="8" stroke="#1e293b" stroke-width="2.2"/>
+    <line x1="355" y1="-8" x2="355" y2="8" stroke="#1e293b" stroke-width="2.2"/>
+    <text x="380" y="4" font-size="11" font-weight="bold" fill="#0f172a">OUTLET 2 (J2)</text>
+    <text x="380" y="20" font-size="8" fill="#64748b">Switched AC Load (Max 5A / 1,100W)</text>
+  </g>
+
+  <!-- BRANCH 3: OUTLET 3 (Y = 610) -->
+  <g transform="translate(540, 610)">
+    <circle cx="0" cy="0" r="4.5" fill="#dc2626"/>
+    <line x1="0" y1="0" x2="80" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- Relay Contact K3 -->
+    <circle cx="80" cy="0" r="3.5" fill="#0f172a"/>
+    <line x1="80" y1="0" x2="115" y2="-18" stroke="#0284c7" stroke-width="2.5"/>
+    <circle cx="120" cy="0" r="3.5" fill="#0f172a"/>
+    <text x="100" y="-24" font-size="10" font-weight="bold" fill="#0284c7" text-anchor="middle">DEV 52-3: RELAY K3</text>
+    <text x="100" y="18" font-size="8" fill="#64748b" text-anchor="middle">GPIO 19 Trigger</text>
+
+    <line x1="120" y1="0" x2="200" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- Current Transformer CT3: ACS712 -->
+    <circle cx="225" cy="0" r="18" fill="none" stroke="#059669" stroke-width="2.2"/>
+    <line x1="200" y1="0" x2="250" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+    <text x="225" y="-24" font-size="10" font-weight="bold" fill="#059669" text-anchor="middle">CT-3: ACS712</text>
+    <text x="225" y="28" font-size="8" fill="#64748b" text-anchor="middle">GPIO 32 (ADC1 CH4)</text>
+
+    <line x1="250" y1="0" x2="330" y2="0" stroke="#0f172a" stroke-width="2.5"/>
+
+    <!-- Outlet J3 Load -->
+    <circle cx="350" cy="0" r="18" fill="#f8fafc" stroke="#1e293b" stroke-width="2"/>
+    <line x1="345" y1="-8" x2="345" y2="8" stroke="#1e293b" stroke-width="2.2"/>
+    <line x1="355" y1="-8" x2="355" y2="8" stroke="#1e293b" stroke-width="2.2"/>
+    <text x="380" y="4" font-size="11" font-weight="bold" fill="#0f172a">OUTLET 3 (J3)</text>
+    <text x="380" y="20" font-size="8" fill="#64748b">Switched AC Load (Max 5A / 1,100W)</text>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- CONTROL & TELEMETRY INTERCONNECT ANNOTATIONS             -->
+  <!-- ======================================================== -->
+  <g transform="translate(1050, 310)">
+    <rect width="490" height="420" rx="6" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="245" y="30" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="middle">SUPERVISORY &amp; TELEMETRY INTERFACE TABLE</text>
+    <line x1="20" y1="45" x2="470" y2="45" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- Table Rows -->
+    <g font-size="10" font-family="'Courier New', monospace">
+      <text x="30" y="75" font-weight="bold" fill="#0284c7">ACTUATION CHANNELS (ISOLATED 5V ACTIVE-LOW):</text>
+      <text x="50" y="95" fill="#334155">• Dev 52-1 (Relay K1): ESP32 GPIO 23 (Output)</text>
+      <text x="50" y="115" fill="#334155">• Dev 52-2 (Relay K2): ESP32 GPIO 21 (Output)</text>
+      <text x="50" y="135" fill="#334155">• Dev 52-3 (Relay K3): ESP32 GPIO 19 (Output)</text>
+
+      <text x="30" y="175" font-weight="bold" fill="#059669">METERING CHANNELS (ADC1 SAR CONVERTER):</text>
+      <text x="50" y="195" fill="#334155">• Dev 27/59 (ZMPT101B): ESP32 GPIO 33 (ADC1_CH5)</text>
+      <text x="50" y="215" fill="#334155">• CT-1 Current:         ESP32 GPIO 34 (ADC1_CH6)</text>
+      <text x="50" y="235" fill="#334155">• CT-2 Current:         ESP32 GPIO 35 (ADC1_CH7)</text>
+      <text x="50" y="255" fill="#334155">• CT-3 Current:         ESP32 GPIO 32 (ADC1_CH4)</text>
+
+      <text x="30" y="295" font-weight="bold" fill="#ea580c">OCCUPANCY SENSORS &amp; TELEMETRY:</text>
+      <text x="50" y="315" fill="#334155">• HC-SR501 PIR Dome:    ESP32 GPIO 22 (Digital In)</text>
+      <text x="50" y="335" fill="#334155">• HLK-LD2410C Radar:    ESP32 GPIO 4  (Digital In)</text>
+      <text x="50" y="355" fill="#334155">• Status / Alert LEDs:  GPIO 2 (BLU), 25 (YEL), 26 (RED)</text>
+
+      <text x="30" y="395" font-weight="bold" fill="#7c3aed">PROTECTION THRESHOLDS &amp; TIMING:</text>
+      <text x="50" y="415" fill="#334155">• Overload: 5.0A RMS | Vacancy Relay Trip: 10 mins</text>
+    </g>
+  </g>
+
+  <!-- ======================================================== -->
+  <!-- TITLE BLOCK (STANDARD ENGINEERING SLD FORMAT)            -->
+  <!-- ======================================================== -->
+  <g transform="translate(60, 840)">
+    <rect width="950" height="105" fill="#f8fafc" stroke="#1e293b" stroke-width="1.8" rx="4"/>
+    <line x1="0" y1="38" x2="950" y2="38" stroke="#cbd5e1" stroke-width="1"/>
+    <line x1="600" y1="0" x2="600" y2="105" stroke="#cbd5e1" stroke-width="1"/>
+    <line x1="770" y1="0" x2="770" y2="105" stroke="#cbd5e1" stroke-width="1"/>
+
+    <text x="15" y="24" font-size="13" font-weight="bold" fill="#0f172a">VOLTSENSE ENERGY MONITORING &amp; LOAD CONTROL SYSTEM</text>
+    <text x="15" y="62" font-size="11" font-weight="bold" fill="#1e40af">DRAWING TITLE: SYSTEM SOLID-LINE / SINGLE-LINE DIAGRAM (SLD)</text>
+    <text x="15" y="86" font-size="9" fill="#64748b">PEC 2017 / NEC COMPLIANT 1-PHASE RADIAL POWER DISTRIBUTION ARCHITECTURE</text>
+
+    <text x="615" y="24" font-size="9" font-weight="bold" fill="#475569">DRAWING NO:</text>
+    <text x="615" y="60" font-size="12" font-weight="bold" fill="#0f172a">VS-SLD-002</text>
+    <text x="615" y="88" font-size="9" fill="#64748b">SCALE: N.T.S.</text>
+
+    <text x="785" y="24" font-size="9" font-weight="bold" fill="#475569">REVISION: REV 4.0</text>
+    <text x="785" y="60" font-size="11" font-weight="bold" fill="#059669">STATUS: APPROVED</text>
+    <text x="785" y="88" font-size="9" fill="#64748b">SHEET: 1 OF 1</text>
+  </g>
+</svg>
