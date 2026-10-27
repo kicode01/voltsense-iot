@@ -35,11 +35,16 @@ const getAlertDetails = (alert) => {
     }
   }
 
+  const engravedWellBase =
+    'bg-[#f2eeed] border-gray-300/70 shadow-[inset_0_1.5px_3px_rgba(45,10,15,0.14),inset_0_1px_1px_rgba(0,0,0,0.08),0_1px_0_rgba(255,255,255,0.95)]';
+  const engravedIconBase = 'drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]';
+
   if (tag.includes('overcurrent') || title.includes('overcurrent') || body.includes('overcurrent')) {
     return {
       title: resolvedTitle,
       Icon: Zap,
-      iconWrapClass: 'bg-maroon-800 text-white border-maroon-900'
+      iconWrapClass: `${engravedWellBase} text-maroon-900`,
+      iconClass: `${engravedIconBase} text-maroon-900`
     };
   }
 
@@ -47,7 +52,8 @@ const getAlertDetails = (alert) => {
     return {
       title: resolvedTitle,
       Icon: Timer,
-      iconWrapClass: 'bg-maroon-50 text-maroon-800 border-maroon-200/70'
+      iconWrapClass: `${engravedWellBase} text-maroon-800/80`,
+      iconClass: `${engravedIconBase} text-maroon-800/80`
     };
   }
 
@@ -55,14 +61,16 @@ const getAlertDetails = (alert) => {
     return {
       title: resolvedTitle,
       Icon: Power,
-      iconWrapClass: 'bg-maroon-50 text-maroon-800 border-maroon-200/70'
+      iconWrapClass: `${engravedWellBase} text-maroon-800/80`,
+      iconClass: `${engravedIconBase} text-maroon-800/80`
     };
   }
 
   return {
     title: resolvedTitle,
     Icon: Bell,
-    iconWrapClass: 'bg-gray-100 text-gray-500 border-gray-200/70'
+    iconWrapClass: `${engravedWellBase} text-gray-500`,
+    iconClass: `${engravedIconBase} text-gray-500`
   };
 };
 
@@ -182,8 +190,8 @@ const Alerts = () => {
             Preview · what an alert looks like
           </p>
           <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-3.5 md:p-4 flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-maroon-50 text-maroon-800 border border-maroon-200/70 flex items-center justify-center shrink-0">
-              <Timer className="w-4 h-4 text-maroon-800" strokeWidth={2} />
+            <div className="w-8 h-8 rounded-lg bg-[#f2eeed] text-maroon-800/80 border border-gray-300/70 shadow-[inset_0_1.5px_3px_rgba(45,10,15,0.14),inset_0_1px_1px_rgba(0,0,0,0.08),0_1px_0_rgba(255,255,255,0.95)] flex items-center justify-center shrink-0">
+              <Timer className="w-4 h-4 text-maroon-800/80 drop-shadow-[0_1px_0_rgba(255,255,255,0.9)]" strokeWidth={1.75} />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
@@ -260,7 +268,7 @@ const Alerts = () => {
                 {filteredAlerts.length} {filteredAlerts.length === 1 ? 'entry' : 'entries'} shown · newest first
               </p>
             </div>
-            <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-xl border border-gray-200/60 self-start sm:self-auto overflow-x-auto max-w-full no-scrollbar">
+            <div className="flex items-center gap-1 bg-[#f2eeed] p-1 rounded-xl border border-gray-300/60 shadow-[inset_0_1.5px_3px_rgba(0,0,0,0.08)] self-start sm:self-auto overflow-x-auto max-w-full no-scrollbar">
               {[
                 { id: 'all', label: `All (${alerts.length})` },
                 { id: 'shutdown', label: 'Shutdown' },
@@ -271,7 +279,7 @@ const Alerts = () => {
                   onClick={() => setFilter(item.id)}
                   className={`px-2.5 md:px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap shrink-0 ${
                     filter === item.id
-                      ? 'bg-maroon-800 text-white shadow-2xs'
+                      ? 'bg-maroon-800 text-white shadow-[0_1px_2px_rgba(0,0,0,0.2)]'
                       : 'text-gray-500 hover:text-gray-900'
                   }`}
                 >
@@ -311,9 +319,9 @@ const Alerts = () => {
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <div className="flex items-center gap-2 min-w-0">
                           <span
-                            className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${details.iconWrapClass}`}
+                            className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 border ${details.iconWrapClass}`}
                           >
-                            <AlertIcon className="w-3.5 h-3.5" strokeWidth={2} />
+                            <AlertIcon className={`w-3.5 h-3.5 ${details.iconClass}`} strokeWidth={1.75} />
                           </span>
                           <span className="font-bold text-gray-900 text-xs truncate">
                             {details.title}
@@ -367,7 +375,7 @@ const Alerts = () => {
                               <span
                                 className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${details.iconWrapClass}`}
                               >
-                                <AlertIcon className="w-3.5 h-3.5" strokeWidth={2} />
+                                <AlertIcon className={`w-3.5 h-3.5 ${details.iconClass}`} strokeWidth={1.75} />
                               </span>
                               <div className="flex items-center gap-1.5 min-w-0">
                                 <span className="font-bold text-gray-900 text-xs md:text-sm leading-snug">
