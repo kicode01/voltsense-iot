@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useRoomData } from '../hooks/useRoomData';
 import { playEmergencyAlarm, playSuccessChime } from '../lib/soundAlert';
+import { auth } from '../lib/firebase';
 
 export const GodModePanel = ({ activeDeviceId, onDisable }) => {
   const { roomData, updateDeviceSetting, updateDeviceSettings } = useRoomData(activeDeviceId);
@@ -159,14 +160,57 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
     }
   };
 
-  // Trigger Response Window Banner & Audio
-  const handleTriggerSimulatedAlert = (seconds = 30) => {
+  // Trigger Response Window Banner, Audio & Cross-Device Push Notification
+  const handleTriggerSimulatedAlert = async (seconds = 15) => {
     window.dispatchEvent(
       new CustomEvent('voltsense-trigger-alert', {
         detail: { seconds }
       })
     );
     playEmergencyAlarm();
+
+    if (!activeDeviceId) return;
+
+    const now = Date.now();
+    // 1. Broadcast live countdown banner & siren to all open clients subscribed to this ESP32
+    updateDeviceSettings({
+      simulated_alert_until: now + seconds * 1000,
+      simulated_alert_seconds: seconds
+    }).catch((err) => {
+      console.warn('Could not broadcast simulated alert state:', err);
+    });
+
+    // 2. Dispatch real FCM Push Notification + record to /devices/<MAC>/alerts via /api/alert
+    try {
+      const idToken = auth.currentUser ? await auth.currentUser.getIdToken() : null;
+      if (idToken) {
+        await fetch('/api/alert', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`
+          },
+          body: JSON.stringify({
+            mac: activeDeviceId,
+            title: 'Auto-Shutdown Warning',
+            body: `The room has been empty. Devices will shut down in ${seconds} seconds unless you keep them on.`,
+            tag: 'volt-sense-shutdown'
+          })
+        });
+      }
+    } catch (err) {
+      console.warn('Could not send cross-device push alert:', err);
+    }
+  };
+
+  // Trigger Siren & Haptics across all connected devices
+  const handleTriggerSirenBroadcast = () => {
+    playEmergencyAlarm();
+    if (activeDeviceId) {
+      updateDeviceSetting('simulated_siren_at', Date.now()).catch((err) => {
+        console.warn('Could not broadcast siren:', err);
+      });
+    }
   };
 
   return (
@@ -681,7 +725,7 @@ export const GodModePanel = ({ activeDeviceId, onDisable }) => {
 
           {/* Button B: Test Emergency Audio Alarm & Haptic Vibration */}
           <button
-            onClick={() => playEmergencyAlarm()}
+            onClick={handleTriggerSirenBroadcast}
             className="flex items-center justify-center gap-2.5 p-3.5 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-center active:scale-95 transition-all"
           >
             <Volume2 className="w-5 h-5 shrink-0 text-emerald-400" />

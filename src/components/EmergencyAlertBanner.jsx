@@ -4,15 +4,17 @@ import { useRoomData } from '../hooks/useRoomData';
 import { playEmergencyAlarm } from '../lib/soundAlert';
 
 export const EmergencyAlertBanner = ({ activeDeviceId }) => {
-  const { roomData, setOverride } = useRoomData(activeDeviceId);
+  const { roomData, setOverride, updateDeviceSetting } = useRoomData(activeDeviceId);
   const [simulatedAlert, setSimulatedAlert] = useState(false);
   const [simulatedCountdown, setSimulatedCountdown] = useState(60);
   const [cancelling, setCancelling] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const lastAlarmTimeRef = useRef(0);
+  const lastRemoteAlertUntilRef = useRef(0);
+  const lastRemoteSirenAtRef = useRef(0);
   const simTimerRef = useRef(null);
 
-  // Listen to custom demo alert events fired from God Mode or Demo triggers
+  // Listen to custom demo alert events fired locally from God Mode or Demo triggers
   useEffect(() => {
     const handleTriggerAlert = (event) => {
       const countdownSec = event.detail?.seconds || 30;
@@ -35,6 +37,40 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
       window.removeEventListener('voltsense-cancel-alert', handleCancelAlert);
     };
   }, []);
+
+  // Listen for cross-device simulated emergency alert broadcasts via Firebase RTDB
+  const remoteAlertUntil = Number(roomData?.settings?.simulated_alert_until) || 0;
+  useEffect(() => {
+    if (!remoteAlertUntil) {
+      if (lastRemoteAlertUntilRef.current !== 0) {
+        lastRemoteAlertUntilRef.current = 0;
+        setSimulatedAlert(false);
+      }
+      return;
+    }
+
+    if (remoteAlertUntil !== lastRemoteAlertUntilRef.current) {
+      lastRemoteAlertUntilRef.current = remoteAlertUntil;
+      const remainingSec = Math.ceil((remoteAlertUntil - Date.now()) / 1000);
+      if (remainingSec > 0 && remainingSec <= 600) {
+        setSimulatedCountdown(remainingSec);
+        setSimulatedAlert(true);
+        setDismissed(false);
+        playEmergencyAlarm();
+        lastAlarmTimeRef.current = Date.now();
+      }
+    }
+  }, [remoteAlertUntil]);
+
+  // Listen for cross-device siren & haptics broadcasts via Firebase RTDB
+  const remoteSirenAt = Number(roomData?.settings?.simulated_siren_at) || 0;
+  useEffect(() => {
+    if (!remoteSirenAt || remoteSirenAt === lastRemoteSirenAtRef.current) return;
+    lastRemoteSirenAtRef.current = remoteSirenAt;
+    if (Math.abs(Date.now() - remoteSirenAt) < 10000) {
+      playEmergencyAlarm();
+    }
+  }, [remoteSirenAt]);
 
   // Simulated countdown interval
   useEffect(() => {
@@ -77,6 +113,9 @@ export const EmergencyAlertBanner = ({ activeDeviceId }) => {
     try {
       if (simulatedAlert) {
         setSimulatedAlert(false);
+        if (activeDeviceId) {
+          updateDeviceSetting('simulated_alert_until', 0).catch(() => {});
+        }
       }
       await setOverride(true);
       setDismissed(true);

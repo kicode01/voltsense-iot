@@ -159,8 +159,12 @@ module.exports = async (req, res) => {
 
   const sharedSecret = process.env.VOLTSENSE_ALERT_SECRET;
   const presented = typeof body.secret === 'string' ? body.secret : '';
-  if (!presented) {
-    console.warn('Rejected alert: no secret presented');
+  const authHeader = typeof req.headers?.authorization === 'string' ? req.headers.authorization : '';
+  const bearerToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const presentedIdToken = bearerToken || (typeof body.idToken === 'string' ? body.idToken.trim() : '');
+
+  if (!presented && !presentedIdToken) {
+    console.warn('Rejected alert: no secret or idToken presented');
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
@@ -177,21 +181,20 @@ module.exports = async (req, res) => {
   const db = admin.database(app);
   const messaging = admin.messaging(app);
 
-  // ---- authenticate the device -------------------------------------------
-  // Two accepted proofs, checked in this order so the common case (a device paired in this
-  // deployment) needs no extra read:
+  // ---- authenticate the device or signed-in owner ------------------------
+  // Three accepted proofs:
   //
   //   1. The shared `VOLTSENSE_ALERT_SECRET`, constant-time compared. This is what /api/pair hands
   //      out when the env var is set, and what a USB-provisioned unit has in NVS.
   //   2. The per-device hash at `devices/<MAC>/alert_secret_hash`, written by /api/pair. The
   //      presented secret is hashed and compared against the stored hash, so a server that never
   //      had the shared secret configured still authenticates its own devices.
-  //
-  // A device presenting neither is rejected. Note that a MAC is NOT a credential — an attacker who
-  // guesses a MAC (trivial: it is on the device) still has to produce the secret.
-  let authenticated = sharedSecret ? safeEqual(presented, sharedSecret) : false;
+  //   3. A valid Firebase Auth ID token from a user who owns `mac` (used by God Mode / Demo
+  //      emergency alert triggers to broadcast real FCM push notifications + alert history to all
+  //      connected devices).
+  let authenticated = sharedSecret && presented ? safeEqual(presented, sharedSecret) : false;
 
-  if (!authenticated && mac) {
+  if (!authenticated && presented && mac) {
     try {
       const hashSnap = await db.ref(`devices/${mac}/alert_secret_hash`).get();
       const storedHash = hashSnap.val();
@@ -203,8 +206,26 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (!authenticated && presentedIdToken && mac) {
+    try {
+      const decoded = await admin.auth(app).verifyIdToken(presentedIdToken);
+      const uid = decoded?.uid;
+      if (uid) {
+        const [ownerSnap, userOwnedSnap] = await Promise.all([
+          db.ref(`devices/${mac}/owners/${uid}`).get(),
+          db.ref(`users/${uid}/owned_devices/${mac}`).get()
+        ]);
+        if (ownerSnap.val() === true || userOwnedSnap.val() === true) {
+          authenticated = true;
+        }
+      }
+    } catch (error) {
+      console.warn(`Could not verify owner idToken for ${mac}:`, error.message);
+    }
+  }
+
   if (!authenticated) {
-    console.warn('Rejected alert: bad secret');
+    console.warn('Rejected alert: bad credentials');
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
