@@ -306,6 +306,7 @@ const Settings = () => {
   const liveRadarMovingEnergy = roomData?.radar_moving_energy ?? 0;
   const liveRadarTargetState = roomData?.radar_target_state || 'none';
   const isBenchMode = Boolean(roomData?.settings?.bench_mode);
+  const autoWakeEnabled = roomData?.settings?.auto_wake_enabled ?? true;
 
   const handleBenchModeToggle = async () => {
     setSavingLimit('bench_mode');
@@ -787,11 +788,6 @@ const Settings = () => {
                   <div key={mac} className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
                     <div className="flex items-center justify-between p-3">
                       <div className="flex items-center gap-2.5">
-                        <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
-                          online 
-                            ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' 
-                            : 'bg-gray-300'
-                        }`} />
                         <span className="font-mono text-sm font-bold text-gray-700">{mac}</span>
                         <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
                           online
@@ -1121,6 +1117,41 @@ const Settings = () => {
 
         {/* Right Column (Desktop: 5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-4 md:gap-5">
+          {/* Auto-Wake on Presence Section */}
+          <div className="settings-auto-wake bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-maroon-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <Zap className="w-5 h-5 md:w-6 md:h-6 text-maroon-800" />
+                </div>
+                <div>
+                  <h3 className="text-sm md:text-base font-bold text-gray-900 leading-tight mb-0.5">Auto-Wake on Presence</h3>
+                  <p className="text-[10px] md:text-sm text-gray-500 font-medium leading-tight pr-2">
+                    {autoWakeEnabled
+                      ? 'Re-energize outlets when motion is detected'
+                      : 'Outlets stay off on entry until manually turned on'}
+                  </p>
+                </div>
+              </div>
+              
+              <button 
+                type="button"
+                onClick={async () => {
+                  setSavingLimit('auto_wake');
+                  await updateDeviceSetting('auto_wake_enabled', !autoWakeEnabled);
+                  setSavingLimit(null);
+                }}
+                disabled={savingLimit === 'auto_wake'}
+                aria-label="Toggle Auto-Wake on Presence"
+                className={`w-14 h-8 shrink-0 rounded-full flex items-center p-1 transition-colors duration-300 focus:outline-none ${autoWakeEnabled ? 'bg-maroon-800' : 'bg-gray-200'} ${savingLimit === 'auto_wake' ? 'opacity-70 cursor-wait' : ''}`}
+              >
+                <div className={`w-6 h-6 bg-white rounded-full shadow-sm transform transition-transform duration-300 flex items-center justify-center ${autoWakeEnabled ? 'translate-x-6' : 'translate-x-0'}`}>
+                  {savingLimit === 'auto_wake' && <Loader2 className="w-3.5 h-3.5 animate-spin text-maroon-800" />}
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Night Mode Section */}
           <div className="settings-night-mode bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6">
             <div className="flex items-center justify-between mb-4">
@@ -1191,6 +1222,18 @@ const Settings = () => {
                 </div>
               </button>
             </div>
+
+            {isPushActive && (
+              <div className="mt-3 pt-3 border-t border-gray-100 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleTestNotification}
+                  className="text-xs font-bold text-maroon-800 hover:text-maroon-900 transition-colors"
+                >
+                  Send test notification
+                </button>
+              </div>
+            )}
 
             {pushPermission === 'denied' && (
               <p className="mt-3 pt-3 border-t border-gray-100 text-[10px] md:text-xs text-gray-500 font-medium leading-relaxed">

@@ -464,12 +464,11 @@ const Dashboard = () => {
               <h2 className="text-sm font-bold uppercase tracking-widest text-maroon-100/80">System Load</h2>
               <div className="flex items-center gap-2">
                 {activeDeviceId && (
-                  <div className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full backdrop-blur-sm border flex items-center gap-1.5 ${
+                  <div className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full backdrop-blur-sm border ${
                     deviceOnline
                       ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-200'
                       : 'bg-amber-500/20 border-amber-400/40 text-amber-200'
                   }`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${deviceOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
                     {deviceOnline ? 'Powered On' : 'Offline'}
                   </div>
                 )}

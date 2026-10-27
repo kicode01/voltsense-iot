@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Home, BarChart3, Bell, Settings as SettingsIcon, ChevronDown, Wifi, FlaskConical } from 'lucide-react';
+import { Home, BarChart3, Bell, Settings as SettingsIcon, ChevronDown, FlaskConical, Wifi } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { useDeviceContext } from '../contexts/deviceContextCore';
 import { useAlerts } from '../hooks/useAlerts';
@@ -83,11 +83,7 @@ const Layout = () => {
                   className="flex items-center gap-2 bg-white/70 border border-gray-200/60 px-3 py-1.5 rounded-xl text-sm font-bold text-gray-700 hover:bg-white hover:shadow-sm transition-all"
                   title={activeIsOnline ? 'Device Powered On (Online)' : 'Device Offline / Not Powered On'}
                 >
-                  <span className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
-                    activeIsOnline 
-                      ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]' 
-                      : 'bg-gray-400'
-                  }`} />
+                  <Wifi className={`w-3.5 h-3.5 ${activeIsOnline ? 'text-maroon-800' : 'text-gray-400'}`} />
                   <span className="max-w-[80px] md:max-w-[120px] truncate font-mono text-xs">{activeDeviceId}</span>
                   <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${dropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
@@ -114,11 +110,6 @@ const Layout = () => {
                             }`}
                           >
                             <div className="flex items-center gap-2.5">
-                              <span className={`w-2 h-2 rounded-full shrink-0 ${
-                                online 
-                                  ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]' 
-                                  : 'bg-gray-300'
-                              }`} />
                               <span>{mac}</span>
                             </div>
                             <div className="flex items-center gap-2">
