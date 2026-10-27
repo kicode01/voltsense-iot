@@ -35,9 +35,7 @@ const Analytics = () => {
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
   const [isChartsReady, setIsChartsReady] = useState(false);
   const [selectedOutletTab, setSelectedOutletTab] = useState('all');
-  const [activeOutletIndex, setActiveOutletIndex] = useState(0);
   const dropdownRef = useRef(null);
-  const carouselRef = useRef(null);
 
   const { activeDeviceId, devicesLoading } = useDeviceContext();
 
@@ -188,25 +186,6 @@ const Analytics = () => {
       color: portColors[portKey] || '#852636'
     };
   });
-
-  const handleCarouselScroll = (e) => {
-    const { scrollLeft, offsetWidth } = e.currentTarget;
-    if (offsetWidth > 0) {
-      const index = Math.round(scrollLeft / (offsetWidth * 0.82));
-      setActiveOutletIndex(Math.max(0, Math.min(index, 2)));
-    }
-  };
-
-  const scrollToOutletIndex = (index) => {
-    setActiveOutletIndex(index);
-    if (carouselRef.current && carouselRef.current.children[index]) {
-      carouselRef.current.children[index].scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center'
-      });
-    }
-  };
 
   const displayedOutlets = selectedOutletTab === 'all' 
     ? outletList 
@@ -540,7 +519,7 @@ const Analytics = () => {
         </div>
       </div>
 
-      {/* Per-Outlet Monitoring & Energy Breakdown */}
+      {/* Per-Outlet Monitoring & Energy Breakdown (Table & Logs Format) */}
       <div className="analytics-outlets scroll-mt-24 bg-white border border-gray-100 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-4 md:p-6 transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500 fill-mode-both">
         {/* Header & Filter Pills */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
@@ -551,6 +530,9 @@ const Analytics = () => {
                 {rangeLabel(timeRange)}
               </span>
             </h3>
+            <p className="text-[11px] text-gray-400 font-medium mt-0.5">
+              Structured telemetry summary and interval consumption logs per port.
+            </p>
           </div>
 
           {/* Segmented Filter Pills */}
@@ -563,309 +545,291 @@ const Analytics = () => {
                   : 'text-gray-500 hover:text-gray-900'
               }`}
             >
-              All
+              All Ports
             </button>
-            {outletList.map((outlet, idx) => (
+            {outletList.map((outlet) => (
               <button
                 key={`tab-${outlet.id}`}
                 onClick={() => setSelectedOutletTab(outlet.id)}
                 aria-label={`Filter by ${outlet.name}`}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 whitespace-nowrap ${
                   selectedOutletTab === outlet.id
                     ? 'bg-white text-maroon-800 shadow-2xs font-extrabold'
                     : 'text-gray-500 hover:text-gray-900'
                 }`}
               >
-                {idx + 1}
+                {outlet.name}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Proportional Energy Distribution Ribbon (only in 'All' overview mode) */}
-        {selectedOutletTab === 'all' && (
-          <div className="mb-5">
-            <div className="w-full bg-gray-100/90 p-1 rounded-2xl flex items-center gap-1.5 overflow-hidden border border-gray-200/50">
-              {outletList.map((outlet) => {
-                const widthPct = Math.max(12, outlet.percentage);
-                return (
-                  <div
-                    key={`ribbon-${outlet.id}`}
-                    style={{ width: `${widthPct}%`, backgroundColor: outlet.color }}
-                    className="h-6 sm:h-7 rounded-xl transition-all duration-500 ease-apple-spring relative flex items-center justify-center text-xs font-semibold text-white shadow-2xs px-2"
-                    title={`${outlet.name}: ${outlet.energyKwh.toFixed(2)} kWh (${outlet.percentage}%)`}
-                  >
-                    <span className="truncate tracking-tight font-sans text-[11px] sm:text-xs font-bold drop-shadow-2xs">
-                      {outlet.name} · {outlet.percentage}%
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* 1. Port Summary & Live Telemetry Table */}
+        <div className="border border-gray-100 rounded-2xl overflow-hidden mb-5">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[640px]">
+              <thead>
+                <tr className="bg-gray-50/80 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  <th className="py-3 px-4">Port</th>
+                  <th className="py-3 px-4">State</th>
+                  <th className="py-3 px-4">Live Telemetry</th>
+                  <th className="py-3 px-4">Est. Runtime</th>
+                  <th className="py-3 px-4">Avg Active Load</th>
+                  <th className="py-3 px-4">Period Energy</th>
+                  <th className="py-3 px-4 w-44">Usage Share</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-xs sm:text-sm">
+                {displayedOutlets.map((outlet) => {
+                  const isDrawing = outlet.isRelayOn && (outlet.watts > 1.5 || outlet.amps > 0.02);
+                  const isSelected = selectedOutletTab === outlet.id;
 
-        {/* MODE A: All Outlets Overview (3-col Grid on Desktop / Carousel on Mobile) */}
-        {selectedOutletTab === 'all' ? (
-          <>
-            <div
-              ref={carouselRef}
-              onScroll={handleCarouselScroll}
-              className="flex md:grid md:grid-cols-3 overflow-x-auto snap-x snap-mandatory gap-3.5 pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 hide-scrollbar"
-            >
-              {outletList.map((outlet) => {
-                const isDrawing = outlet.isRelayOn && (outlet.watts > 1.5 || outlet.amps > 0.02);
-
-                return (
-                  <div 
-                    key={outlet.id} 
-                    className={`border rounded-2xl p-4 sm:p-5 flex flex-col justify-between transition-all duration-300 w-[86vw] sm:w-[320px] md:w-auto shrink-0 snap-center ${
-                      isDrawing
-                        ? 'bg-white border-maroon-200/90 shadow-md shadow-maroon-900/5'
-                        : outlet.isRelayOn
-                        ? 'bg-white/80 border-gray-200/70 shadow-[0_8px_30px_rgb(0,0,0,0.02)]'
-                        : 'bg-gray-50/60 border-gray-100 opacity-90'
-                    }`}
-                  >
-                    <div>
-                      {/* Header: Label, Icon, Historical Share */}
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
-                            !outlet.isRelayOn
-                              ? 'bg-gray-100/80 text-gray-400 border-gray-200/80 shadow-inner'
-                              : isDrawing
-                              ? 'bg-maroon-50 text-maroon-800 border-maroon-200 shadow-inner'
-                              : 'bg-maroon-50/50 text-maroon-700 border-maroon-100 shadow-inner'
-                          }`}>
-                            <Plug strokeWidth={1.5} className="w-4 h-4" />
-                          </div>
-                          <h4 className="text-sm sm:text-base font-bold text-gray-900 leading-tight truncate">
-                            {outlet.name}
-                          </h4>
-                        </div>
-
-                        {/* Historical Share Pill */}
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 bg-maroon-100/80 text-maroon-900 border-maroon-300/80">
-                          {outlet.percentage}% Share
-                        </span>
-                      </div>
-
-                      {/* Energy Consumption Metric */}
-                      <div className="my-2.5">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-3xl font-extrabold text-gray-900 tracking-tight">
-                            {outlet.energyKwh.toFixed(2)}
-                          </span>
-                          <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">kWh</span>
-                        </div>
-                        <span className="text-[10px] font-semibold text-gray-400 block mt-0.5">
-                          Recorded for {rangeLabel(timeRange).toLowerCase()}
-                        </span>
-                      </div>
-
-                      {/* Historical Telemetry: 2-column stats row */}
-                      <div className="grid grid-cols-2 gap-3 py-3 border-t border-gray-100">
-                        <div>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-                            Est. Runtime
-                          </span>
-                          <span className="text-sm font-semibold text-gray-800">
-                            {outlet.periodHours} hrs
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">
-                            Avg Active Load
-                          </span>
-                          <span className="text-sm font-semibold text-gray-800">
-                            {outlet.avgWatts} {powerUnitShort}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Carousel Pagination Dots (Mobile Only when All are shown) */}
-            <div className="flex items-center justify-center gap-1.5 mt-3 md:hidden">
-              {outletList.map((outlet, idx) => (
-                <button
-                  key={`dot-${outlet.id}`}
-                  onClick={() => scrollToOutletIndex(idx)}
-                  aria-label={`Jump to ${outlet.name}`}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    activeOutletIndex === idx 
-                      ? 'w-6 bg-maroon-800' 
-                      : 'w-1.5 bg-gray-200'
-                  }`}
-                />
-              ))}
-            </div>
-          </>
-        ) : (
-          /* MODE B: Focused Single Port View (No redundancies, clean timeline) */
-          (() => {
-            const focusedOutlet = displayedOutlets[0] || outletList[0];
-            const isDrawing = focusedOutlet.isRelayOn && (focusedOutlet.watts > 1.5 || focusedOutlet.amps > 0.02);
-            const activeReadings = (focusedOutlet.readings || []).filter(r => r.kwh > 0);
-
-            return (
-              <div className="flex flex-col gap-5 animate-in fade-in duration-300">
-                {/* Focused Port Summary Banner */}
-                <div className={`border rounded-2xl p-5 md:p-6 transition-all duration-300 ${
-                  isDrawing
-                    ? 'bg-white border-maroon-200/90 shadow-md shadow-maroon-900/5'
-                    : 'bg-white/90 border-gray-200/70 shadow-[0_8px_30px_rgb(0,0,0,0.02)]'
-                }`}>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
-                        !focusedOutlet.isRelayOn
-                          ? 'bg-gray-100/80 text-gray-400 border-gray-200/80 shadow-inner'
-                          : isDrawing
-                          ? 'bg-maroon-50 text-maroon-800 border-maroon-200 shadow-inner'
-                          : 'bg-maroon-50/50 text-maroon-700 border-maroon-100 shadow-inner'
-                      }`}>
-                        <Plug strokeWidth={1.5} className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">
-                          {focusedOutlet.name}
-                        </h4>
-                        <span className="text-xs text-gray-400 font-medium mt-0.5 block">
-                          Recorded for {rangeLabel(timeRange).toLowerCase()}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-start sm:self-auto">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border transition-all duration-300 bg-maroon-100/80 text-maroon-900 border-maroon-300/80">
-                        {focusedOutlet.percentage}% of Room Energy
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 3 Key Metrics Row */}
-                  <div className="grid grid-cols-3 gap-3 md:gap-6 pt-4">
-                    <div>
-                      <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                        Period Energy
-                      </span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
-                          {focusedOutlet.energyKwh.toFixed(2)}
-                        </span>
-                        <span className="text-xs font-bold text-gray-400">kWh</span>
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                        Est. Runtime
-                      </span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
-                          {focusedOutlet.periodHours}
-                        </span>
-                        <span className="text-xs font-bold text-gray-400">hrs</span>
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">
-                        Avg Active Load
-                      </span>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">
-                          {focusedOutlet.avgWatts}
-                        </span>
-                        <span className="text-xs font-bold text-gray-400">{powerUnitShort}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* High-Resolution Interactive Readings History Timeline */}
-                <div className="bg-gray-50/60 border border-gray-100 rounded-2xl p-4 md:p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Readings Timeline ({rangeLabel(timeRange)})
-                    </span>
-                    <span className="text-[10px] font-semibold text-gray-400">
-                      {focusedOutlet.readings?.length || 0} intervals recorded
-                    </span>
-                  </div>
-
-                  {/* High-res responsive chart */}
-                  <div className="h-44 sm:h-52 w-full pt-2">
-                    {focusedOutlet.readings && focusedOutlet.readings.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={focusedOutlet.readings}
-                          margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                          <XAxis 
-                            dataKey="label" 
-                            stroke="#9ca3af" 
-                            fontSize={11} 
-                            tickLine={false} 
-                            axisLine={false}
-                          />
-                          <YAxis 
-                            stroke="#9ca3af" 
-                            fontSize={11} 
-                            tickLine={false} 
-                            axisLine={false}
-                            width={35}
-                            unit="k"
-                          />
-                          <Tooltip
-                            contentStyle={{ 
-                              backgroundColor: '#ffffff', 
-                              borderColor: '#e5e7eb', 
-                              borderRadius: '12px', 
-                              boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
-                              fontWeight: 'bold',
-                              fontSize: '11px'
-                            }}
-                            formatter={(val) => [`${Number(val).toFixed(2)} kWh`, 'Energy']}
-                          />
-                          <Bar 
-                            dataKey="kwh" 
-                            fill={focusedOutlet.color} 
-                            radius={[4, 4, 0, 0]} 
-                            animationDuration={600} 
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-gray-400">
-                        No recorded intervals in this period
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Summary note below chart — zero dots, zero redundant empty rows */}
-                  <div className="mt-3 pt-3 border-t border-gray-200/60 flex items-center justify-between text-xs text-gray-500">
-                    <span>
-                      {activeReadings.length > 0
-                        ? `${activeReadings.length} active interval${activeReadings.length > 1 ? 's' : ''} detected with measurable draw`
-                        : 'Standby / low consumption across this period'}
-                    </span>
-                    <button
-                      onClick={() => setSelectedOutletTab('all')}
-                      className="text-maroon-800 font-bold hover:underline"
+                  return (
+                    <tr
+                      key={outlet.id}
+                      onClick={() => setSelectedOutletTab(isSelected ? 'all' : outlet.id)}
+                      className={`transition-colors duration-200 cursor-pointer ${
+                        isDrawing
+                          ? 'bg-maroon-50/20 hover:bg-maroon-50/40'
+                          : 'hover:bg-gray-50/80'
+                      }`}
                     >
-                      View all ports
-                    </button>
-                  </div>
-                </div>
+                      {/* Port Name & Icon */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border transition-all duration-300 ${
+                              !outlet.isRelayOn
+                                ? 'bg-gray-100 text-gray-400 border-gray-200/70'
+                                : isDrawing
+                                ? 'bg-maroon-800 text-white border-maroon-900 shadow-2xs'
+                                : 'bg-maroon-50 text-maroon-800 border-maroon-200/70'
+                            }`}
+                          >
+                            <Plug strokeWidth={1.75} className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="font-bold text-gray-900">{outlet.name}</span>
+                        </div>
+                      </td>
+
+                      {/* State Pill (Maroon Hierarchy) */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-all duration-300 ${
+                            !outlet.isRelayOn
+                              ? 'bg-gray-100 text-gray-500 border-gray-200/90'
+                              : isDrawing
+                              ? 'bg-maroon-800 text-white border-maroon-900 shadow-2xs'
+                              : 'bg-maroon-100/80 text-maroon-900 border-maroon-300/80'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                              !outlet.isRelayOn
+                                ? 'bg-gray-400'
+                                : isDrawing
+                                ? 'bg-emerald-400 animate-pulse'
+                                : 'bg-maroon-600'
+                            }`}
+                          />
+                          {!outlet.isRelayOn ? 'Switched Off' : isDrawing ? 'In Use' : 'Standby'}
+                        </span>
+                      </td>
+
+                      {/* Live Telemetry (V / A / W) */}
+                      <td className="py-3.5 px-4 whitespace-nowrap tabular-nums">
+                        {outlet.isRelayOn ? (
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
+                            <span>{outlet.volts.toFixed(0)} V</span>
+                            <span className="text-gray-300">·</span>
+                            <span className={isDrawing ? 'text-maroon-800 font-bold' : 'text-gray-600'}>
+                              {outlet.amps.toFixed(2)} A
+                            </span>
+                            <span className="text-gray-300">·</span>
+                            <span className={isDrawing ? 'text-maroon-800 font-bold' : 'text-gray-500'}>
+                              {outlet.watts.toFixed(1)} {powerUnitShort}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs font-medium text-gray-400">0 V · 0.00 A · 0.0 {powerUnitShort}</span>
+                        )}
+                      </td>
+
+                      {/* Est. Runtime */}
+                      <td className="py-3.5 px-4 whitespace-nowrap tabular-nums font-semibold text-gray-700">
+                        {outlet.periodHours} <span className="text-xs font-medium text-gray-400">hrs</span>
+                      </td>
+
+                      {/* Avg Active Load */}
+                      <td className="py-3.5 px-4 whitespace-nowrap tabular-nums font-semibold text-gray-700">
+                        {outlet.avgWatts} <span className="text-xs font-medium text-gray-400">{powerUnitShort}</span>
+                      </td>
+
+                      {/* Period Energy */}
+                      <td className="py-3.5 px-4 whitespace-nowrap tabular-nums">
+                        <span className="font-extrabold text-gray-900">{outlet.energyKwh.toFixed(2)}</span>{' '}
+                        <span className="text-[10px] font-bold text-gray-400 uppercase">kWh</span>
+                      </td>
+
+                      {/* Usage Share Progress Bar */}
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${Math.max(4, outlet.percentage)}%`,
+                                backgroundColor: outlet.color
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-maroon-900 tabular-nums w-9 text-right">
+                            {outlet.percentage}%
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              {selectedOutletTab === 'all' && (
+                <tfoot>
+                  <tr className="bg-gray-50/60 border-t border-gray-100 text-xs font-bold text-gray-600">
+                    <td className="py-2.5 px-4" colSpan={3}>
+                      Total Combined ({rangeLabel(timeRange)})
+                    </td>
+                    <td className="py-2.5 px-4 tabular-nums">
+                      {outletList.reduce((acc, o) => acc + o.periodHours, 0).toFixed(1)} hrs
+                    </td>
+                    <td className="py-2.5 px-4 tabular-nums">
+                      {Math.round(outletList.reduce((acc, o) => acc + o.avgWatts, 0) / 3)} {powerUnitShort} avg
+                    </td>
+                    <td className="py-2.5 px-4 tabular-nums text-gray-900 font-extrabold">
+                      {sumAllPortsEnergy.toFixed(2)} kWh
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-maroon-900">
+                      100%
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        </div>
+
+        {/* 2. Interval History Logs Table */}
+        <div className="border border-gray-100 rounded-2xl overflow-hidden">
+          <div className="bg-gray-50/70 px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-maroon-800" />
+              <span className="text-[10px] md:text-xs font-bold text-gray-600 uppercase tracking-wider">
+                Interval Readings Log ({selectedOutletTab === 'all' ? 'All Ports' : displayedOutlets[0]?.name})
+              </span>
+            </div>
+            <span className="text-[10px] font-semibold text-gray-400">
+              {(dataToRender?.energy || []).length} intervals recorded
+            </span>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto overflow-x-auto divide-y divide-gray-100">
+            {(dataToRender?.energy || []).length > 0 ? (
+              <table className="w-full text-left border-collapse min-w-[540px]">
+                <thead className="sticky top-0 bg-white border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider z-10">
+                  <tr>
+                    <th className="py-2.5 px-4">Interval</th>
+                    {selectedOutletTab === 'all' ? (
+                      <>
+                        <th className="py-2.5 px-4">Port 1</th>
+                        <th className="py-2.5 px-4">Port 2</th>
+                        <th className="py-2.5 px-4">Port 3</th>
+                        <th className="py-2.5 px-4">Total Energy</th>
+                      </>
+                    ) : (
+                      <>
+                        <th className="py-2.5 px-4">Outlet</th>
+                        <th className="py-2.5 px-4">Energy Logged</th>
+                        <th className="py-2.5 px-4">Est. Load</th>
+                      </>
+                    )}
+                    <th className="py-2.5 px-4 text-right">Log Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 text-xs tabular-nums">
+                  {[...(dataToRender?.energy || [])].reverse().map((pt, idx) => {
+                    const p1Kwh = Number((pt.kwh * (outletList[0].percentage / 100)).toFixed(2));
+                    const p2Kwh = Number((pt.kwh * (outletList[1].percentage / 100)).toFixed(2));
+                    const p3Kwh = Number((pt.kwh * (outletList[2].percentage / 100)).toFixed(2));
+                    const rowTotal = Number((p1Kwh + p2Kwh + p3Kwh).toFixed(2));
+                    const focused = displayedOutlets[0] || outletList[0];
+                    const singleKwh = Number((pt.kwh * (focused.percentage / 100)).toFixed(2));
+                    const hasDraw = selectedOutletTab === 'all' ? rowTotal > 0 : singleKwh > 0;
+
+                    return (
+                      <tr key={`log-${pt.label}-${idx}`} className="hover:bg-gray-50/70 transition-colors">
+                        <td className="py-2.5 px-4 font-semibold text-gray-700 whitespace-nowrap">
+                          {pt.label}
+                        </td>
+                        {selectedOutletTab === 'all' ? (
+                          <>
+                            <td className="py-2.5 px-4 text-gray-600">
+                              <span className={p1Kwh > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}>
+                                {p1Kwh.toFixed(2)}
+                              </span>{' '}
+                              <span className="text-[10px] text-gray-400">kWh</span>
+                            </td>
+                            <td className="py-2.5 px-4 text-gray-600">
+                              <span className={p2Kwh > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}>
+                                {p2Kwh.toFixed(2)}
+                              </span>{' '}
+                              <span className="text-[10px] text-gray-400">kWh</span>
+                            </td>
+                            <td className="py-2.5 px-4 text-gray-600">
+                              <span className={p3Kwh > 0 ? 'font-bold text-gray-900' : 'text-gray-400'}>
+                                {p3Kwh.toFixed(2)}
+                              </span>{' '}
+                              <span className="text-[10px] text-gray-400">kWh</span>
+                            </td>
+                            <td className="py-2.5 px-4 font-bold text-maroon-900">
+                              {rowTotal.toFixed(2)} <span className="text-[10px] font-semibold text-gray-400">kWh</span>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="py-2.5 px-4 font-semibold text-gray-800">{focused.name}</td>
+                            <td className="py-2.5 px-4">
+                              <span className={singleKwh > 0 ? 'font-bold text-maroon-900' : 'text-gray-400'}>
+                                {singleKwh.toFixed(2)}
+                              </span>{' '}
+                              <span className="text-[10px] text-gray-400">kWh</span>
+                            </td>
+                            <td className="py-2.5 px-4 text-gray-600">
+                              {singleKwh > 0 ? `${focused.avgWatts} ${powerUnitShort}` : `0 ${powerUnitShort}`}
+                            </td>
+                          </>
+                        )}
+                        <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              hasDraw
+                                ? 'bg-maroon-100/80 text-maroon-900 border-maroon-300/70'
+                                : 'bg-gray-100 text-gray-500 border-gray-200/80'
+                            }`}
+                          >
+                            {hasDraw ? 'Active Draw' : 'Standby / 0 kWh'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <div className="py-8 text-center text-xs text-gray-400 font-medium">
+                No interval logs recorded for this period.
               </div>
-            );
-          })()
-        )}
+            )}
+          </div>
+        </div>
       </div>
 
 
