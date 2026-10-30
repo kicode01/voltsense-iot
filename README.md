@@ -23,6 +23,7 @@
 1. [Overview & Problem Statement](#-overview--problem-statement)
 2. [Visual Showcase & Screenshots](#-visual-showcase--screenshots)
    - [Web Application & Mobile PWA](#web-application--mobile-pwa)
+   - [Hardware Diagnostic Suite & Alerts](#hardware-diagnostic-suite--alerts)
    - [3D Digital Twin & Parametric CAD Enclosure](#3d-digital-twin--parametric-cad-enclosure)
    - [Electrical Schematics & Wiring](#electrical-schematics--wiring)
 3. [Key Engineering Innovations](#-key-engineering-innovations)
@@ -31,7 +32,13 @@
    - [5-State Finite State Machine (FSM)](#5-state-finite-state-machine-fsm)
 5. [Hardware Specifications & Pinout](#-hardware-specifications--pinout)
 6. [3D Parametric CAD Enclosure](#-3d-parametric-cad-enclosure)
-7. [Software & PWA Features](#-software--pwa-features)
+7. [Software Architecture & Metrology Deep Dive](#-software-architecture--metrology-deep-dive)
+   - [React 19 PWA & State Management](#react-19-pwa--state-management)
+   - [Reviewer Evaluation & Demo Mode (E2E_AUTH)](#reviewer-evaluation--demo-mode-e2e_auth)
+   - [Firebase RTDB Schema & Two-Way Sync](#firebase-rtdb-schema--two-way-sync)
+   - [Discrete True RMS Metrology Mathematics](#discrete-true-rms-metrology-mathematics)
+   - [Web Push Notification Pipeline (VAPID)](#web-push-notification-pipeline-vapid)
+   - [Diagnostic Benchmarking Test Lab (/test-lab)](#diagnostic-benchmarking-test-lab-test-lab)
 8. [Getting Started & Installation](#-getting-started--installation)
 9. [Project Directory Layout](#-project-directory-layout)
 10. [Academic Context & Research Team](#-academic-context--research-team)
@@ -72,6 +79,15 @@ Furthermore, a validated campus survey of **53 dormitory residents and owners** 
 | :---: | :---: |
 | ![Desktop Dashboard](docs/screenshots/dashboard_desktop.png) | ![Desktop Analytics](docs/screenshots/analytics_desktop.png) |
 | *Real-time telemetry, True RMS readings, occupancy status, and per-outlet manual override controls.* | *Historical energy consumption area chart, per-outlet breakdown in harmonized maroon shades, and energy share ribbon.* |
+
+### Hardware Diagnostic Suite & Alerts
+
+| Automated Bench Test Lab (`/test-lab`) | Pre-Cutoff Notification & Alerts Feed (`/alerts`) |
+| :---: | :---: |
+| ![Hardware Test Lab](docs/screenshots/test_lab_desktop.png) | ![Alerts & Audit Log](docs/screenshots/alerts_desktop.png) |
+| *Automated 10-trial sensor fusion latency testing, relay endurance cycles, and live waveform monitor.* | *5-minute countdown grace period tracking, push delivery receipts, and automated cutoff event history.* |
+
+### Mobile Progressive Web App (PWA)
 
 | Mobile PWA Dashboard | Mobile Analytics & Telemetry |
 | :---: | :---: |
@@ -252,21 +268,220 @@ The enclosure is physically partitioned at $Y = 104.0\,\text{mm}$ by an integrat
 
 ---
 
-## 💻 Software & PWA Features
+## 💻 Software Architecture & Metrology Deep Dive
 
-### Progressive Web App (PWA)
-* **Framework:** React 19 + Vite 8.2 + Tailwind CSS.
-* **Modern Aesthetic:** Strict PUP academic color scheme (PUP Maroon `#852636`, PUP Gold `#b37805`, and clean ivory surfaces).
-* **Offline-Ready:** Service Worker caching (`vite-plugin-pwa`) allowing full application access during internet outages.
-* **Web Push Notifications:** VAPID-authenticated background push notifications with interactive action buttons (`[Keep Power On]`, `[Turn Off Now]`).
+The VoltSense software ecosystem combines a high-performance **React 19 Progressive Web App (PWA)**, a real-time **Google Firebase Realtime Database (RTDB)** cloud synchronization layer, an **RFC 8292 VAPID Web Push Notification engine**, and an on-chip **Discrete True RMS Metrology Engine** running on the ESP32.
 
-### Real-Time Dashboard & Analytics
-* **Per-Outlet Energy Cards:** Displays voltage, current, active power, and kilowatt-hours per port with interactive toggle switches.
-* **Energy Share Distribution Ribbon:** Proportional multi-segment ribbon comparing outlet consumption across three distinct harmonious maroon shades:
-  - **Port 1 (Desk Fan):** `#852636` (Signature VoltSense Maroon)
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 VOLTSENSE PWA CLIENT                                   │
+│  React 19 • Vite 8.2 • Tailwind CSS • Recharts • Three.js WebGL 3D Digital Twin        │
+│                                                                                        │
+│   ┌────────────────────┐   ┌────────────────────┐   ┌──────────────────────────────┐   │
+│   │    useRoomData     │   │   useHistoryData   │   │       useDeviceContext       │   │
+│   │ Real-Time V, A, W  │   │ Hourly Aggregation │   │  Pairing & Multi-Node Route  │   │
+│   └─────────▲──────────┘   └─────────▲──────────┘   └──────────────▲───────────────┘   │
+└─────────────┼────────────────────────┼─────────────────────────────┼───────────────────┘
+              │ WebSocket Stream       │ REST Polling                │ RTDB Update
+              ▼                        ▼                             ▼
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                              GOOGLE FIREBASE CLOUD BACKEND                             │
+│                                                                                        │
+│   ┌────────────────────────────────────────────────────────────────────────────────┐   │
+│   │ Realtime Database (RTDB)                                                       │   │
+│   │   ├── devices/{mac}/status      (V, A, W, kWh, relays, occupancy flags)        │   │
+│   │   ├── devices/{mac}/settings    (inactivity_min, grace_min, night_mode)        │   │
+│   │   ├── devices/{mac}/history     (hourly kWh energy logs)                       │   │
+│   │   └── pairingCodes/{code}       (6-char claiming exchange)                     │   │
+│   └────────────────────────────────────────────────────────────────────────────────┘   │
+│                                              ▲                                         │
+│                      Two-Way Sync (<0.22s)   │   HTTP VAPID Alert                      │
+│                                              │   (5-Min Grace Window)                  │
+└──────────────────────────────────────────────┼───┬─────────────────────────────────────┘
+                                               │   │
+                                2.4GHz Wi-Fi   │   ▼
+┌──────────────────────────────────────────────┴───┴─────────────────────────────────────┐
+│                             ESP32 DUAL-CORE METROLOGY EDGE                             │
+│                                                                                        │
+│   Core 0: FreeRTOS Networking, Wi-Fi Watchdog, RTDB JSON Stream, VAPID Push Dispatch  │
+│   Core 1: 1,000 Hz Discrete Sampling, True RMS Voltage/Current, FSM Relay Controls     │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### React 19 PWA & State Management
+
+* **Modern Stack:** React 19 Concurrent Mode, Vite 8.2 bundle optimizer, Tailwind CSS, and Recharts SVG visualization.
+* **Offline Service Worker (`vite-plugin-pwa`):** Pre-caches the application shell, vector typography, and branding assets using Workbox `stale-while-revalidate` caching strategy, ensuring instant cold startups and full navigation even during campus Wi-Fi dropouts.
+* **Academic Design System:** Strict PUP color palette—PUP Maroon (`#852636`), PUP Gold (`#b37805`), and warm ivory surfaces (`#F0F2F5`).
+* **Harmonized Maroon Outlet Palette:** To maintain academic visual hierarchy while cleanly differentiating each switched load on graphs and ribbons, the per-outlet analytics utilize three harmonized shades of maroon:
+  - **Port 1 (Electric Fan):** `#852636` (Signature VoltSense Maroon)
   - **Port 2 (Study Lamp):** `#b84255` (Radiant Crimson Maroon)
-  - **Port 3 (Chargers):** `#54121e` (Deep Velvet Maroon)
-* **Hardware Diagnostic Test Lab (`/test-lab`):** Integrated bench testing suite allowing developers to run automated 10-trial regression sweeps for sensor fusion, latency verification, and relay endurance.
+  - **Port 3 (Laptop/Phone Chargers):** `#54121e` (Deep Velvet Maroon)
+
+#### Custom Hook Pipeline
+1. `useRoomData(deviceId)`: Subscribes directly to `devices/{deviceId}/status` via Firebase WebSocket. Unpacks True RMS voltage, per-port current, active power, relay switch states, and dual-sensor occupancy flags every 2 seconds. Enforces zero-noise clamping on idle channels.
+2. `useHistoryData(deviceId, range)`: Aggregates historical energy records across four standard timeframes (`today`, `yesterday`, `week`, `month`), generating proportional energy share distributions and cost calculations based on Philippine Meralco residential tariffs (default: $\approx \text{₱}12.00 / \text{kWh}$).
+3. `useAlerts(deviceId)`: Tracks notification events, unread badge counters, and countdown timestamps for the 5-minute pre-cutoff grace window.
+4. `useDeviceContext()`: Manages device claiming, persistent active MAC selection in `localStorage`, and multi-device node switching across dormitory rooms.
+
+---
+
+### Reviewer Evaluation & Demo Mode (`E2E_AUTH`)
+
+For thesis panel reviewers, academic evaluators, and automated CI/CD runners who do not have physical ESP32 hardware attached, VoltSense includes a built-in **Authenticated Demo / Reviewer Evaluation Mode**:
+
+> [!TIP]
+> **How to Access Full In-App Experience Without Hardware:**
+> Open your browser Developer Tools Console (`F12` or `Ctrl+Shift+I`) on `http://localhost:5173` and run:
+> ```javascript
+> localStorage.setItem('E2E_AUTH', 'true');
+> window.location.reload();
+> ```
+> *(Or programmatically assign `window.__E2E_AUTH__ = true;` prior to application mount.)*
+
+**When `E2E_AUTH` is active:**
+* The Firebase Authentication redirect guard in [`src/App.jsx`](src/App.jsx) is bypassed.
+* The application automatically initializes an active virtual session loaded with authentic dormitory baseline telemetry:
+  - **Grid Voltage:** $220.0\,\text{V AC}, 60.0\,\text{Hz}$ True RMS.
+  - **Occupancy State:** `STATE 0 (OCCUPIED)` with active PIR and mmWave micro-movement detection.
+  - **Port 1 (Desk Fan):** $55.0\,\text{W}$ ($0.25\,\text{A}$, $\text{PF}=0.98$).
+  - **Port 2 (Study Lamp):** $22.0\,\text{W}$ ($0.10\,\text{A}$, $\text{PF}=0.95$).
+  - **Port 3 (Laptop Charger):** $44.0\,\text{W}$ ($0.20\,\text{A}$, $\text{PF}=0.92$).
+  - **Total System Load:** $121.0\,\text{W}$ active power ($290.0\,\text{VA}$ apparent power).
+* Enables full interactive testing of the Live Dashboard, Historical Analytics charts, Pre-Cutoff Notification simulation, and the complete **Hardware Diagnostic Test Lab (`/test-lab`)**.
+
+---
+
+### Firebase RTDB Schema & Two-Way Sync
+
+VoltSense organizes cloud telemetry under a normalized, low-latency JSON hierarchy:
+
+```json
+{
+  "devices": {
+    "58:2A:BD:D4:8F:98": {
+      "status": {
+        "voltage_rms": 220.4,
+        "frequency_hz": 60.0,
+        "total_power_watts": 121.0,
+        "total_va": 290.0,
+        "total_kwh": 0.30,
+        "occupancy": {
+          "occupied": true,
+          "pir_raw": true,
+          "radar_raw": true,
+          "state": 0
+        },
+        "ports": {
+          "port_01": { "name": "Port 1", "relay": true, "current_rms": 0.25, "power_watts": 55.0, "power_factor": 0.98, "kwh": 0.11 },
+          "port_02": { "name": "Port 2", "relay": true, "current_rms": 0.10, "power_watts": 22.0, "power_factor": 0.95, "kwh": 0.06 },
+          "port_03": { "name": "Port 3", "relay": true, "current_rms": 0.20, "power_watts": 44.0, "power_factor": 0.92, "kwh": 0.13 }
+        },
+        "last_seen": 1740920000000
+      },
+      "settings": {
+        "inactivity_minutes": 15,
+        "grace_minutes": 5,
+        "night_mode": { "enabled": true, "start": "23:00", "end": "06:00" },
+        "protected_ports": ["port_03"]
+      },
+      "alerts": {
+        "-OAlertKey": {
+          "title": "Room Vacancy Detected",
+          "body": "Automated shutdown in 5:00 minutes. Tap to keep on.",
+          "timestamp": 1740920000000,
+          "type": "warning"
+        }
+      }
+    }
+  },
+  "pairingCodes": {
+    "VLT789": {
+      "mac": "58:2A:BD:D4:8F:98",
+      "createdAt": 1740919000000
+    }
+  }
+}
+```
+
+#### Optimistic UI Mutation Loop
+When an occupant toggles an outlet relay switch on the dashboard:
+1. **Optimistic Local Update:** The React UI flips the switch immediately with capacitive spring animation and updates local state.
+2. **Cloud Mutation:** A patch mutation is transmitted via HTTPS/WebSocket to `/devices/{mac}/status/ports/port_0X/relay`.
+3. **Firmware Stream Catch:** The ESP32 FreeRTOS Core 0 Firebase stream listener catches the change event in $<150\,\text{ms}$.
+4. **Deterministic Actuation:** Core 0 signals Core 1 via a FreeRTOS task notification, which directly asserts the corresponding optocoupled GPIO line (trip latency $<0.22\,\text{s}$).
+5. **State Confirmation:** The actual relay pin state and metrology current are streamed back in the next telemetry payload, confirming synchronization.
+
+---
+
+### Discrete True RMS Metrology Mathematics
+
+Metrology is computed entirely on-chip using discrete numerical integration over a 50-cycle AC window ($833.3\,\text{ms}$ at $60\,\text{Hz}$):
+
+```
+       ADC Sampling at 1,000 Hz (Discrete Integration Window N = 833 samples)
+──────────────────────────────────────────────────────────────────────────────────
+   Line Voltage:   v[i] = ADC_RAW(GPIO 33) conditioned by ZMPT101B
+   Port Currents:  i_1[i] = ADC_RAW(GPIO 34), i_2[i] = ADC_RAW(GPIO 35), i_3[i] = ADC_RAW(GPIO 32)
+```
+
+#### Mathematical Formulations
+
+1. **True RMS Line Voltage ($V_{\text{RMS}}$):**
+   $$V_{\text{RMS}} = K_v \sqrt{\frac{1}{N} \sum_{i=1}^{N} \left( v[i] - V_{\text{zero}} \right)^2}$$
+   Where $K_v$ is the transformer turns ratio calibration coefficient, and $V_{\text{zero}}$ is the virtual ground baseline ($\approx 1.65\,\text{V}$ mid-rail).
+
+2. **True RMS Port Current ($I_{\text{RMS}}$):**
+   $$I_{\text{RMS}} = K_i \sqrt{\frac{1}{N} \sum_{i=1}^{N} \left( i[i] - I_{\text{zero}} \right)^2}$$
+   Where $K_i$ is the Hall-effect sensitivity coefficient ($185\,\text{mV/A}$ divided by the resistive attenuation ratio).
+
+3. **Active Real Power ($P$ in Watts):**
+   $$P = \frac{1}{N} \sum_{i=1}^{N} \left( v[i] - V_{\text{zero}} \right) \cdot \left( i[i] - I_{\text{zero}} \right)$$
+
+4. **Apparent Power ($S$ in Volt-Amperes) and Power Factor ($\text{PF}$):**
+   $$S = V_{\text{RMS}} \times I_{\text{RMS}}$$
+   $$\text{PF} = \frac{|P|}{S} \quad (0.00 \le \text{PF} \le 1.00)$$
+
+5. **Cumulative Kilowatt-Hour Energy Integration ($E_{\text{kWh}}$):**
+   $$E_{\text{kWh}}(t) = E_{\text{prev}} + \frac{P(t) \cdot \Delta t}{3.6 \times 10^6}$$
+   Where $\Delta t$ is the discrete sampling period in seconds ($2.0\,\text{s}$).
+
+#### Zero-Point Median Filter & Noise Gating
+* **Dynamic Mid-Rail Tracking:** A continuous 64-sample running median window tracks $V_{\text{zero}}$ and $I_{\text{zero}}$, canceling out thermal drift in the $3.3\text{V}$ LDO regulator.
+* **15 mA Software Noise Gate:** To prevent ADC noise from creating phantom kilowatt-hour accumulation when outlets are idle, any current calculation below $0.015\,\text{A}$ ($15\,\text{mA}$) is hard-clamped to $0.00\,\text{A}$.
+
+---
+
+### Web Push Notification Pipeline (VAPID)
+
+VoltSense utilizes the **W3C Push API** with **RFC 8292 Voluntary Application Server Identification (VAPID)** to deliver actionable notifications to student smartphones without requiring native mobile app installation:
+
+```
+┌──────────────┐     Room Vacant >15 Min     ┌──────────────────────┐
+│  ESP32 MCU   ├────────────────────────────►│  Vercel Serverless   │
+│   (Core 0)   │                             │     (/api/alert)     │
+└──────────────┘                             └──────────┬───────────┘
+                                                        │ RFC 8292 VAPID Signing
+                                                        ▼
+┌──────────────┐     Lock-Screen Action      ┌──────────────────────┐
+│ PWA Service  │◄────────────────────────────┤ Firebase Cloud Msg   │
+│ Worker (sw)  │     "Keep On" / "Turn Off"  │      (Web Push)      │
+└──────┬───────┘                             └──────────────────────┘
+       │
+       ├─► Student taps [Keep Power On] ──► Extends timer by 60 min
+       └─► Student taps [Turn Off Now]  ──► Relays 1 & 2 trip immediately
+```
+
+---
+
+### Diagnostic Benchmarking Test Lab (`/test-lab`)
+
+The built-in **Hardware Test Lab** provides an interactive diagnostic suite for validating system specifications:
+* **Automated 10-Trial Latency Regression:** Executes automated occupancy cutoff cycles, measuring the exact round-trip latency from vacancy confirmation to relay de-energization (average: **$<0.22\,\text{s}$**).
+* **Relay Endurance Cycling:** Sequentially cycles Relays 1, 2, and 3 under load to test contact bounce and driver stability.
+* **Live Oscilloscope Waveforms:** Renders simulated real-time $60\,\text{Hz}$ sinusoidal AC voltage and current waveforms with adjustable distortion harmonics for metrology bench validation.
 
 ---
 

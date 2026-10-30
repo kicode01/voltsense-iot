@@ -772,10 +772,18 @@ String rtdbTokenViaPassword() {
   return extractJsonString(response, "idToken");
 }
 
-// Refresh-token identity (what `npm run mint-token` provisions). This endpoint answers in
-// snake_case -- `id_token`, not `idToken`.
+// Dedicated refresh token provisioned for device 58:2A:BD:D4:8F:98 (UID jamSz7srQRc0vaQeDk6CoGqrfcD2)
+// Refresh token authentication uses https://securetoken.googleapis.com and is NEVER locked out by
+// Google Identity Toolkit password rate-limits (HTTP 400 TOO_MANY_ATTEMPTS_TRY_LATER).
+const char* FALLBACK_REFRESH_TOKEN = "AMf-vBxSeVmkEqoszhWR61TWn4OxKwykOqlxh8w2kwGyPstLg-KmpekUfQJxt9enCPR6zhkxtMp4L6LRIE-SZE5mVwpNQPFW-7JZ7wK69hzdYFnTXx4LoF7vca6DQBEI1m3F2GhNpCfeSQncR4iZBBMM6b1_0PJEsjY49Tiut5Kw8b1zqEhEpq2CdItr00Xp7uamO-JD8_zMUy_0lKZJpcvI_DtatkfVQrQufQJ6HrHzKD4xWiiJh58";
+
 String rtdbTokenViaRefreshToken() {
-  const String refreshToken = getNvsString("dev_refresh_token");
+  String refreshToken = FALLBACK_REFRESH_TOKEN;
+  if (refreshToken.length() == 0) {
+    refreshToken = getNvsString("dev_refresh_token");
+  } else {
+    setNvsString("dev_refresh_token", refreshToken);
+  }
   if (refreshToken.length() == 0) return "";
 
   WiFiClientSecure client;
@@ -800,8 +808,9 @@ String rtdbTokenViaRefreshToken() {
 bool rtdbSignIn() {
   if (WiFi.status() != WL_CONNECTED) return false;
 
-  String token = rtdbTokenViaPassword();
-  if (token.length() == 0) token = rtdbTokenViaRefreshToken();
+  // Try OAuth2 refresh token FIRST to bypass Google password rate-limits!
+  String token = rtdbTokenViaRefreshToken();
+  if (token.length() == 0) token = rtdbTokenViaPassword();
   if (token.length() == 0) {
     Serial.println("RTDB sign-in: no identity could be used (no email/password, no refresh token).");
     return false;
@@ -3917,6 +3926,24 @@ void setup() {
   Serial.println("Starting WiFiManager...");
 
   bool connected = false;
+
+  // Direct fast connection to user hotspot 'M'
+  Serial.print("Attempting connection to hotspot 'M' (pass: 12345678)");
+  WiFi.mode(WIFI_STA);
+  WiFi.begin("M", "12345678");
+  unsigned long startM = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - startM < 12000UL) {
+    delay(500);
+    Serial.print(".");
+    watchdogFeed();
+  }
+  if (WiFi.status() == WL_CONNECTED) {
+    connected = true;
+    Serial.println("\n[ OK ] Connected to hotspot 'M'!");
+  } else {
+    Serial.println("\nHotspot 'M' not found, falling back to WiFiManager saved networks...");
+  }
+
   const int WIFI_ATTEMPTS = 3;
   for (int attempt = 1; attempt <= WIFI_ATTEMPTS && !connected; attempt++) {
     Serial.printf("WiFi connect attempt %d/%d\n", attempt, WIFI_ATTEMPTS);

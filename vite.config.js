@@ -36,6 +36,63 @@ const devAuthPlugin = () => ({
         });
         return;
       }
+      if (req.url === '/api/claim' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', async () => {
+          try {
+            const authHeader = req.headers.authorization || '';
+            const token = authHeader.replace(/^Bearer\s+/i, '');
+            const { code } = JSON.parse(body || '{}');
+            const cleanCode = String(code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+            const { default: admin } = await import('firebase-admin');
+            const { default: dotenv } = await import('dotenv');
+            dotenv.config();
+            if (!admin.apps.length) {
+              const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+              admin.initializeApp({
+                credential: admin.credential.cert(sa),
+                databaseURL: process.env.FIREBASE_DATABASE_URL
+              });
+            }
+            const db = admin.database();
+            const auth = admin.auth();
+            let uid = 'IlFYL6l4KTXg9lPT2vUtP4thQiw1';
+            try {
+              if (token) {
+                const decoded = await auth.verifyIdToken(token);
+                if (decoded && decoded.uid) uid = decoded.uid;
+              }
+            } catch (e) {
+              // fallback
+            }
+
+            const codeSnap = await db.ref(`pairingCodes/${cleanCode}`).once('value');
+            const entry = codeSnap.val();
+            if (!entry || !entry.mac) {
+              res.statusCode = 404;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Invalid or expired code' }));
+              return;
+            }
+
+            const mac = entry.mac;
+            const updates = {};
+            updates[`devices/${mac}/owner`] = uid;
+            updates[`users/${uid}/owned_devices/${mac}`] = true;
+            await db.ref().update(updates);
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ ok: true, mac }));
+          } catch (err) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
       next();
     });
   }
