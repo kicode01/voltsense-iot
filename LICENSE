@@ -1,0 +1,48 @@
+PROPRIETARY AND CONFIDENTIAL LICENSE
+
+Copyright (c) 2026 VoltSense Project. All Rights Reserved.
+
+Project Proponents:
+  - Kian Balanag
+  - Christian Calangian
+  - John Michael Gutierrez
+  - Aaron Yadao
+
+Academic Department & Institution:
+  Department of Computer Engineering
+  College of Engineering
+  Polytechnic University of the Philippines (PUP), Sta. Mesa, Manila
+
+===============================================================================
+TERMS AND CONDITIONS
+===============================================================================
+
+1. OWNERSHIP
+This repository, including all source code, FreeRTOS firmware, React/PWA web
+applications, serverless cloud API functions, KiCad schematics and PCB designs,
+OpenSCAD 3D parametric enclosure models, STL files, technical documentation,
+and research manuscripts (collectively, the "Work"), is the confidential and
+proprietary property of the authors listed above.
+
+2. RESTRICTIONS ON USE
+Except as explicitly authorized in writing by the authors:
+  a. You may NOT copy, distribute, publish, sublicense, rent, lease, or resell
+     the Work or any portion thereof.
+  b. You may NOT modify, adapt, translate, or create derivative works based upon
+     the Work.
+  c. You may NOT reverse engineer, decompile, disassemble, or derive source code
+     or hardware netlists from compiled or manufactured artifacts.
+  d. You may NOT remove, alter, or obscure any proprietary notices, labels, or
+     trademarks appearing in or on the Work.
+
+3. EVALUATION AND ACADEMIC REVIEW
+Access to this repository is permitted solely for authorized academic committee
+evaluation, manuscript audit, and institutional defense examination by the
+Polytechnic University of the Philippines faculty and appointed panel.
+
+4. NO WARRANTY
+THE WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THE WORK OR THE USE OF THE WORK.
