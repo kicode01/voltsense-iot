@@ -10,39 +10,35 @@
 
 <p align="center">
   <a href="#license"><img src="https://img.shields.io/badge/License-Proprietary-maroon.svg?style=for-the-badge&color=852636" alt="License: Proprietary" /></a>
-  <a href="#software-stack"><img src="https://img.shields.io/badge/Frontend-React_19_+_Vite-blue.svg?style=for-the-badge&logo=react" alt="React 19 + Vite" /></a>
-  <a href="#firmware-architecture"><img src="https://img.shields.io/badge/Hardware-ESP32_Dual--Core-red.svg?style=for-the-badge&logo=espressif" alt="ESP32" /></a>
-  <a href="#firmware-architecture"><img src="https://img.shields.io/badge/RTOS-FreeRTOS-green.svg?style=for-the-badge" alt="FreeRTOS" /></a>
-  <a href="#cloud--database"><img src="https://img.shields.io/badge/Cloud-Firebase_RTDB-orange.svg?style=for-the-badge&logo=firebase" alt="Firebase RTDB" /></a>
-  <a href="#3d-parametric-cad-enclosure"><img src="https://img.shields.io/badge/CAD-OpenSCAD_Parametric-teal.svg?style=for-the-badge" alt="OpenSCAD" /></a>
+  <a href="#software-architecture--metrology-deep-dive"><img src="https://img.shields.io/badge/Frontend-React_19_+_Vite-blue.svg?style=for-the-badge&logo=react" alt="React 19 + Vite" /></a>
+  <a href="#dual-core-freertos-task-separation"><img src="https://img.shields.io/badge/Firmware-ESP32_FreeRTOS-red.svg?style=for-the-badge&logo=espressif" alt="ESP32 FreeRTOS" /></a>
+  <a href="#firebase-rtdb-schema--two-way-sync"><img src="https://img.shields.io/badge/Cloud-Firebase_RTDB-orange.svg?style=for-the-badge&logo=firebase" alt="Firebase RTDB" /></a>
+  <a href="#web-push-notification-pipeline-vapid"><img src="https://img.shields.io/badge/Alerts-Web_Push_VAPID-purple.svg?style=for-the-badge" alt="Web Push VAPID" /></a>
 </p>
 
 ---
 
 ## 📑 Table of Contents
 1. [Overview & Problem Statement](#-overview--problem-statement)
-2. [Visual Showcase & Screenshots](#-visual-showcase--screenshots)
-   - [Web Application & Mobile PWA](#web-application--mobile-pwa)
-   - [Hardware Diagnostic Suite & Alerts](#hardware-diagnostic-suite--alerts)
-   - [3D Digital Twin & Parametric CAD Enclosure](#3d-digital-twin--parametric-cad-enclosure)
-   - [Electrical Schematics & Wiring](#electrical-schematics--wiring)
+2. [Visual Showcase & In-App Screenshots](#-visual-showcase--in-app-screenshots)
+   - [Desktop Web Application & Analytics](#desktop-web-application--analytics)
+   - [Hardware Diagnostic Suite & Alerts Feed](#hardware-diagnostic-suite--alerts-feed)
+   - [Mobile Progressive Web App (PWA)](#mobile-progressive-web-app-pwa)
 3. [Key Engineering Innovations](#-key-engineering-innovations)
 4. [System Architecture](#-system-architecture)
    - [Dual-Core FreeRTOS Task Separation](#dual-core-freertos-task-separation)
    - [5-State Finite State Machine (FSM)](#5-state-finite-state-machine-fsm)
-5. [Hardware Specifications & Pinout](#-hardware-specifications--pinout)
-6. [3D Parametric CAD Enclosure](#-3d-parametric-cad-enclosure)
-7. [Software Architecture & Metrology Deep Dive](#-software-architecture--metrology-deep-dive)
+5. [Software Architecture & Metrology Deep Dive](#-software-architecture--metrology-deep-dive)
    - [React 19 PWA & State Management](#react-19-pwa--state-management)
    - [Reviewer Evaluation & Demo Mode (E2E_AUTH)](#reviewer-evaluation--demo-mode-e2e_auth)
    - [Firebase RTDB Schema & Two-Way Sync](#firebase-rtdb-schema--two-way-sync)
    - [Discrete True RMS Metrology Mathematics](#discrete-true-rms-metrology-mathematics)
    - [Web Push Notification Pipeline (VAPID)](#web-push-notification-pipeline-vapid)
    - [Diagnostic Benchmarking Test Lab (/test-lab)](#diagnostic-benchmarking-test-lab-test-lab)
-8. [Getting Started & Installation](#-getting-started--installation)
-9. [Project Directory Layout](#-project-directory-layout)
-10. [Academic Context & Research Team](#-academic-context--research-team)
-11. [License](#-license)
+6. [Getting Started & Installation](#-getting-started--installation)
+7. [Project Directory Layout](#-project-directory-layout)
+8. [Academic Context & Research Team](#-academic-context--research-team)
+9. [License](#-license)
 
 ---
 
@@ -67,20 +63,20 @@ Furthermore, a validated campus survey of **53 dormitory residents and owners** 
 2. **True RMS Per-Outlet Metrology:** Continuous micro-sampling via a **ZMPT101B voltage transformer** and **3x Allegro ACS712-05B current sensors** calculating True RMS Voltage, Current, Active Power ($P$), and Energy ($\text{kWh}$) streamed every 2 seconds.
 3. **Selective 3-Channel AC Load Isolation:** Optocoupled relays independently switch three grounded **SS-6B outlets**. High-waste appliances (fans, lights) automatically de-energize upon room vacancy, while critical device chargers remain protected.
 4. **Interactive 5-Minute Grace Window with Web Push Alerts:** Sends an automated push notification via the **Web Push API (VAPID)** when a 15-minute room vacancy is detected, giving the occupant a 5-minute countdown window to cancel the shutdown remotely before power trips.
-5. **Flame-Retardant Industrial Chassis:** Parametric 3D-printed PETG housing with an internal physical barrier enforcing **$>6.3\,\text{mm}$ creepage distance** between 220V AC mains and low-voltage DC logic in strict compliance with the **Philippine Electrical Code (PEC)**.
+5. **Fail-Safe Edge Autonomy:** Dedicated FreeRTOS hardware timer loops on the ESP32 execute automatic load cutoffs locally within **$<0.22\,\text{s}$**, ensuring continuous protection and metrology even during Wi-Fi or internet outages.
 
 ---
 
-## 📸 Visual Showcase & Screenshots
+## 📸 Visual Showcase & In-App Screenshots
 
-### Web Application & Mobile PWA
+### Desktop Web Application & Analytics
 
 | Desktop Live Dashboard | Real-Time Analytics & Energy Share |
 | :---: | :---: |
 | ![Desktop Dashboard](docs/screenshots/dashboard_desktop.png) | ![Desktop Analytics](docs/screenshots/analytics_desktop.png) |
 | *Real-time telemetry, True RMS readings, occupancy status, and per-outlet manual override controls.* | *Historical energy consumption area chart, per-outlet breakdown in harmonized maroon shades, and energy share ribbon.* |
 
-### Hardware Diagnostic Suite & Alerts
+### Hardware Diagnostic Suite & Alerts Feed
 
 | Automated Bench Test Lab (`/test-lab`) | Pre-Cutoff Notification & Alerts Feed (`/alerts`) |
 | :---: | :---: |
@@ -96,29 +92,6 @@ Furthermore, a validated campus survey of **53 dormitory residents and owners** 
 
 ---
 
-### 3D Digital Twin & Parametric CAD Enclosure
-
-| Interactive 3D Digital Twin Viewer | Full Exploded Assembly View |
-| :---: | :---: |
-| ![3D Digital Twin](docs/screenshots/enclosure_3d_digital_twin.png) | ![Exploded View](cad/render_main_exploded.png) |
-| *Real-time Three.js WebGL digital twin rendering all internal carrier PCB standoffs, relays, and sensors.* | *Exploded view showing base chassis, universal protoboard, sensor brackets, and top lid.* |
-
-| Isometric Assembled Enclosure | Interior Layout & Safety Partition Wall |
-| :---: | :---: |
-| ![Assembly Isometric](cad/render_assembly_iso.png) | ![Chassis Interior](cad/render_main_interior_iso.png) |
-| *Heavy-duty flame-retardant PETG enclosure with front sensor ports and rear cable grommets.* | *Interior showing the $48\,\text{mm}$ high AC/DC partition barrier with 3 segregated wiring portals.* |
-
----
-
-### Electrical Schematics & Wiring
-
-<p align="center">
-  <img src="docs/diagrams/hardware_wiring_visual.jpg" width="90%" alt="Hardware Wiring Visual" /><br/>
-  <em>Complete wiring topology: IEC C14 inlet, KCD1 switch, HLK-5M05 AC-DC converter, ZMPT101B, 3x ACS712, 4-Ch Relay Module, and ESP32 DevKit V1.</em>
-</p>
-
----
-
 ## 🚀 Key Engineering Innovations
 
 | Feature | Technical Implementation | Benefit |
@@ -129,51 +102,71 @@ Furthermore, a validated campus survey of **53 dormitory residents and owners** 
 | **Deterministic Edge Logic** | FreeRTOS Hardware Timers running on ESP32 Core 1 | Relay cutoff executes within **$<0.22\,\text{s}$** even if Wi-Fi or cloud connection drops. |
 | **Pre-Cutoff Push Notification** | Web Push API (VAPID) with 5-minute countdown | Zero app install needed; students can tap `[KEEP ON]` from lock screen. |
 | **Night Mode Schedule** | NTP-synced time window (23:00–06:00) | Automated shutoffs suspended overnight to guarantee electric fan operation. |
-| **Galvanic & Thermal Safety** | $>6.3\,\text{mm}$ PCB Creepage + UL94 V-0 PETG | Fully conforms to Philippine Electrical Code (PEC) Article 2.10 branch standards. |
+| **Fail-Safe Edge Reliability** | Local FreeRTOS non-blocking timers on Core 1 | Sustains full metrology & automated cutoff even during complete Wi-Fi loss. |
 
 ---
 
 ## 🏛️ System Architecture
 
 ```
-                  ┌────────────────────────────────────────────────────────┐
-                  │                    VOLTSENSE EDGE                      │
-                  │                                                        │
-┌──────────────┐  │  ┌───────────────┐     Discrete ADC     ┌───────────┐  │
-│ 220V AC Line ├─────► ZMPT101B Xfmr ├────────────────────►│           │  │
-└──────────────┘  │  └───────────────┘                      │           │  │
-┌──────────────┐  │  ┌───────────────┐  185 mV/A Isolated   │   ESP32   │  │
-│ 3x AC Outlets◄─────┤ 4-Ch Relay Mod│◄─────────────────────┤ Dual-Core │  │
-└──────────────┘  │  └───────────────┘  Songle SRD-05VDC    │   MCU     │  │
-┌──────────────┐  │  ┌───────────────┐                      │ (FreeRTOS)│  │
-│ 3x Load Amps ├─────► 3x ACS712 Mod ├─────────────────────►│           │  │
-└──────────────┘  │  └───────────────┘                      │           │  │
-┌──────────────┐  │  ┌───────────────┐  Sensor Fusion       │           │  │
-│ PIR + mmWave ├─────► HC-SR501/Radar├─────────────────────►│           │  │
-└──────────────┘  │  └───────────────┘                      └───┬───▲───┘  │
-                  └─────────────────────────────────────────────┼───┼──────┘
-                                                                │   │
-                                           2.4GHz Wi-Fi (JSON)  │   │ Live Toggles
-                                           2-Sec Telemetry Sync │   │ & State Resync
-                                                                ▼   │
-                  ┌─────────────────────────────────────────────────┴──────┐
-                  │                 GOOGLE FIREBASE CLOUD                  │
-                  │                                                        │
-                  │   ┌────────────────────────┐  ┌────────────────────┐   │
-                  │   │ Realtime Database      │  │ Cloud Messaging    │   │
-                  │   │ (V, A, W, kWh, Relays) │  │ (Web Push / VAPID) │   │
-                  │   └───────────▲────────────┘  └─────────┬──────────┘   │
-                  └───────────────┼─────────────────────────┼──────────────┘
-                                  │ Live Subscriptions      │ Push Alerts
-                                  │ & REST mutations        │ (5-min window)
-                                  ▼                         ▼
-                  ┌────────────────────────────────────────────────────────┐
-                  │             PROGRESSIVE WEB APPLICATION (PWA)          │
-                  │         React 19 • Vite • Tailwind CSS • Recharts      │
-                  │                                                        │
-                  │    [Live Telemetry]   [Per-Outlet Controls]            │
-                  │    [Energy Analytics] [3D Digital Twin Viewer]         │
-                  └────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                        VOLTSENSE EDGE FIRMWARE                         │
+│                    ESP32 Dual-Core • FreeRTOS Kernel                   │
+│                                                                        │
+│   ┌───────────────────────────┐      ┌─────────────────────────────┐   │
+│   │    Metrology Engine       │      │   Dual-Sensor Fusion (FSM)  │   │
+│   │ • 1,000 Hz Discrete ADC   │      │ • HC-SR501 Gross Motion     │   │
+│   │ • True RMS V & I Math     │◄────►│ • 24GHz mmWave Radar        │   │
+│   │ • Dynamic Zero Tracking   │      │ • 5-State Occupancy Logic   │   │
+│   │ • Real Power & kWh Calc   │      │ • 15-Min Vacancy Countdown  │   │
+│   └─────────────┬─────────────┘      └──────────────┬──────────────┘   │
+│                 │                                   │                  │
+│                 │ Inter-Core Queue (Local Cutoff)   │                  │
+│                 ▼                                   ▼                  │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │ Core 0 Networking & Telemetry Daemon                           │   │
+│   │ • Wi-Fi 802.11 b/g/n Auto-Reconnect Watchdog                   │   │
+│   │ • JSON Payload Serializer (2.0s streaming cycle)               │   │
+│   │ • RFC 8292 VAPID Pre-Cutoff Push Dispatcher                    │   │
+│   └───────────────────────────────┬────────────────────────────────┘   │
+└───────────────────────────────────┼────────────────────────────────────┘
+                                    │ 2.4GHz Wi-Fi (JSON over WSS)
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        GOOGLE FIREBASE CLOUD                           │
+│                                                                        │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │ Realtime Database (RTDB)                                       │   │
+│   │ • devices/{mac}/status      (V, A, W, kWh, relays, occupancy)  │   │
+│   │ • devices/{mac}/settings    (thresholds, night mode schedule)  │   │
+│   │ • devices/{mac}/history     (hourly/daily energy records)      │   │
+│   └───────────────▲────────────────────────────────┬───────────────┘   │
+│                   │                                │                   │
+│                   │ Push Trigger                   │ Push Token        │
+│                   ▼                                ▼                   │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │ Firebase Cloud Messaging (FCM) & VAPID Serverless Pipeline     │   │
+│   │ • RFC 8292 Signed Web Push Protocol                            │   │
+│   │ • Actionable Notification Payload ([Keep On] / [Turn Off])     │   │
+│   └────────────────────────────────────────────────┬───────────────┘   │
+└────────────────────────────────────────────────────┼───────────────────┘
+                                                     │ Background Push
+                                                     ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                 VOLTSENSE PROGRESSIVE WEB APP (PWA)                    │
+│            React 19 • Vite 8.2 • Tailwind CSS • Recharts               │
+│                                                                        │
+│   ┌─────────────────────┐  ┌─────────────────────┐  ┌──────────────┐   │
+│   │  Live Dashboard     │  │  Historical Charts  │  │   Test Lab   │   │
+│   │  • Real-time V,A,W  │  │  • Multi-Tier Range │  │  • Regression│   │
+│   │  • Occupancy Status │  │  • Proportional kWh │  │  • Latency   │   │
+│   │  • Relay Toggles    │  │  • Maroon Accents   │  │  • Waveforms │   │
+│   └─────────────────────┘  └─────────────────────┘  └──────────────┘   │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │ Workbox Service Worker (sw.js)                                 │   │
+│   │ • Offline Pre-caching • Push Action Handler • Background Sync  │   │
+│   └────────────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Dual-Core FreeRTOS Task Separation
@@ -222,52 +215,6 @@ The firmware utilizes both symmetric cores of the ESP32 microchip to avoid threa
 
 ---
 
-## 🔧 Hardware Specifications & Pinout
-
-### ESP32 DevKit V1 Pin Assignment
-
-| Peripheral | Component / Sensor | ESP32 GPIO | Electrical Signal / Protocol | Role |
-| :--- | :--- | :---: | :--- | :--- |
-| **Voltage Metrology** | ZMPT101B | **GPIO 33** | Analog (0–3.3V conditioned) | True RMS line voltage ($220\text{V AC}, 60\text{Hz}$) |
-| **Current Sensor #1** | ACS712-05B (Port 1) | **GPIO 34** | Analog ($185\,\text{mV/A}$, voltage divided) | Current draw for Port 1 (Electric Fan) |
-| **Current Sensor #2** | ACS712-05B (Port 2) | **GPIO 35** | Analog ($185\,\text{mV/A}$, voltage divided) | Current draw for Port 2 (Desk Lamp) |
-| **Current Sensor #3** | ACS712-05B (Port 3) | **GPIO 32** | Analog ($185\,\text{mV/A}$, voltage divided) | Current draw for Port 3 (Chargers) |
-| **PIR Motion Sensor** | HC-SR501 | **GPIO 22** | Digital Input ($3.3\text{V}$ Logic) | Gross motion detection ($120^\circ$, $7\text{m}$) |
-| **mmWave Radar** | HLK-LD2410C / SEN0395 | **GPIO 14** | Digital / UART2 ($3.3\text{V}$) | Micro-movement & stationary detection |
-| **Relay Channel 1** | Songle SRD-05VDC | **GPIO 23** | Active LOW Optocoupled Output | AC Live line cutoff for Outlet 1 |
-| **Relay Channel 2** | Songle SRD-05VDC | **GPIO 21** | Active LOW Optocoupled Output | AC Live line cutoff for Outlet 2 |
-| **Relay Channel 3** | Songle SRD-05VDC | **GPIO 19** | Active LOW Optocoupled Output | AC Live line cutoff for Outlet 3 |
-| **Relay Channel 4** | Songle SRD-05VDC | **GPIO 18** | Active LOW Optocoupled Output | Auxiliary / Spare expansion channel |
-| **Heartbeat LED** | 3mm Green LED | **GPIO 27** | $3.3\text{V}$ via $330\,\Omega$ series resistor | System alive & FreeRTOS scheduler tick |
-| **Wi-Fi Status LED** | 3mm Blue LED | **GPIO 25** | $3.3\text{V}$ via $330\,\Omega$ series resistor | Cloud sync & Wi-Fi connection indicator |
-| **Load Active LED** | 3mm Yellow LED | **GPIO 26** | $3.3\text{V}$ via $330\,\Omega$ series resistor | Illuminates when any relay channel is ON |
-
-### Power Supply & Passive Decoupling
-* **Isolated AC-DC Converter:** Hi-Link HLK-5M05 ($220\text{V AC} \to 5\text{V DC}, 5\text{W}, 1\text{A}$) mounted directly on the carrier PCB.
-* **Bulk Reservoir Capacitor:** $470\,\mu\text{F} / 16\text{V}$ low-ESR electrolytic capacitor across 5V rail to suppress ESP32 Wi-Fi burst current drops.
-* **Decoupling Network:** $100\,\text{nF}$ ceramic bypass capacitors across ESP32 VIN/GND and each analog transducer.
-* **Mains Input Protection:** 10D471K Metal Oxide Varistor (MOV) across Line and Neutral + $10\text{A}$ fast-blow glass fuse in IEC C14 drawer.
-
----
-
-## 🖨️ 3D Parametric CAD Enclosure
-
-* **CAD Source:** [`cad/voltsense_enclosure.scad`](file:///c:/Users/PC/Desktop/voltsense%20-%20Copy/cad/voltsense_enclosure.scad)
-* **Interactive 3D Viewer:** [`public/cad/enclosure_preview_3d.html`](file:///c:/Users/PC/Desktop/voltsense%20-%20Copy/public/cad/enclosure_preview_3d.html)
-* **Exterior Dimensions:** **$170.0\,\text{mm} \times 208.0\,\text{mm} \times 60.0\,\text{mm}$** ($63.5\,\text{mm}$ with snap-fit lid and non-skid rubber feet).
-* **Material:** Flame-Retardant PETG (Polyethylene Terephthalate Glycol) with high thermal resistance and self-extinguishing rating (UL94 V-0 compliant).
-
-### High-Voltage / Low-Voltage Isolation Barrier
-The enclosure is physically partitioned at $Y = 104.0\,\text{mm}$ by an integrated solid barrier wall ($2.5\,\text{mm}$ thick, $48.0\,\text{mm}$ high):
-1. **Front Low-Voltage Logic Chamber ($164 \times 98\,\text{mm}$):** Houses the $150 \times 90\,\text{mm}$ Universal Carrier PCB, ESP32, passive filters, and front-facing PIR and mmWave sensor windows.
-2. **Rear High-Voltage Chamber ($164 \times 101\,\text{mm}$):** Houses the 4-channel optocoupled relay board, ZMPT101B transformer, 3x ACS712 sensors, IEC C14 inlet socket, and KCD1 illuminated rocker switch.
-3. **Segregated Portals:**
-   - **Portal 1 ($X=40.0\,\text{mm}$):** Dedicated exclusively to low-voltage 5V/GND relay control lines.
-   - **Portal 2 ($X=88.0\,\text{mm}$):** Dedicated exclusively to low-voltage analog sensor return signals.
-   - **Portal 3 ($X=138.0\,\text{mm}$):** Dedicated exclusively to isolated 220V AC mains input feeding the HLK-5M05, separated by $32\,\text{mm}$ of solid barrier wall.
-
----
-
 ## 💻 Software Architecture & Metrology Deep Dive
 
 The VoltSense software ecosystem combines a high-performance **React 19 Progressive Web App (PWA)**, a real-time **Google Firebase Realtime Database (RTDB)** cloud synchronization layer, an **RFC 8292 VAPID Web Push Notification engine**, and an on-chip **Discrete True RMS Metrology Engine** running on the ESP32.
@@ -275,7 +222,7 @@ The VoltSense software ecosystem combines a high-performance **React 19 Progress
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                                 VOLTSENSE PWA CLIENT                                   │
-│  React 19 • Vite 8.2 • Tailwind CSS • Recharts • Three.js WebGL 3D Digital Twin        │
+│  React 19 • Vite 8.2 • Tailwind CSS • Recharts SVG Visualization                       │
 │                                                                                        │
 │   ┌────────────────────┐   ┌────────────────────┐   ┌──────────────────────────────┐   │
 │   │    useRoomData     │   │   useHistoryData   │   │       useDeviceContext       │   │
@@ -490,8 +437,6 @@ The built-in **Hardware Test Lab** provides an interactive diagnostic suite for 
 ### 1. Prerequisites
 - **Node.js:** v18.0.0 or higher
 - **npm:** v9.0.0 or higher
-- **Python:** 3.9+ (optional, for CAD compile scripts)
-- **OpenSCAD:** 2021.01+ (for 3D STL generation)
 - **Arduino IDE / VS Code + PlatformIO:** for ESP32 firmware flashing
 
 ### 2. Web Application Setup
@@ -539,47 +484,26 @@ npm run test:integration
 4. Compile and upload firmware.
 5. On initial boot, connect to Wi-Fi access point `VoltSense_Setup` on your phone to configure your local 2.4GHz Wi-Fi credentials via the captive portal.
 
-### 5. CAD 3D Enclosure Compilation
-
-```bash
-# Compile OpenSCAD source into 3D STL files for slicing
-python cad/compile_all_updated.py
-
-# Render 2D isometric preview PNGs
-python cad/render_fast_views.py
-```
-
 ---
 
 ## 📁 Project Directory Layout
 
 ```
 voltsense-iot/
-├── cad/                                # 3D Parametric Enclosure & CAD models
-│   ├── voltsense_enclosure.scad        # Master OpenSCAD parametric source
-│   ├── compile_all_updated.py          # Automated STL compilation script
-│   ├── render_fast_views.py            # High-speed OpenSCAD view renderer
-│   ├── render_assembly_iso.png         # Assembled enclosure render
-│   ├── render_main_exploded.png        # Exploded 3D view render
-│   └── ppt/                            # Academic presentation slides & assets
-├── docs/                               # Engineering documentation & specs
-│   ├── screenshots/                    # High-res UI & Digital Twin screenshots
-│   ├── diagrams/                       # Wiring diagrams & schematics (SVG/JPG)
-│   ├── cad_annotated/                  # Caliper-audited enclosure orthographic views
+├── docs/                               # Engineering documentation & data models
+│   ├── screenshots/                    # High-res authentic in-app screenshots
 │   ├── DATABASE_SCHEMA.md              # Firebase RTDB structure & data model
 │   ├── HARDWARE-BRINGUP.md             # Assembly & bench testing checklist
 │   └── PROJECT-RULES.md                # Quality gates & verification rules
 ├── esp32/                              # Edge Firmware source code
 │   └── VoltSense/
 │       ├── VoltSense.ino               # Master FreeRTOS firmware sketch
-│       ├── config.h                    # Pinouts, calibration constants, thresholds
+│       ├── config.h                    # Calibration constants, threshold definitions
 │       └── nvs_storage.h               # Non-volatile storage handler
 ├── public/                             # Public static assets & PWA files
 │   ├── logo.svg                        # Vector brand logo
 │   ├── pwa-512x512.png                 # PWA high-res icon
-│   ├── presentation.html               # 21-Slide standalone defense presentation
-│   └── cad/
-│       └── enclosure_preview_3d.html   # Three.js 3D Digital Twin Viewer
+│   └── presentation.html               # 21-Slide standalone defense presentation
 ├── src/                                # React 19 Frontend Web Application
 │   ├── components/                     # Reusable UI widgets & modals
 │   ├── contexts/                       # Device context & real-time telemetry providers
